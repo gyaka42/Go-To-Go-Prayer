@@ -27,7 +27,7 @@ import {
 } from "@/services/storage";
 import { PRAYER_NAMES, PrayerName, Settings, Timings } from "@/types/prayer";
 import { formatDateTime } from "@/utils/date";
-import { formatCountdown, getDateKey, getNextPrayer } from "@/utils/time";
+import { formatCountdown, getDateKey, getNextPrayer, getTomorrow, parsePrayerTimeForDate } from "@/utils/time";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
@@ -58,6 +58,7 @@ export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const isCompact = width <= 390;
   const [timings, setTimings] = useState<Timings | null>(null);
+  const [tomorrowTimings, setTomorrowTimings] = useState<Timings | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [countdown, setCountdown] = useState("00:00:00");
   const [nextPrayerName, setNextPrayerName] = useState<PrayerName>("Fajr");
@@ -71,14 +72,22 @@ export default function HomeScreen() {
   const [locationName, setLocationName] = useState(t("common.current_location"));
   const lastReplanSignatureRef = useRef<string>("");
 
-  const updateCountdown = useCallback((activeTimings: Timings) => {
+  const updateCountdown = useCallback((activeTimings: Timings, nextDayTimings: Timings | null) => {
     const now = new Date();
     const next = getNextPrayer(activeTimings, now);
 
     if (!next) {
-      setNextPrayerName("Fajr");
-      setNextPrayerTomorrow(true);
-      setCountdown("00:00:00");
+      if (nextDayTimings) {
+        const tomorrow = getTomorrow(now);
+        const tomorrowFajr = parsePrayerTimeForDate(tomorrow, nextDayTimings.times.Fajr);
+        setNextPrayerName("Fajr");
+        setNextPrayerTomorrow(true);
+        setCountdown(formatCountdown(tomorrowFajr.getTime() - now.getTime()));
+      } else {
+        setNextPrayerName("Fajr");
+        setNextPrayerTomorrow(true);
+        setCountdown("00:00:00");
+      }
       return;
     }
 
@@ -95,7 +104,9 @@ export default function HomeScreen() {
     setSettings(savedSettings);
 
     const today = new Date();
+    const tomorrow = getTomorrow(today);
     const dateKey = getDateKey(today);
+    const tomorrowKey = getDateKey(tomorrow);
 
     try {
       const location = await resolveLocationForSettings(savedSettings);
@@ -103,10 +114,20 @@ export default function HomeScreen() {
       setLocationName(location.label);
 
       const cacheKey = buildTimingsCacheKey(dateKey, location.lat, location.lon, savedSettings.methodId);
+      const tomorrowCacheKey = buildTimingsCacheKey(
+        tomorrowKey,
+        location.lat,
+        location.lon,
+        savedSettings.methodId
+      );
 
       try {
-        const fromApi = await getTimingsByCoordinates(today, location.lat, location.lon, savedSettings.methodId, 1);
+        const [fromApi, nextDayFromApi] = await Promise.all([
+          getTimingsByCoordinates(today, location.lat, location.lon, savedSettings.methodId, 1),
+          getTimingsByCoordinates(tomorrow, location.lat, location.lon, savedSettings.methodId, 1)
+        ]);
         setTimings(fromApi);
+        setTomorrowTimings(nextDayFromApi);
         setSource("api");
         const nowIso = new Date().toISOString();
         setLastUpdated(nowIso);
@@ -114,6 +135,14 @@ export default function HomeScreen() {
 
         await saveCachedTimings(cacheKey, {
           timings: fromApi,
+          lastUpdated: nowIso,
+          source: "api",
+          latRounded: Number(location.lat.toFixed(2)),
+          lonRounded: Number(location.lon.toFixed(2)),
+          methodId: savedSettings.methodId
+        });
+        await saveCachedTimings(tomorrowCacheKey, {
+          timings: nextDayFromApi,
           lastUpdated: nowIso,
           source: "api",
           latRounded: Number(location.lat.toFixed(2)),
@@ -146,6 +175,8 @@ export default function HomeScreen() {
         }
 
         setTimings(cached.timings);
+        const tomorrowCached = await getCachedTimings(tomorrowCacheKey);
+        setTomorrowTimings(tomorrowCached?.timings ?? null);
         setSource("cache");
         setLastUpdated(cached.lastUpdated);
         setStatusMessage(t("home.api_cache_fallback"));
@@ -156,6 +187,7 @@ export default function HomeScreen() {
       const latestCache = await getLatestCachedTimings();
       if (latestCache) {
         setTimings(latestCache.timings);
+        setTomorrowTimings(null);
         setSource("cache");
         setLastUpdated(latestCache.lastUpdated);
         setStatusMessage(t("home.location_cache_fallback"));
@@ -183,10 +215,10 @@ export default function HomeScreen() {
       return;
     }
 
-    updateCountdown(timings);
+    updateCountdown(timings, tomorrowTimings);
 
     const interval = setInterval(() => {
-      updateCountdown(timings);
+      updateCountdown(timings, tomorrowTimings);
 
       const nowKey = getDateKey(new Date());
       if (nowKey !== timings.dateKey) {
@@ -195,7 +227,7 @@ export default function HomeScreen() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [loadData, timings, updateCountdown]);
+  }, [loadData, timings, tomorrowTimings, updateCountdown]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -226,11 +258,14 @@ export default function HomeScreen() {
   }, [localeTag]);
 
   const nextPrayerTime = useMemo(() => {
-    if (!timings || nextPrayerTomorrow) {
+    if (!timings) {
       return "--:--";
     }
+    if (nextPrayerTomorrow) {
+      return tomorrowTimings?.times.Fajr ?? "--:--";
+    }
     return timings.times[nextPrayerName] ?? "--:--";
-  }, [nextPrayerName, nextPrayerTomorrow, timings]);
+  }, [nextPrayerName, nextPrayerTomorrow, timings, tomorrowTimings]);
 
   const nextPrayerLabel = useMemo(() => {
     if (nextPrayerTomorrow) {

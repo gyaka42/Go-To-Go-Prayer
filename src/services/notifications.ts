@@ -35,7 +35,7 @@ let lastAppliedSignature = "";
 let lastAppliedAt = 0;
 
 type ScheduledIntent = "offset" | "at_time";
-const ADHAN_SOUND_FILE = "majid_al_hamthany.mp3";
+const ADHAN_SOUND_FILE = "majid_al_hamthany.wav";
 
 export function resolveNotificationSound(
   playSound: boolean,

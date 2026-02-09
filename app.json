@@ -14,22 +14,28 @@
       [
         "expo-notifications",
         {
-          "sounds": [
-            "./assets/sounds/majid_al_hamthany.mp3"
-          ]
+          "sounds": ["./assets/sounds/majid_al_hamthany.wav"]
         }
       ]
     ],
     "ios": {
+      "buildNumber": "1",
       "supportsTablet": true,
-      "bundleIdentifier": "com.example.gotogoprayer",
+      "bundleIdentifier": "com.gogo22.gotogoprayer",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Je locatie wordt gebruikt om nauwkeurige gebedstijden te berekenen.",
-        "NSUserNotificationsUsageDescription": "Meldingen worden gebruikt om je op gebedstijden te attenderen."
+        "NSUserNotificationsUsageDescription": "Meldingen worden gebruikt om je op gebedstijden te attenderen.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "229fd9a3-2505-4801-9e23-a988563d72f1"
+      }
     }
   }
 }

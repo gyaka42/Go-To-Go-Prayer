@@ -389,6 +389,7 @@ export default function SettingsScreen() {
               </View>
               <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
             </Pressable>
+
           </View>
 
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t("settings.location_region")}</Text>
