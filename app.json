@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Go-To-Go Prayer",
+    "slug": "go-to-go-prayer",
+    "scheme": "gotogoprayer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-font"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.gotogoprayer",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Je locatie wordt gebruikt om nauwkeurige gebedstijden te berekenen.",
+        "NSUserNotificationsUsageDescription": "Meldingen worden gebruikt om je op gebedstijden te attenderen."
+      }
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
