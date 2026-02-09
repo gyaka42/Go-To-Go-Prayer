@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -8,12 +8,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View
+  View,
+  Vibration
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { AppBackground } from "@/components/AppBackground";
 import { QiblaCompass } from "@/components/QiblaCompass";
+import { useI18n } from "@/i18n/I18nProvider";
 import { getLocationName, resolveLocationForSettings } from "@/services/location";
 import { getQiblaCompassImageUrl, getQiblaDirection } from "@/services/qibla";
 import {
@@ -39,11 +41,12 @@ function shortestDiff(a: number, b: number): number {
 
 export default function QiblaScreen() {
   const { colors, resolvedTheme } = useAppTheme();
+  const { t } = useI18n();
   const isLight = resolvedTheme === "light";
   const [bearing, setBearing] = useState<number | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
-  const [locationName, setLocationName] = useState("Unknown location");
-  const [statusText, setStatusText] = useState("GPS Connected");
+  const [locationName, setLocationName] = useState(t("common.current_location"));
+  const [statusText, setStatusText] = useState(t("qibla.gps_connected"));
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isCached, setIsCached] = useState(false);
@@ -54,6 +57,9 @@ export default function QiblaScreen() {
 
   const previousHeadingRef = useRef<number | undefined>(undefined);
   const deltaHistoryRef = useRef<number[]>([]);
+  const alignmentArmedRef = useRef(true);
+  const lastVibrationAtRef = useRef(0);
+  const secondPulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async () => {
     setLoadState("loading");
@@ -67,7 +73,7 @@ export default function QiblaScreen() {
       const resolvedName = await getLocationName(loc.lat, loc.lon);
       const displayName = resolvedName === "Unknown location" ? loc.label : resolvedName;
       setLocationName(displayName);
-      setStatusText(settings.locationMode === "manual" ? "Manual location active" : "GPS Connected");
+      setStatusText(settings.locationMode === "manual" ? t("qibla.manual_active") : t("qibla.gps_connected"));
 
       const cacheKey = buildQiblaCacheKey(loc.lat, loc.lon);
 
@@ -99,22 +105,22 @@ export default function QiblaScreen() {
       const latest = await getLatestCachedQibla();
       if (latest) {
         setBearing(latest.bearing);
-        setLocationName(latest.locationName || "Cached location");
-        setStatusText("Location Permission Needed");
+        setLocationName(latest.locationName || t("qibla.cached_location"));
+        setStatusText(t("qibla.permission_needed"));
         setIsCached(true);
-        setErrorText("Showing last cached Qibla. Enable location and refresh for live direction.");
+        setErrorText(t("qibla.cached_message"));
         setLoadState("ready");
       } else {
         setLoadState("error");
-        setStatusText("Location Permission Needed");
+        setStatusText(t("qibla.permission_needed"));
         setErrorText(
           String(error).includes("permission")
-            ? "Location access is required to determine Qibla from your position."
-            : `Unable to load Qibla right now: ${String(error)}`
+            ? t("qibla.permission_error")
+            : t("qibla.load_error", { error: String(error) })
         );
       }
     }
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -206,13 +212,52 @@ export default function QiblaScreen() {
     return getQiblaCompassImageUrl(coords.lat, coords.lon, 512);
   }, [coords]);
 
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (secondPulseTimerRef.current) {
+          clearTimeout(secondPulseTimerRef.current);
+          secondPulseTimerRef.current = null;
+        }
+      };
+    }, [])
+  );
+
+  useEffect(() => {
+    if (mode !== "live" || typeof bearing !== "number" || typeof deviceHeading !== "number") {
+      alignmentArmedRef.current = true;
+      return;
+    }
+
+    const diff = shortestDiff(deviceHeading, bearing);
+    const now = Date.now();
+
+    const withinTrigger = diff <= 2.5;
+    const movedAway = diff >= 7;
+    const cooldownPassed = now - lastVibrationAtRef.current > 2200;
+
+    if (withinTrigger && alignmentArmedRef.current && cooldownPassed) {
+      alignmentArmedRef.current = false;
+      lastVibrationAtRef.current = now;
+      Vibration.vibrate(45);
+      secondPulseTimerRef.current = setTimeout(() => {
+        Vibration.vibrate(45);
+      }, 120);
+      return;
+    }
+
+    if (movedAway) {
+      alignmentArmedRef.current = true;
+    }
+  }, [bearing, deviceHeading, mode]);
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <AppBackground />
         <View style={styles.headerRow}>
           <View>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>Qibla</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{t("qibla.title")}</Text>
             <Text style={[styles.locationText, { color: colors.textSecondary }]}>{locationName}</Text>
             <Text style={styles.statusText}>{statusText}</Text>
           </View>
@@ -227,7 +272,11 @@ export default function QiblaScreen() {
           </Pressable>
         </View>
 
-        {bearing !== null ? <Text style={[styles.qiblaText, { color: colors.accent }]}>Qibla: {Math.round(bearing)}deg</Text> : null}
+        {bearing !== null ? (
+          <Text style={[styles.qiblaText, { color: colors.accent }]}>
+            {t("qibla.bearing", { deg: Math.round(bearing) })}
+          </Text>
+        ) : null}
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {loadState === "loading" ? (
@@ -246,11 +295,11 @@ export default function QiblaScreen() {
               ]}
             >
               <Text style={[styles.errorTitle, isLight ? { color: "#B13D57" } : null]}>
-                Location Permission Needed
+                {t("qibla.permission_needed")}
               </Text>
               <Text style={[styles.errorText, isLight ? { color: "#8D4153" } : null]}>{errorText}</Text>
               <Pressable style={styles.retryButton} onPress={() => void refresh()}>
-                <Text style={styles.retryButtonText}>Request Again</Text>
+                <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
               </Pressable>
             </View>
           ) : null}
@@ -277,13 +326,13 @@ export default function QiblaScreen() {
                 ]}
               >
                 <Text style={[styles.badgeText, isLight ? { color: "#274462" } : null]}>
-                  {mode === "live" ? "Live compass: ON" : "Live compass: OFF (fallback)"}
+                  {mode === "live" ? t("qibla.live_on") : t("qibla.live_off")}
                 </Text>
               </View>
 
               {isCached ? (
                 <Text style={[styles.cachedText, isLight ? { color: "#5B718A" } : null]}>
-                  Using cached Qibla data
+                  {t("qibla.using_cache")}
                 </Text>
               ) : null}
               {isCached && errorText ? (
@@ -300,7 +349,7 @@ export default function QiblaScreen() {
                   ]}
                 >
                   <Text style={[styles.fallbackTitle, isLight ? { color: "#345677" } : null]}>
-                    Fallback Compass Image
+                    {t("qibla.fallback_image")}
                   </Text>
                   <Image source={{ uri: fallbackImageUrl }} style={styles.fallbackImage} resizeMode="contain" />
                 </View>
@@ -314,15 +363,15 @@ export default function QiblaScreen() {
                     : null
                 ]}
               >
-                <Text style={[styles.hintsTitle, isLight ? { color: "#1D3D5C" } : null]}>Tips</Text>
+                <Text style={[styles.hintsTitle, isLight ? { color: "#1D3D5C" } : null]}>{t("qibla.tips")}</Text>
                 <Text style={[styles.hintItem, isLight ? { color: "#345677" } : null]}>
-                  1. Hold your phone flat (screen up) for best accuracy.
+                  {t("qibla.tip1")}
                 </Text>
                 <Text style={[styles.hintItem, isLight ? { color: "#345677" } : null]}>
-                  2. If direction seems off, calibrate by moving the phone in a figure-8.
+                  {t("qibla.tip2")}
                 </Text>
                 <Text style={[styles.hintItem, isLight ? { color: "#345677" } : null]}>
-                  3. Avoid magnets/metal cases near the phone.
+                  {t("qibla.tip3")}
                 </Text>
               </View>
             </View>

@@ -23,6 +23,7 @@ import {
   searchCitySuggestions
 } from "@/services/location";
 import { AppBackground } from "@/components/AppBackground";
+import { LanguageMode, useI18n } from "@/i18n/I18nProvider";
 import { replanAll } from "@/services/notifications";
 import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
@@ -39,11 +40,12 @@ function nextMinutes(current: 0 | 5 | 10 | 15 | 30): 0 | 5 | 10 | 15 | 30 {
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { colors, mode, setMode, resolvedTheme } = useAppTheme();
+  const { colors, mode: themeMode, setMode: setThemeMode, resolvedTheme } = useAppTheme();
+  const { t, prayerName, mode: languageMode, setMode: setLanguageMode } = useI18n();
   const isLight = resolvedTheme === "light";
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
-  const [locationStatus, setLocationStatus] = useState("Current Location");
+  const [locationStatus, setLocationStatus] = useState(t("common.current_location"));
   const [manualCityQuery, setManualCityQuery] = useState("");
   const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -165,11 +167,11 @@ export default function SettingsScreen() {
         settings: updated
       });
     } catch (error) {
-      Alert.alert("Location", String(error));
+      Alert.alert(t("settings.location_title"), String(error));
     } finally {
       setSaving(false);
     }
-  }, [settings]);
+  }, [settings, t]);
 
   const applyManualCity = useCallback(async () => {
     if (!settings) {
@@ -206,13 +208,16 @@ export default function SettingsScreen() {
         settings: updated
       });
 
-      Alert.alert("Manual location set", `${manual.label} is now used for prayer times.`);
+      Alert.alert(
+        t("settings.manual_set_title"),
+        t("settings.manual_set_body", { label: manual.label })
+      );
     } catch (error) {
-      Alert.alert("Manual city", String(error));
+      Alert.alert(t("settings.manual_city_title"), String(error));
     } finally {
       setSaving(false);
     }
-  }, [manualCityQuery, settings]);
+  }, [manualCityQuery, settings, selectedSuggestion, t]);
 
   const persistAndReplan = useCallback(async () => {
     if (!settings) {
@@ -233,21 +238,24 @@ export default function SettingsScreen() {
         settings
       });
 
-      Alert.alert("Saved", "Settings saved and notifications replanned.");
+      Alert.alert(t("common.saved"), t("settings.saved_body"));
     } catch (error) {
-      Alert.alert("Warning", `Saved settings, but notification replan failed: ${String(error)}`);
+      Alert.alert(
+        t("common.warning"),
+        t("settings.replan_failed", { error: String(error) })
+      );
     } finally {
       setSaving(false);
     }
-  }, [settings]);
+  }, [settings, t]);
 
   if (!settings) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <View style={styles.container}>
           <AppBackground />
-          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>App Settings</Text>
-          <Text style={[styles.mutedText, { color: colors.textSecondary }]}>Loading...</Text>
+          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>{t("settings.title")}</Text>
+          <Text style={[styles.mutedText, { color: colors.textSecondary }]}>{t("common.loading")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -258,16 +266,28 @@ export default function SettingsScreen() {
       <View style={styles.container}>
         <AppBackground />
         <View style={styles.headerRow}>
-          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>App Settings</Text>
+          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>{t("settings.title")}</Text>
           <Ionicons name="help-circle-outline" size={22} color={isLight ? "#617990" : "#B7C7DD"} />
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>APPEARANCE</Text>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t("settings.appearance")}</Text>
+
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={[styles.settingRowWithBorder, { borderBottomColor: colors.cardBorder }]}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconBox, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
+                  <Ionicons name="color-palette" size={20} color="#2B8CEE" />
+                </View>
+                <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>
+                  {t("settings.appearance")}
+                </Text>
+              </View>
+            </View>
+
             <View style={styles.themeModeRow}>
               {(["system", "dark", "light"] as ThemeMode[]).map((option) => {
-                const selected = mode === option;
+                const selected = themeMode === option;
                 return (
                   <Pressable
                     key={option}
@@ -276,10 +296,14 @@ export default function SettingsScreen() {
                       { borderColor: colors.cardBorder },
                       selected && { backgroundColor: colors.accent, borderColor: colors.accent }
                     ]}
-                    onPress={() => void setMode(option)}
+                    onPress={() => void setThemeMode(option)}
                   >
                     <Text style={[styles.themeModeButtonText, { color: selected ? "#F2F8FF" : colors.textPrimary }]}>
-                      {option === "system" ? "System" : option === "dark" ? "Dark" : "Light"}
+                      {option === "system"
+                        ? t("settings.system")
+                        : option === "dark"
+                          ? t("settings.dark")
+                          : t("settings.light")}
                     </Text>
                   </Pressable>
                 );
@@ -287,7 +311,50 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>CALCULATION</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={[styles.settingRowWithBorder, { borderBottomColor: colors.cardBorder }]}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconBox, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
+                  <Ionicons name="language" size={20} color="#2B8CEE" />
+                </View>
+                <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>
+                  {t("settings.language")}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.languageModeRow}>
+              {(["system", "nl", "en", "tr"] as LanguageMode[]).map((option) => {
+                const selected = languageMode === option;
+                const label =
+                  option === "system"
+                    ? t("settings.lang_system")
+                    : option === "nl"
+                      ? t("settings.lang_nl")
+                      : option === "en"
+                        ? t("settings.lang_en")
+                        : t("settings.lang_tr");
+                return (
+                  <Pressable
+                    key={option}
+                    style={[
+                      styles.themeModeButton,
+                      styles.languageModeButton,
+                      { borderColor: colors.cardBorder },
+                      selected && { backgroundColor: colors.accent, borderColor: colors.accent }
+                    ]}
+                    onPress={() => void setLanguageMode(option)}
+                  >
+                    <Text style={[styles.themeModeButtonText, { color: selected ? "#F2F8FF" : colors.textPrimary }]}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t("settings.calculation")}</Text>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <View style={[styles.settingRowWithBorder, { borderBottomColor: colors.cardBorder }]}>
               <View style={styles.settingLeft}>
@@ -295,9 +362,11 @@ export default function SettingsScreen() {
                   <Ionicons name="book" size={20} color="#2B8CEE" />
                 </View>
                 <View>
-                  <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>Hanafi Only</Text>
+                  <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>
+                    {t("settings.hanafi_only")}
+                  </Text>
                   <Text style={[styles.settingSub, isLight ? { color: "#4E647C" } : null]}>
-                    Asr method (fixed)
+                    {t("settings.asr_fixed")}
                   </Text>
                 </View>
               </View>
@@ -311,7 +380,7 @@ export default function SettingsScreen() {
                 </View>
                 <View>
                   <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>
-                    Calculation Method
+                    {t("settings.calculation_method")}
                   </Text>
                   <Text style={[styles.settingSub, isLight ? { color: "#4E647C" } : null]}>
                     {settings.methodName}
@@ -322,7 +391,7 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
 
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>LOCATION & REGION</Text>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t("settings.location_region")}</Text>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <View style={styles.locationRow}>
               <View style={[styles.locationIconWrap, isLight ? { backgroundColor: "#DFF5EA" } : null]}>
@@ -330,10 +399,13 @@ export default function SettingsScreen() {
               </View>
 
               <View style={styles.locationCenter}>
-                <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>GPS Connected</Text>
+                <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>
+                  {t("settings.gps_connected")}
+                </Text>
                 <Text style={[styles.settingSub, isLight ? { color: "#4E647C" } : null]}>{locationStatus}</Text>
                 <Text style={[styles.locationModeText, isLight ? { color: "#607890" } : null]}>
-                  Mode: {settings.locationMode === "manual" ? "Manual city" : "GPS"}
+                  {t("settings.mode")}:{" "}
+                  {settings.locationMode === "manual" ? t("settings.mode_manual") : t("settings.mode_gps")}
                 </Text>
               </View>
 
@@ -341,7 +413,7 @@ export default function SettingsScreen() {
                 style={[styles.refreshChip, isLight ? { backgroundColor: "#E4EFFB" } : null]}
                 onPress={() => void refreshLocationAndReplan()}
               >
-                <Text style={styles.refreshChipText}>REFRESH</Text>
+                <Text style={styles.refreshChipText}>{t("common.refresh").toUpperCase()}</Text>
               </Pressable>
             </View>
             <View style={[styles.manualWrap, { borderTopColor: colors.cardBorder }]}>
@@ -356,12 +428,12 @@ export default function SettingsScreen() {
                 onChangeText={(value) => {
                   setManualCityQuery(value);
                 }}
-                placeholder="Manual fallback: Select city..."
+                placeholder={t("settings.manual_placeholder")}
                 placeholderTextColor={isLight ? "#607890" : "#6F849D"}
                 autoCapitalize="words"
               />
               <Pressable style={styles.manualButton} onPress={() => void applyManualCity()} disabled={saving}>
-                <Text style={styles.manualButtonText}>Use City</Text>
+                <Text style={styles.manualButtonText}>{t("settings.use_city")}</Text>
               </Pressable>
             </View>
             {loadingSuggestions ? (
@@ -393,8 +465,10 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.notificationHeader}>
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>NOTIFICATIONS</Text>
-            <Text style={[styles.minutesBeforeLabel, isLight ? { color: "#607890" } : null]}>MINUTES BEFORE</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t("settings.notifications")}</Text>
+            <Text style={[styles.minutesBeforeLabel, isLight ? { color: "#607890" } : null]}>
+              {t("settings.minutes_before")}
+            </Text>
           </View>
 
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -411,11 +485,13 @@ export default function SettingsScreen() {
                     hasBorder ? { borderBottomColor: colors.cardBorder } : null
                   ]}
                 >
-                  <Text style={[styles.notificationPrayer, isLight ? { color: "#1A2E45" } : null]}>{prayer}</Text>
+                  <Text style={[styles.notificationPrayer, isLight ? { color: "#1A2E45" } : null]}>
+                    {prayerName(prayer)}
+                  </Text>
 
                   <View style={styles.notificationRight}>
                     <Pressable onPress={() => cyclePrayerMinutes(prayer)}>
-                      <Text style={styles.minutesText}>{entry.minutesBefore} mins</Text>
+                      <Text style={styles.minutesText}>{t("settings.mins_before", { mins: entry.minutesBefore })}</Text>
                     </Pressable>
                     <Switch value={entry.enabled} onValueChange={(value) => togglePrayer(prayer, value)} />
                   </View>
@@ -425,7 +501,7 @@ export default function SettingsScreen() {
           </View>
 
           <Pressable style={[styles.saveButton, { backgroundColor: colors.accent }]} onPress={() => void persistAndReplan()} disabled={saving}>
-            <Text style={styles.saveButtonText}>{saving ? "Saving..." : "Save Settings"}</Text>
+            <Text style={styles.saveButtonText}>{saving ? t("settings.saving") : t("settings.save_settings")}</Text>
           </Pressable>
         </ScrollView>
       </View>
@@ -473,6 +549,12 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 14
   },
+  languageModeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    padding: 14
+  },
   themeModeButton: {
     flex: 1,
     minHeight: 40,
@@ -480,6 +562,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center"
+  },
+  languageModeButton: {
+    flexBasis: "48%"
   },
   themeModeButtonText: {
     fontWeight: "700",

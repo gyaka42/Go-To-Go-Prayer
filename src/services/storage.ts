@@ -14,10 +14,10 @@ function createDefaultSettings(): Settings {
     locationMode: "gps",
     prayerNotifications: PRAYER_NAMES.reduce((acc, prayer) => {
       acc[prayer] = {
-        enabled: true,
+        enabled: prayer !== "Sunrise",
         minutesBefore: 0,
         playSound: true,
-        tone: "Adhan - Makkah (Normal)",
+        tone: "Adhan",
         volume: 75,
         vibration: true
       };
@@ -84,11 +84,13 @@ export async function getSettings(): Promise<Settings> {
               ? value.playSound
               : defaults.prayerNotifications[prayer].playSound,
           tone:
-            value?.tone === "Adhan - Makkah (Normal)" ||
-            value?.tone === "Adhan - Madinah (Soft)" ||
             value?.tone === "Beep"
-              ? value.tone
-              : defaults.prayerNotifications[prayer].tone,
+              ? "Beep"
+              : value?.tone === "Adhan" ||
+                  value?.tone === "Adhan - Makkah (Normal)" ||
+                  value?.tone === "Adhan - Madinah (Soft)"
+                ? "Adhan"
+                : defaults.prayerNotifications[prayer].tone,
           volume:
             typeof value?.volume === "number" && value.volume >= 0 && value.volume <= 100
               ? value.volume

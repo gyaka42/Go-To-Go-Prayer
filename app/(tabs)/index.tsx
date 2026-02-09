@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppBackground } from "@/components/AppBackground";
+import { useI18n } from "@/i18n/I18nProvider";
 import { getTimingsByCoordinates } from "@/services/aladhan";
 import { resolveLocationForSettings } from "@/services/location";
 import { replanAll } from "@/services/notifications";
@@ -53,19 +54,21 @@ function prayerIcon(prayer: PrayerName): keyof typeof MaterialCommunityIcons.gly
 export default function HomeScreen() {
   const router = useRouter();
   const { colors, resolvedTheme } = useAppTheme();
+  const { t, prayerName, localeTag } = useI18n();
   const { width } = useWindowDimensions();
   const isCompact = width <= 390;
   const [timings, setTimings] = useState<Timings | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [countdown, setCountdown] = useState("00:00:00");
-  const [nextPrayerName, setNextPrayerName] = useState<string>("-");
+  const [nextPrayerName, setNextPrayerName] = useState<PrayerName>("Fajr");
+  const [nextPrayerTomorrow, setNextPrayerTomorrow] = useState(false);
   const [source, setSource] = useState<"api" | "cache" | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string>("Locatie ophalen...");
+  const [statusMessage, setStatusMessage] = useState<string>("");
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [refreshing, setRefreshing] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
-  const [locationName, setLocationName] = useState("Current Location");
+  const [locationName, setLocationName] = useState(t("common.current_location"));
   const lastReplanSignatureRef = useRef<string>("");
 
   const updateCountdown = useCallback((activeTimings: Timings) => {
@@ -73,18 +76,20 @@ export default function HomeScreen() {
     const next = getNextPrayer(activeTimings, now);
 
     if (!next) {
-      setNextPrayerName("Fajr (morgen)");
+      setNextPrayerName("Fajr");
+      setNextPrayerTomorrow(true);
       setCountdown("00:00:00");
       return;
     }
 
+    setNextPrayerTomorrow(false);
     setNextPrayerName(next.prayer);
     setCountdown(formatCountdown(next.time.getTime() - now.getTime()));
   }, []);
 
   const loadData = useCallback(async () => {
     setLoadState("loading");
-    setStatusMessage("Gebedstijden ophalen...");
+    setStatusMessage(t("home.fetching_prayers"));
 
     const savedSettings = await getSettings();
     setSettings(savedSettings);
@@ -105,7 +110,7 @@ export default function HomeScreen() {
         setSource("api");
         const nowIso = new Date().toISOString();
         setLastUpdated(nowIso);
-        setStatusMessage("Live data geladen.");
+        setStatusMessage(t("home.live_loaded"));
 
         await saveCachedTimings(cacheKey, {
           timings: fromApi,
@@ -143,7 +148,7 @@ export default function HomeScreen() {
         setTimings(cached.timings);
         setSource("cache");
         setLastUpdated(cached.lastUpdated);
-        setStatusMessage("API niet bereikbaar, cache gebruikt.");
+        setStatusMessage(t("home.api_cache_fallback"));
       }
 
       setLoadState("ready");
@@ -153,15 +158,15 @@ export default function HomeScreen() {
         setTimings(latestCache.timings);
         setSource("cache");
         setLastUpdated(latestCache.lastUpdated);
-        setStatusMessage("Locatie niet beschikbaar, laatste cache getoond.");
+        setStatusMessage(t("home.location_cache_fallback"));
         setLoadState("ready");
         return;
       }
 
-      setStatusMessage("Geen locatie- of cached data beschikbaar. Geef locatietoestemming in Settings.");
+      setStatusMessage(t("home.no_data_permission"));
       setLoadState("error");
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadData();
@@ -207,26 +212,42 @@ export default function HomeScreen() {
 
   const locationParts = useMemo(() => {
     const [cityRaw, countryRaw] = locationLabel.split(",");
-    const city = (cityRaw ?? "Current Location").trim();
+    const city = (cityRaw ?? t("common.current_location")).trim();
     const country = (countryRaw ?? "").trim();
     return { city, country };
-  }, [locationLabel]);
+  }, [locationLabel, t]);
 
   const todaysDateLabel = useMemo(() => {
-    return new Date().toLocaleDateString(undefined, {
+    return new Date().toLocaleDateString(localeTag, {
       weekday: "long",
       day: "numeric",
       month: "short"
     });
-  }, []);
+  }, [localeTag]);
 
   const nextPrayerTime = useMemo(() => {
-    if (!timings || !nextPrayerName || !PRAYER_NAMES.includes(nextPrayerName as PrayerName)) {
+    if (!timings || nextPrayerTomorrow) {
       return "--:--";
     }
+    return timings.times[nextPrayerName] ?? "--:--";
+  }, [nextPrayerName, nextPrayerTomorrow, timings]);
 
-    return timings.times[nextPrayerName as PrayerName] ?? "--:--";
-  }, [nextPrayerName, timings]);
+  const nextPrayerLabel = useMemo(() => {
+    if (nextPrayerTomorrow) {
+      return t("home.tomorrow_fajr");
+    }
+    return prayerName(nextPrayerName);
+  }, [nextPrayerName, nextPrayerTomorrow, prayerName, t]);
+
+  const sourceLabel = useMemo(() => {
+    if (source === "api") {
+      return t("home.source_api");
+    }
+    if (source === "cache") {
+      return t("home.source_cache");
+    }
+    return t("home.source_unknown");
+  }, [source, t]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -256,7 +277,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={[styles.heroCard, isCompact && styles.heroCardCompact]}>
-          <Text style={styles.heroLabel}>NEXT PRAYER</Text>
+          <Text style={styles.heroLabel}>{t("home.next_prayer")}</Text>
           <View style={styles.heroMainRow}>
             <Text
               style={[styles.heroPrayer, isCompact && styles.heroPrayerCompact]}
@@ -264,14 +285,16 @@ export default function HomeScreen() {
               adjustsFontSizeToFit
               minimumFontScale={0.55}
             >
-              {nextPrayerName}
+              {nextPrayerLabel}
             </Text>
-            <Text style={[styles.heroCountdown, isCompact && styles.heroCountdownCompact]}>in {countdown}</Text>
+            <Text style={[styles.heroCountdown, isCompact && styles.heroCountdownCompact]}>
+              {t("home.in", { time: countdown })}
+            </Text>
           </View>
 
           <View style={[styles.heroBottomRow, isCompact && styles.heroBottomRowCompact]}>
             <View style={styles.heroScheduleBlock}>
-              <Text style={styles.heroScheduledLabel}>Scheduled Time</Text>
+              <Text style={styles.heroScheduledLabel}>{t("home.scheduled_time")}</Text>
               <Text style={styles.heroTime}>{nextPrayerTime}</Text>
             </View>
 
@@ -281,15 +304,18 @@ export default function HomeScreen() {
             >
               <Ionicons name="notifications-outline" size={18} color="#1F7FE1" />
               <Text style={[styles.reminderButtonText, isCompact && styles.reminderButtonTextCompact]} numberOfLines={1}>
-                Set Reminder
+                {t("home.set_reminder")}
               </Text>
             </Pressable>
           </View>
         </View>
 
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>TODAY'S SCHEDULE</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("home.todays_schedule")}</Text>
         <Text style={[styles.metaLine, { color: colors.textSecondary }]}>
-          Source: {source ?? "-"} | Updated: {lastUpdated ? formatDateTime(lastUpdated) : "-"}
+          {t("home.source_updated", {
+            source: sourceLabel,
+            updated: lastUpdated ? formatDateTime(lastUpdated, localeTag) : t("home.source_unknown")
+          })}
         </Text>
 
         {loadState === "loading" && !timings ? (
@@ -338,10 +364,12 @@ export default function HomeScreen() {
                     </View>
 
                     <View>
-                      <Text style={[styles.rowPrayer, { color: rowTextColor }, isNext && styles.rowPrayerNext]}>{item}</Text>
-                      {isNext ? <Text style={styles.comingUpText}>COMING UP</Text> : null}
-                    </View>
+                    <Text style={[styles.rowPrayer, { color: rowTextColor }, isNext && styles.rowPrayerNext]}>
+                      {prayerName(item)}
+                    </Text>
+                    {isNext ? <Text style={styles.comingUpText}>{t("home.coming_up")}</Text> : null}
                   </View>
+                </View>
 
                   <View style={styles.rowRight}>
                     <Text style={[styles.rowTime, { color: rowTimeColor }, isNext && styles.rowTimeNext]}>

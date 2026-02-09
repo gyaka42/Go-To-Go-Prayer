@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { useAppTheme } from "@/theme/ThemeProvider";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export default function TabsLayout() {
   const { colors } = useAppTheme();
+  const { t } = useI18n();
   return (
     <Tabs
       screenOptions={({ route }) => ({
@@ -37,25 +39,25 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home"
+          title: t("tabs.home")
         }}
       />
       <Tabs.Screen
         name="qibla"
         options={{
-          title: "Qibla"
+          title: t("tabs.qibla")
         }}
       />
       <Tabs.Screen
         name="alerts"
         options={{
-          title: "Alerts"
+          title: t("tabs.alerts")
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Settings"
+          title: t("tabs.settings")
         }}
       />
     </Tabs>

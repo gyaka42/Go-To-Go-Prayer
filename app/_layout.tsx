@@ -2,6 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import { Stack } from "expo-router";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { useAppTheme } from "@/theme/ThemeProvider";
+import { I18nProvider } from "@/i18n/I18nProvider";
 
 function RootNavigation() {
   const { resolvedTheme } = useAppTheme();
@@ -13,6 +14,7 @@ function RootNavigation() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="alert/[prayer]" options={{ headerShown: false }} />
         <Stack.Screen name="methods" options={{ headerShown: false }} />
+        <Stack.Screen name="tones" options={{ headerShown: false }} />
       </Stack>
     </>
   );
@@ -21,7 +23,9 @@ function RootNavigation() {
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <RootNavigation />
+      <I18nProvider>
+        <RootNavigation />
+      </I18nProvider>
     </ThemeProvider>
   );
 }

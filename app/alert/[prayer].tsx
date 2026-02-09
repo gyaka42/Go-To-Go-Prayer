@@ -1,6 +1,7 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -8,27 +9,24 @@ import {
   StyleSheet,
   Switch,
   Text,
-  View
+  View,
+  Vibration
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Notifications from "expo-notifications";
 import { AppBackground } from "@/components/AppBackground";
+import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
-import { registerForLocalNotifications, replanAll } from "@/services/notifications";
+import { registerForLocalNotifications, replanAll, resolveNotificationSound } from "@/services/notifications";
 import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
 
 const MINUTES_OPTIONS: Array<0 | 5 | 10 | 15 | 30> = [0, 5, 10, 15, 30];
-const TONES: Array<"Adhan - Makkah (Normal)" | "Adhan - Madinah (Soft)" | "Beep"> = [
-  "Adhan - Makkah (Normal)",
-  "Adhan - Madinah (Soft)",
-  "Beep"
-];
-
 export default function PrayerAlertPreferencesScreen() {
   const router = useRouter();
   const { colors, resolvedTheme } = useAppTheme();
+  const { t, prayerName } = useI18n();
   const isLight = resolvedTheme === "light";
   const params = useLocalSearchParams<{ prayer?: string }>();
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -43,12 +41,16 @@ export default function PrayerAlertPreferencesScreen() {
     return PRAYER_NAMES.includes(value as PrayerName) ? (value as PrayerName) : null;
   }, [params.prayer]);
 
-  useEffect(() => {
-    void (async () => {
-      const saved = await getSettings();
-      setSettings(saved);
-    })();
+  const load = useCallback(async () => {
+    const saved = await getSettings();
+    setSettings(saved);
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
 
   const updatePrayerSettings = (patch: Partial<Settings["prayerNotifications"][PrayerName]>) => {
     if (!prayer) {
@@ -78,13 +80,15 @@ export default function PrayerAlertPreferencesScreen() {
       <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <View style={styles.container}>
           <AppBackground />
-          <Text style={[styles.title, { color: colors.textPrimary }]}>Prayer not found</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{t("alert.not_found")}</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   const entry = settings?.prayerNotifications[prayer];
+  const prayerLabel = prayerName(prayer);
+  const minutesBeforeValue = entry?.minutesBefore ?? 0;
 
   const onSave = async () => {
     if (!settings) {
@@ -120,17 +124,26 @@ export default function PrayerAlertPreferencesScreen() {
 
     const granted = await registerForLocalNotifications();
     if (!granted) {
-      Alert.alert("Notifications", "Notification permission is required.");
+      Alert.alert(t("alert.notifications_title"), t("alert.notifications_permission"));
       return;
+    }
+
+    if (entry.vibration) {
+      Vibration.vibrate(45);
+      setTimeout(() => Vibration.vibrate(45), 120);
     }
 
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: "Prayer time",
+        title: t("notifications.title"),
         body:
           entry.minutesBefore === 0
-            ? `It's time for ${prayer}.`
-            : `${prayer} in ${entry.minutesBefore} minutes.`
+            ? t("notifications.body_at_time", { prayer: prayerLabel })
+            : t("notifications.body_offset", { prayer: prayerLabel, mins: entry.minutesBefore }),
+        data: {
+          playSound: entry.playSound
+        },
+        sound: resolveNotificationSound(entry.playSound, entry.tone)
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
@@ -139,7 +152,10 @@ export default function PrayerAlertPreferencesScreen() {
       }
     });
 
-    Alert.alert("Test sent", "You should receive a local notification in a few seconds.");
+    Alert.alert(
+      t("alert.test_sent_title"),
+      t("alert.test_sent_body")
+    );
   };
 
   const onResetToDefault = () => {
@@ -147,20 +163,10 @@ export default function PrayerAlertPreferencesScreen() {
       enabled: true,
       minutesBefore: 0,
       playSound: true,
-      tone: "Adhan - Makkah (Normal)",
+      tone: "Adhan",
       volume: 75,
       vibration: true
     });
-  };
-
-  const cycleTone = () => {
-    if (!entry) {
-      return;
-    }
-
-    const index = TONES.indexOf(entry.tone);
-    const next = TONES[(index + 1) % TONES.length];
-    updatePrayerSettings({ tone: next });
   };
 
   return (
@@ -172,11 +178,13 @@ export default function PrayerAlertPreferencesScreen() {
             <Pressable onPress={() => router.back()} style={styles.headerIconButton}>
               <Ionicons name="chevron-back" size={24} color={isLight ? "#1E3D5C" : "#EAF2FF"} />
             </Pressable>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>{prayer} Notifications</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>
+              {t("alert.title", { prayer: prayerLabel })}
+            </Text>
           </View>
 
           <Pressable onPress={() => void onSave()} style={styles.saveLink}>
-            <Text style={styles.saveLinkText}>Save</Text>
+            <Text style={styles.saveLinkText}>{t("common.save")}</Text>
           </Pressable>
         </View>
 
@@ -186,14 +194,14 @@ export default function PrayerAlertPreferencesScreen() {
               <Ionicons name="notifications" size={22} color="#2B8CEE" />
             </View>
             <View>
-              <Text style={[styles.alertHeadTitle, isLight ? { color: "#10253A" } : null]}>Alert Settings</Text>
+              <Text style={[styles.alertHeadTitle, isLight ? { color: "#10253A" } : null]}>{t("alert.alert_settings")}</Text>
               <Text style={[styles.alertHeadSub, isLight ? { color: "#4E647C" } : null]}>
-                Configure how you're notified for {prayer}
+                {t("alert.configure_for", { prayer: prayerLabel })}
               </Text>
             </View>
           </View>
 
-          <Text style={[styles.sectionLabel, isLight ? { color: "#617990" } : null]}>SOUND & AUDIO</Text>
+          <Text style={[styles.sectionLabel, isLight ? { color: "#617990" } : null]}>{t("alert.sound_audio")}</Text>
           <View
             style={[
               styles.card,
@@ -205,23 +213,28 @@ export default function PrayerAlertPreferencesScreen() {
                 <View style={[styles.smallIcon, { backgroundColor: isLight ? "#EAF2FC" : "#1C3550" }]}>
                   <Ionicons name="volume-high" size={18} color="#59A7FF" />
                 </View>
-                <Text style={[styles.rowTitle, isLight ? { color: "#1A2E45" } : null]}>Play Sound</Text>
+                <Text style={[styles.rowTitle, isLight ? { color: "#1A2E45" } : null]}>{t("alert.play_sound")}</Text>
               </View>
-              <Switch
-                value={entry?.playSound ?? true}
-                onValueChange={(value) => updatePrayerSettings({ playSound: value })}
-              />
+              <View style={styles.switchWrap}>
+                <Switch
+                  value={entry?.playSound ?? true}
+                  onValueChange={(value) => updatePrayerSettings({ playSound: value })}
+                />
+              </View>
             </View>
 
-            <Pressable style={[styles.rowBordered, isLight ? { borderBottomColor: "#E4EDF7" } : null]} onPress={cycleTone}>
+            <Pressable
+              style={[styles.rowBordered, isLight ? { borderBottomColor: "#E4EDF7" } : null]}
+              onPress={() => router.push(`/tones?prayer=${prayer}`)}
+            >
               <View style={styles.rowLeft}>
                 <View style={[styles.smallIcon, { backgroundColor: isLight ? "#EEE9FF" : "#352159" }]}>
                   <Ionicons name="musical-notes" size={18} color="#C797FF" />
                 </View>
                 <View>
-                  <Text style={[styles.rowTitle, isLight ? { color: "#1A2E45" } : null]}>Alert Tone</Text>
+                  <Text style={[styles.rowTitle, isLight ? { color: "#1A2E45" } : null]}>{t("alert.alert_tone")}</Text>
                   <Text style={[styles.rowSub, isLight ? { color: "#4E647C" } : null]}>
-                    {entry?.tone ?? "Adhan - Makkah (Normal)"}
+                    {(entry?.tone ?? "Adhan") === "Adhan" ? t("alert.tone_adhan") : t("alert.tone_beep")}
                   </Text>
                 </View>
               </View>
@@ -251,10 +264,10 @@ export default function PrayerAlertPreferencesScreen() {
             </View>
           </View>
           <Text style={[styles.helpText, isLight ? { color: "#617990" } : null]}>
-            Custom volume levels will override system settings for this alert.
+            {t("alert.volume_help")}
           </Text>
 
-          <Text style={[styles.sectionLabel, isLight ? { color: "#617990" } : null]}>HAPTICS</Text>
+          <Text style={[styles.sectionLabel, isLight ? { color: "#617990" } : null]}>{t("alert.haptics")}</Text>
           <View
             style={[
               styles.card,
@@ -266,22 +279,24 @@ export default function PrayerAlertPreferencesScreen() {
                 <View style={[styles.smallIcon, { backgroundColor: isLight ? "#FFF0DE" : "#443020" }]}>
                   <MaterialIcons name="vibration" size={18} color="#FFB15B" />
                 </View>
-                <Text style={[styles.rowTitle, isLight ? { color: "#1A2E45" } : null]}>Vibration</Text>
+                <Text style={[styles.rowTitle, isLight ? { color: "#1A2E45" } : null]}>{t("alert.vibration")}</Text>
               </View>
-              <Switch
-                value={entry?.vibration ?? true}
-                onValueChange={(value) => updatePrayerSettings({ vibration: value })}
-              />
+              <View style={styles.switchWrap}>
+                <Switch
+                  value={entry?.vibration ?? true}
+                  onValueChange={(value) => updatePrayerSettings({ vibration: value })}
+                />
+              </View>
             </View>
           </View>
 
           <Pressable style={styles.testButton} onPress={() => void onTestNotification()}>
             <Ionicons name="play-circle" size={18} color="#F2F8FF" />
-            <Text style={styles.testButtonText}>Test Notification</Text>
+            <Text style={styles.testButtonText}>{t("alert.test_notification")}</Text>
           </Pressable>
 
           <Text style={[styles.helpCenterText, isLight ? { color: "#617990" } : null]}>
-            Send a test notification to check your volume and vibration preferences.
+            {t("alert.test_help")}
           </Text>
 
           <View
@@ -305,12 +320,14 @@ export default function PrayerAlertPreferencesScreen() {
                 <View style={[styles.smallIcon, { backgroundColor: isLight ? "#DFF5EE" : "#133D36" }]}>
                   <Ionicons name="time" size={18} color="#46D9B0" />
                 </View>
-                <Text style={[styles.rowTitle, isLight ? { color: "#1A2E45" } : null]}>Alert Offset</Text>
+                <Text style={[styles.rowTitle, isLight ? { color: "#1A2E45" } : null]}>{t("alert.alert_offset")}</Text>
               </View>
 
               <View style={styles.rightLabelWrap}>
                 <Text style={[styles.rightLabelText, isLight ? { color: "#4E647C" } : null]}>
-                  {entry?.minutesBefore === 0 ? "At prayer time" : `${entry?.minutesBefore} mins before`}
+                  {minutesBeforeValue === 0
+                    ? t("alert.at_prayer_time")
+                    : t("alert.mins_before", { mins: minutesBeforeValue })}
                 </Text>
                 <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
               </View>
@@ -321,13 +338,15 @@ export default function PrayerAlertPreferencesScreen() {
                 <View style={[styles.smallIcon, { backgroundColor: isLight ? "#FFE8EE" : "#4B1F2B" }]}>
                   <Ionicons name="trash" size={18} color="#FF667D" />
                 </View>
-                <Text style={styles.resetText}>Reset to Default</Text>
+                <Text style={styles.resetText}>{t("alert.reset_default")}</Text>
               </View>
             </Pressable>
           </View>
 
           <Pressable style={styles.saveButton} onPress={() => void onSave()} disabled={saving}>
-            <Text style={styles.saveButtonText}>{saving ? "Saving..." : "Save Preferences"}</Text>
+            <Text style={styles.saveButtonText}>
+              {saving ? t("settings.saving") : t("alert.save_preferences")}
+            </Text>
           </Pressable>
         </ScrollView>
       </View>
@@ -441,7 +460,14 @@ const styles = StyleSheet.create({
   rowLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12
+    gap: 12,
+    flex: 1,
+    minWidth: 0
+  },
+  switchWrap: {
+    width: 58,
+    alignItems: "flex-end",
+    justifyContent: "center"
   },
   smallIcon: {
     width: 40,

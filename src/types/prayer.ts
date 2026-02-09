@@ -12,7 +12,7 @@ export interface PrayerNotificationSetting {
   enabled: boolean;
   minutesBefore: 0 | 5 | 10 | 15 | 30;
   playSound: boolean;
-  tone: "Adhan - Makkah (Normal)" | "Adhan - Madinah (Soft)" | "Beep";
+  tone: "Adhan" | "Beep";
   volume: number;
   vibration: boolean;
 }

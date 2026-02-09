@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppBackground } from "@/components/AppBackground";
+import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
 import { fetchMethods, MethodItem, summarizeMethodParams } from "@/services/methods";
 import { replanAll } from "@/services/notifications";
@@ -24,6 +25,7 @@ export default function MethodsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { colors, resolvedTheme } = useAppTheme();
+  const { t } = useI18n();
   const isLight = resolvedTheme === "light";
   const [settings, setSettings] = useState<Settings | null>(null);
   const [methods, setMethods] = useState<MethodItem[]>([]);
@@ -52,8 +54,8 @@ export default function MethodsScreen() {
 
   const subtitle = useMemo(() => {
     const selected = methods.find((item) => item.id === currentMethodId);
-    return selected ? `${selected.name} (${selected.id})` : `Method ID ${currentMethodId}`;
-  }, [currentMethodId, methods]);
+    return selected ? `${selected.name} (${selected.id})` : t("methods.method_id", { id: currentMethodId });
+  }, [currentMethodId, methods, t]);
 
   const filteredMethods = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -111,7 +113,7 @@ export default function MethodsScreen() {
           <Pressable onPress={() => router.back()} style={styles.headerButton}>
             <Ionicons name="chevron-back" size={24} color={isLight ? "#1E3D5C" : "#EAF2FF"} />
           </Pressable>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>Calculation Method</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{t("methods.title")}</Text>
           <View style={styles.headerButtonPlaceholder} />
         </View>
 
@@ -129,7 +131,7 @@ export default function MethodsScreen() {
             style={[styles.searchInput, isLight ? { color: "#1A2E45" } : null]}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search method..."
+            placeholder={t("methods.search_placeholder")}
             placeholderTextColor={isLight ? "#607890" : "#6F849D"}
             autoCapitalize="none"
             autoCorrect={false}

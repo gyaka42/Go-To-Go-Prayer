@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppBackground } from "@/components/AppBackground";
+import { useI18n } from "@/i18n/I18nProvider";
 import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
@@ -12,6 +13,7 @@ import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
 export default function AlertsScreen() {
   const router = useRouter();
   const { colors, resolvedTheme } = useAppTheme();
+  const { t, prayerName } = useI18n();
   const isLight = resolvedTheme === "light";
   const [settings, setSettings] = useState<Settings | null>(null);
 
@@ -51,9 +53,9 @@ export default function AlertsScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <AppBackground />
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Alerts</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{t("alerts.title")}</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Tap een gebed om notification preferences te openen.
+          {t("alerts.subtitle")}
         </Text>
 
         <ScrollView contentContainerStyle={styles.list}>
@@ -75,9 +77,11 @@ export default function AlertsScreen() {
                     <Ionicons name="notifications" size={18} color="#2B8CEE" />
                   </View>
                   <View>
-                    <Text style={[styles.prayer, isLight ? { color: "#1A2E45" } : null]}>{prayer}</Text>
+                    <Text style={[styles.prayer, isLight ? { color: "#1A2E45" } : null]}>{prayerName(prayer)}</Text>
                     <Text style={[styles.meta, isLight ? { color: "#4E647C" } : null]}>
-                      {item ? `${item.minutesBefore} mins before` : "Loading..."}
+                      {item
+                        ? t("alerts.mins_before", { mins: item.minutesBefore })
+                        : t("alerts.loading")}
                     </Text>
                   </View>
                 </View>

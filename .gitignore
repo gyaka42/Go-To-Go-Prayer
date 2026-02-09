@@ -5,4 +5,5 @@
 expo-env.d.ts
 .expo
 .expo/
+node_modules/
 # @end expo-cli
