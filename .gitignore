@@ -7,3 +7,4 @@ expo-env.d.ts
 .expo/
 node_modules/
 # @end expo-cli
+.DS_Store
