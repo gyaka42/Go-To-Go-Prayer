@@ -28,7 +28,8 @@ const TONES: Array<"Adhan - Makkah (Normal)" | "Adhan - Madinah (Soft)" | "Beep"
 
 export default function PrayerAlertPreferencesScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
+  const { colors, resolvedTheme } = useAppTheme();
+  const isLight = resolvedTheme === "light";
   const params = useLocalSearchParams<{ prayer?: string }>();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -169,7 +170,7 @@ export default function PrayerAlertPreferencesScreen() {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Pressable onPress={() => router.back()} style={styles.headerIconButton}>
-              <Ionicons name="chevron-back" size={24} color="#EAF2FF" />
+              <Ionicons name="chevron-back" size={24} color={isLight ? "#1E3D5C" : "#EAF2FF"} />
             </Pressable>
             <Text style={[styles.title, { color: colors.textPrimary }]}>{prayer} Notifications</Text>
           </View>
@@ -181,23 +182,30 @@ export default function PrayerAlertPreferencesScreen() {
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.alertHeadRow}>
-            <View style={styles.alertHeadIconWrap}>
+            <View style={[styles.alertHeadIconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
               <Ionicons name="notifications" size={22} color="#2B8CEE" />
             </View>
             <View>
-              <Text style={styles.alertHeadTitle}>Alert Settings</Text>
-              <Text style={styles.alertHeadSub}>Configure how you're notified for {prayer}</Text>
+              <Text style={[styles.alertHeadTitle, isLight ? { color: "#10253A" } : null]}>Alert Settings</Text>
+              <Text style={[styles.alertHeadSub, isLight ? { color: "#4E647C" } : null]}>
+                Configure how you're notified for {prayer}
+              </Text>
             </View>
           </View>
 
-          <Text style={styles.sectionLabel}>SOUND & AUDIO</Text>
-          <View style={styles.card}>
-            <View style={styles.rowBordered}>
+          <Text style={[styles.sectionLabel, isLight ? { color: "#617990" } : null]}>SOUND & AUDIO</Text>
+          <View
+            style={[
+              styles.card,
+              isLight ? { backgroundColor: "#FFFFFF", borderColor: "#D7E2EF" } : null
+            ]}
+          >
+            <View style={[styles.rowBordered, isLight ? { borderBottomColor: "#E4EDF7" } : null]}>
               <View style={styles.rowLeft}>
-                <View style={[styles.smallIcon, { backgroundColor: "#1C3550" }]}>
+                <View style={[styles.smallIcon, { backgroundColor: isLight ? "#EAF2FC" : "#1C3550" }]}>
                   <Ionicons name="volume-high" size={18} color="#59A7FF" />
                 </View>
-                <Text style={styles.rowTitle}>Play Sound</Text>
+                <Text style={[styles.rowTitle, isLight ? { color: "#1A2E45" } : null]}>Play Sound</Text>
               </View>
               <Switch
                 value={entry?.playSound ?? true}
@@ -205,18 +213,20 @@ export default function PrayerAlertPreferencesScreen() {
               />
             </View>
 
-            <Pressable style={styles.rowBordered} onPress={cycleTone}>
+            <Pressable style={[styles.rowBordered, isLight ? { borderBottomColor: "#E4EDF7" } : null]} onPress={cycleTone}>
               <View style={styles.rowLeft}>
-                <View style={[styles.smallIcon, { backgroundColor: "#352159" }]}>
+                <View style={[styles.smallIcon, { backgroundColor: isLight ? "#EEE9FF" : "#352159" }]}>
                   <Ionicons name="musical-notes" size={18} color="#C797FF" />
                 </View>
                 <View>
-                  <Text style={styles.rowTitle}>Alert Tone</Text>
-                  <Text style={styles.rowSub}>{entry?.tone ?? "Adhan - Makkah (Normal)"}</Text>
+                  <Text style={[styles.rowTitle, isLight ? { color: "#1A2E45" } : null]}>Alert Tone</Text>
+                  <Text style={[styles.rowSub, isLight ? { color: "#4E647C" } : null]}>
+                    {entry?.tone ?? "Adhan - Makkah (Normal)"}
+                  </Text>
                 </View>
               </View>
 
-              <Ionicons name="chevron-forward" size={18} color="#8EA4BF" />
+              <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
             </Pressable>
 
             <View style={styles.volumeWrap}>
@@ -224,10 +234,10 @@ export default function PrayerAlertPreferencesScreen() {
                 style={styles.volButton}
                 onPress={() => updatePrayerSettings({ volume: Math.max(0, (entry?.volume ?? 75) - 5) })}
               >
-                <Ionicons name="volume-low" size={16} color="#7F93AD" />
+                <Ionicons name="volume-low" size={16} color={isLight ? "#5C738A" : "#7F93AD"} />
               </Pressable>
 
-              <View style={styles.sliderTrack}>
+              <View style={[styles.sliderTrack, isLight ? { backgroundColor: "#DCE7F4" } : null]}>
                 <View style={[styles.sliderFill, { width: `${entry?.volume ?? 75}%` }]} />
                 <View style={[styles.sliderThumb, { left: `${Math.max(3, (entry?.volume ?? 75) - 2)}%` }]} />
               </View>
@@ -236,20 +246,27 @@ export default function PrayerAlertPreferencesScreen() {
                 style={styles.volButton}
                 onPress={() => updatePrayerSettings({ volume: Math.min(100, (entry?.volume ?? 75) + 5) })}
               >
-                <Ionicons name="volume-high" size={16} color="#7F93AD" />
+                <Ionicons name="volume-high" size={16} color={isLight ? "#5C738A" : "#7F93AD"} />
               </Pressable>
             </View>
           </View>
-          <Text style={styles.helpText}>Custom volume levels will override system settings for this alert.</Text>
+          <Text style={[styles.helpText, isLight ? { color: "#617990" } : null]}>
+            Custom volume levels will override system settings for this alert.
+          </Text>
 
-          <Text style={styles.sectionLabel}>HAPTICS</Text>
-          <View style={styles.card}>
+          <Text style={[styles.sectionLabel, isLight ? { color: "#617990" } : null]}>HAPTICS</Text>
+          <View
+            style={[
+              styles.card,
+              isLight ? { backgroundColor: "#FFFFFF", borderColor: "#D7E2EF" } : null
+            ]}
+          >
             <View style={styles.rowPlain}>
               <View style={styles.rowLeft}>
-                <View style={[styles.smallIcon, { backgroundColor: "#443020" }]}>
+                <View style={[styles.smallIcon, { backgroundColor: isLight ? "#FFF0DE" : "#443020" }]}>
                   <MaterialIcons name="vibration" size={18} color="#FFB15B" />
                 </View>
-                <Text style={styles.rowTitle}>Vibration</Text>
+                <Text style={[styles.rowTitle, isLight ? { color: "#1A2E45" } : null]}>Vibration</Text>
               </View>
               <Switch
                 value={entry?.vibration ?? true}
@@ -263,13 +280,18 @@ export default function PrayerAlertPreferencesScreen() {
             <Text style={styles.testButtonText}>Test Notification</Text>
           </Pressable>
 
-          <Text style={styles.helpCenterText}>
+          <Text style={[styles.helpCenterText, isLight ? { color: "#617990" } : null]}>
             Send a test notification to check your volume and vibration preferences.
           </Text>
 
-          <View style={styles.card}>
+          <View
+            style={[
+              styles.card,
+              isLight ? { backgroundColor: "#FFFFFF", borderColor: "#D7E2EF" } : null
+            ]}
+          >
             <Pressable
-              style={styles.rowBordered}
+              style={[styles.rowBordered, isLight ? { borderBottomColor: "#E4EDF7" } : null]}
               onPress={() => {
                 if (!entry) {
                   return;
@@ -280,23 +302,23 @@ export default function PrayerAlertPreferencesScreen() {
               }}
             >
               <View style={styles.rowLeft}>
-                <View style={[styles.smallIcon, { backgroundColor: "#133D36" }]}>
+                <View style={[styles.smallIcon, { backgroundColor: isLight ? "#DFF5EE" : "#133D36" }]}>
                   <Ionicons name="time" size={18} color="#46D9B0" />
                 </View>
-                <Text style={styles.rowTitle}>Alert Offset</Text>
+                <Text style={[styles.rowTitle, isLight ? { color: "#1A2E45" } : null]}>Alert Offset</Text>
               </View>
 
               <View style={styles.rightLabelWrap}>
-                <Text style={styles.rightLabelText}>
+                <Text style={[styles.rightLabelText, isLight ? { color: "#4E647C" } : null]}>
                   {entry?.minutesBefore === 0 ? "At prayer time" : `${entry?.minutesBefore} mins before`}
                 </Text>
-                <Ionicons name="chevron-forward" size={18} color="#8EA4BF" />
+                <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
               </View>
             </Pressable>
 
             <Pressable style={styles.rowPlain} onPress={onResetToDefault}>
               <View style={styles.rowLeft}>
-                <View style={[styles.smallIcon, { backgroundColor: "#4B1F2B" }]}>
+                <View style={[styles.smallIcon, { backgroundColor: isLight ? "#FFE8EE" : "#4B1F2B" }]}>
                   <Ionicons name="trash" size={18} color="#FF667D" />
                 </View>
                 <Text style={styles.resetText}>Reset to Default</Text>

@@ -39,7 +39,8 @@ function nextMinutes(current: 0 | 5 | 10 | 15 | 30): 0 | 5 | 10 | 15 | 30 {
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { colors, mode, setMode } = useAppTheme();
+  const { colors, mode, setMode, resolvedTheme } = useAppTheme();
+  const isLight = resolvedTheme === "light";
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [locationStatus, setLocationStatus] = useState("Current Location");
@@ -242,11 +243,11 @@ export default function SettingsScreen() {
 
   if (!settings) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <View style={styles.container}>
           <AppBackground />
-          <Text style={styles.pageTitle}>App Settings</Text>
-          <Text style={styles.mutedText}>Loading...</Text>
+          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>App Settings</Text>
+          <Text style={[styles.mutedText, { color: colors.textSecondary }]}>Loading...</Text>
         </View>
       </SafeAreaView>
     );
@@ -258,7 +259,7 @@ export default function SettingsScreen() {
         <AppBackground />
         <View style={styles.headerRow}>
           <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>App Settings</Text>
-          <Ionicons name="help-circle-outline" size={22} color="#B7C7DD" />
+          <Ionicons name="help-circle-outline" size={22} color={isLight ? "#617990" : "#B7C7DD"} />
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -288,14 +289,16 @@ export default function SettingsScreen() {
 
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>CALCULATION</Text>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <View style={styles.settingRowWithBorder}>
+            <View style={[styles.settingRowWithBorder, { borderBottomColor: colors.cardBorder }]}>
               <View style={styles.settingLeft}>
-                <View style={styles.iconBox}>
+                <View style={[styles.iconBox, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
                   <Ionicons name="book" size={20} color="#2B8CEE" />
                 </View>
                 <View>
-                  <Text style={styles.settingTitle}>Hanafi Only</Text>
-                  <Text style={styles.settingSub}>Asr method (fixed)</Text>
+                  <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>Hanafi Only</Text>
+                  <Text style={[styles.settingSub, isLight ? { color: "#4E647C" } : null]}>
+                    Asr method (fixed)
+                  </Text>
                 </View>
               </View>
               <Switch value={true} disabled />
@@ -303,46 +306,58 @@ export default function SettingsScreen() {
 
             <Pressable style={styles.settingRow} onPress={() => router.push("/methods")}>
               <View style={styles.settingLeft}>
-                <View style={styles.iconBox}>
+                <View style={[styles.iconBox, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
                   <MaterialIcons name="calculate" size={20} color="#2B8CEE" />
                 </View>
                 <View>
-                  <Text style={styles.settingTitle}>Calculation Method</Text>
-                  <Text style={styles.settingSub}>{settings.methodName}</Text>
+                  <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>
+                    Calculation Method
+                  </Text>
+                  <Text style={[styles.settingSub, isLight ? { color: "#4E647C" } : null]}>
+                    {settings.methodName}
+                  </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#8EA4BF" />
+              <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
             </Pressable>
           </View>
 
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>LOCATION & REGION</Text>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <View style={styles.locationRow}>
-              <View style={styles.locationIconWrap}>
+              <View style={[styles.locationIconWrap, isLight ? { backgroundColor: "#DFF5EA" } : null]}>
                 <Ionicons name="locate" size={22} color="#23D18B" />
               </View>
 
               <View style={styles.locationCenter}>
-                <Text style={styles.settingTitle}>GPS Connected</Text>
-                <Text style={styles.settingSub}>{locationStatus}</Text>
-                <Text style={styles.locationModeText}>
+                <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>GPS Connected</Text>
+                <Text style={[styles.settingSub, isLight ? { color: "#4E647C" } : null]}>{locationStatus}</Text>
+                <Text style={[styles.locationModeText, isLight ? { color: "#607890" } : null]}>
                   Mode: {settings.locationMode === "manual" ? "Manual city" : "GPS"}
                 </Text>
               </View>
 
-              <Pressable style={styles.refreshChip} onPress={() => void refreshLocationAndReplan()}>
+              <Pressable
+                style={[styles.refreshChip, isLight ? { backgroundColor: "#E4EFFB" } : null]}
+                onPress={() => void refreshLocationAndReplan()}
+              >
                 <Text style={styles.refreshChipText}>REFRESH</Text>
               </Pressable>
             </View>
-            <View style={styles.manualWrap}>
+            <View style={[styles.manualWrap, { borderTopColor: colors.cardBorder }]}>
               <TextInput
-                style={styles.manualInput}
+                style={[
+                  styles.manualInput,
+                  isLight
+                    ? { backgroundColor: "#F2F7FD", borderColor: "#C8DBEE", color: "#1A2E45" }
+                    : null
+                ]}
                 value={manualCityQuery}
                 onChangeText={(value) => {
                   setManualCityQuery(value);
                 }}
                 placeholder="Manual fallback: Select city..."
-                placeholderTextColor="#6F849D"
+                placeholderTextColor={isLight ? "#607890" : "#6F849D"}
                 autoCapitalize="words"
               />
               <Pressable style={styles.manualButton} onPress={() => void applyManualCity()} disabled={saving}>
@@ -359,10 +374,10 @@ export default function SettingsScreen() {
                 data={citySuggestions}
                 keyExtractor={(item, index) => `${item.label}-${index}`}
                 scrollEnabled={false}
-                style={styles.suggestionsList}
+                style={[styles.suggestionsList, { borderTopColor: colors.cardBorder }]}
                 renderItem={({ item }) => (
                   <Pressable
-                    style={styles.suggestionRow}
+                    style={[styles.suggestionRow, { borderBottomColor: colors.cardBorder }]}
                     onPress={() => {
                       setManualCityQuery(item.label);
                       setSelectedSuggestion(item);
@@ -370,7 +385,7 @@ export default function SettingsScreen() {
                     }}
                   >
                     <Ionicons name="location-outline" size={14} color="#7EA0C3" />
-                    <Text style={styles.suggestionText}>{item.label}</Text>
+                    <Text style={[styles.suggestionText, isLight ? { color: "#344E68" } : null]}>{item.label}</Text>
                   </Pressable>
                 )}
               />
@@ -379,7 +394,7 @@ export default function SettingsScreen() {
 
           <View style={styles.notificationHeader}>
             <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>NOTIFICATIONS</Text>
-            <Text style={styles.minutesBeforeLabel}>MINUTES BEFORE</Text>
+            <Text style={[styles.minutesBeforeLabel, isLight ? { color: "#607890" } : null]}>MINUTES BEFORE</Text>
           </View>
 
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -388,8 +403,15 @@ export default function SettingsScreen() {
               const hasBorder = index < PRAYER_NAMES.length - 1;
 
               return (
-                <View key={prayer} style={[styles.notificationRow, hasBorder && styles.notificationRowBorder]}>
-                  <Text style={styles.notificationPrayer}>{prayer}</Text>
+                <View
+                  key={prayer}
+                  style={[
+                    styles.notificationRow,
+                    hasBorder && styles.notificationRowBorder,
+                    hasBorder ? { borderBottomColor: colors.cardBorder } : null
+                  ]}
+                >
+                  <Text style={[styles.notificationPrayer, isLight ? { color: "#1A2E45" } : null]}>{prayer}</Text>
 
                   <View style={styles.notificationRight}>
                     <Pressable onPress={() => cyclePrayerMinutes(prayer)}>

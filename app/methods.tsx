@@ -23,7 +23,8 @@ import { Settings } from "@/types/prayer";
 export default function MethodsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { colors } = useAppTheme();
+  const { colors, resolvedTheme } = useAppTheme();
+  const isLight = resolvedTheme === "light";
   const [settings, setSettings] = useState<Settings | null>(null);
   const [methods, setMethods] = useState<MethodItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,27 +109,34 @@ export default function MethodsScreen() {
         <AppBackground />
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.headerButton}>
-            <Ionicons name="chevron-back" size={24} color="#EAF2FF" />
+            <Ionicons name="chevron-back" size={24} color={isLight ? "#1E3D5C" : "#EAF2FF"} />
           </Pressable>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Calculation Method</Text>
           <View style={styles.headerButtonPlaceholder} />
         </View>
 
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
-        <View style={styles.searchWrap}>
-          <Ionicons name="search" size={16} color="#8EA4BF" />
+        <View
+          style={[
+            styles.searchWrap,
+            isLight
+              ? { borderColor: "#C8DBEE", backgroundColor: "#F2F7FD" }
+              : null
+          ]}
+        >
+          <Ionicons name="search" size={16} color={isLight ? "#617990" : "#8EA4BF"} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, isLight ? { color: "#1A2E45" } : null]}
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder="Search method..."
-            placeholderTextColor="#6F849D"
+            placeholderTextColor={isLight ? "#607890" : "#6F849D"}
             autoCapitalize="none"
             autoCorrect={false}
           />
           {searchQuery ? (
             <Pressable onPress={() => setSearchQuery("")}>
-              <Ionicons name="close-circle" size={16} color="#8EA4BF" />
+              <Ionicons name="close-circle" size={16} color={isLight ? "#617990" : "#8EA4BF"} />
             </Pressable>
           ) : null}
         </View>
@@ -141,6 +149,7 @@ export default function MethodsScreen() {
           <FlatList
             data={filteredMethods}
             keyExtractor={(item) => `${item.key}-${item.id}`}
+            showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => {
               const selected = item.id === currentMethodId;
@@ -151,14 +160,24 @@ export default function MethodsScreen() {
                   style={[
                     styles.row,
                     { backgroundColor: colors.card, borderColor: colors.cardBorder },
-                    selected && styles.rowSelected
+                    selected && (isLight ? styles.rowSelectedLight : styles.rowSelected)
                   ]}
                   onPress={() => void onSelectMethod(item)}
                   disabled={savingId !== null}
                 >
                   <View style={styles.rowLeft}>
-                    <Text style={[styles.rowTitle, selected && styles.rowTitleSelected]}>{item.name}</Text>
-                    <Text style={styles.rowSub}>{summarizeMethodParams(item.params)}</Text>
+                    <Text
+                      style={[
+                        styles.rowTitle,
+                        isLight ? { color: "#1A2E45" } : null,
+                        selected && (isLight ? styles.rowTitleSelectedLight : styles.rowTitleSelected)
+                      ]}
+                    >
+                      {item.name}
+                    </Text>
+                    <Text style={[styles.rowSub, isLight ? { color: "#4E647C" } : null]}>
+                      {summarizeMethodParams(item.params)}
+                    </Text>
                   </View>
 
                   <View style={styles.rowRight}>
@@ -257,6 +276,10 @@ const styles = StyleSheet.create({
     borderColor: "#2B8CEE",
     backgroundColor: "#173A5E"
   },
+  rowSelectedLight: {
+    borderColor: "#69A9EA",
+    backgroundColor: "#DDEEFF"
+  },
   rowLeft: {
     flex: 1,
     paddingRight: 10
@@ -268,6 +291,9 @@ const styles = StyleSheet.create({
   },
   rowTitleSelected: {
     color: "#75B8FF"
+  },
+  rowTitleSelectedLight: {
+    color: "#1E78D9"
   },
   rowSub: {
     marginTop: 2,

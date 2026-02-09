@@ -11,7 +11,8 @@ import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
 
 export default function AlertsScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
+  const { colors, resolvedTheme } = useAppTheme();
+  const isLight = resolvedTheme === "light";
   const [settings, setSettings] = useState<Settings | null>(null);
 
   const load = useCallback(async () => {
@@ -65,12 +66,19 @@ export default function AlertsScreen() {
                 onPress={() => router.push(`/alert/${prayer}`)}
               >
                 <View style={styles.left}>
-                  <View style={styles.iconWrap}>
+                  <View
+                    style={[
+                      styles.iconWrap,
+                      isLight ? { backgroundColor: "#EAF2FC" } : null
+                    ]}
+                  >
                     <Ionicons name="notifications" size={18} color="#2B8CEE" />
                   </View>
                   <View>
-                    <Text style={styles.prayer}>{prayer}</Text>
-                    <Text style={styles.meta}>{item ? `${item.minutesBefore} mins before` : "Loading..."}</Text>
+                    <Text style={[styles.prayer, isLight ? { color: "#1A2E45" } : null]}>{prayer}</Text>
+                    <Text style={[styles.meta, isLight ? { color: "#4E647C" } : null]}>
+                      {item ? `${item.minutesBefore} mins before` : "Loading..."}
+                    </Text>
                   </View>
                 </View>
 
@@ -79,7 +87,7 @@ export default function AlertsScreen() {
                     value={item?.enabled ?? false}
                     onValueChange={(value) => void togglePrayer(prayer, value)}
                   />
-                  <Ionicons name="chevron-forward" size={18} color="#8EA4BF" />
+                  <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
                 </View>
               </Pressable>
             );

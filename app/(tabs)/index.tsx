@@ -9,6 +9,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -51,7 +52,9 @@ function prayerIcon(prayer: PrayerName): keyof typeof MaterialCommunityIcons.gly
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
+  const { colors, resolvedTheme } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const isCompact = width <= 390;
   const [timings, setTimings] = useState<Timings | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [countdown, setCountdown] = useState("00:00:00");
@@ -252,24 +255,34 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.heroCard}>
+        <View style={[styles.heroCard, isCompact && styles.heroCardCompact]}>
           <Text style={styles.heroLabel}>NEXT PRAYER</Text>
           <View style={styles.heroMainRow}>
-            <Text style={styles.heroPrayer} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+            <Text
+              style={[styles.heroPrayer, isCompact && styles.heroPrayerCompact]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.55}
+            >
               {nextPrayerName}
             </Text>
-            <Text style={styles.heroCountdown}>in {countdown}</Text>
+            <Text style={[styles.heroCountdown, isCompact && styles.heroCountdownCompact]}>in {countdown}</Text>
           </View>
 
-          <View style={styles.heroBottomRow}>
-            <View>
+          <View style={[styles.heroBottomRow, isCompact && styles.heroBottomRowCompact]}>
+            <View style={styles.heroScheduleBlock}>
               <Text style={styles.heroScheduledLabel}>Scheduled Time</Text>
               <Text style={styles.heroTime}>{nextPrayerTime}</Text>
             </View>
 
-            <Pressable style={styles.reminderButton} onPress={() => router.push("/(tabs)/alerts")}>
+            <Pressable
+              style={[styles.reminderButton, isCompact && styles.reminderButtonCompact]}
+              onPress={() => router.push("/(tabs)/alerts")}
+            >
               <Ionicons name="notifications-outline" size={18} color="#1F7FE1" />
-              <Text style={styles.reminderButtonText}>Set Reminder</Text>
+              <Text style={[styles.reminderButtonText, isCompact && styles.reminderButtonTextCompact]} numberOfLines={1}>
+                Set Reminder
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -287,37 +300,53 @@ export default function HomeScreen() {
           <FlatList
             data={PRAYER_NAMES}
             keyExtractor={(item) => item}
+            showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2B8CEE" />}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => {
               const isNext = item === nextPrayerName;
               const isEnabled = settings?.prayerNotifications[item].enabled ?? false;
+              const rowTextColor = resolvedTheme === "light" ? "#21384F" : "#E3EBF7";
+              const rowTimeColor = resolvedTheme === "light" ? "#1C334A" : "#C8D6EA";
+              const rowSubtleIconBg = resolvedTheme === "light" ? "#E6EEF7" : "#1A3047";
+              const rowIconColor = resolvedTheme === "light" ? "#5D7390" : "#7D8DA8";
+              const rowNextBackground = resolvedTheme === "light" ? "#DDEEFF" : "#173A5E";
+              const rowNextBorder = resolvedTheme === "light" ? "#69A9EA" : "#2B8CEE";
 
               return (
                 <View
                   style={[
                     styles.row,
                     { backgroundColor: colors.card, borderColor: colors.cardBorder },
-                    isNext && styles.rowNext
+                    isNext && styles.rowNext,
+                    isNext && { backgroundColor: rowNextBackground, borderColor: rowNextBorder }
                   ]}
                 >
                   <View style={styles.rowLeft}>
-                    <View style={[styles.iconWrap, isNext && styles.iconWrapNext]}>
+                    <View
+                      style={[
+                        styles.iconWrap,
+                        { backgroundColor: rowSubtleIconBg },
+                        isNext && styles.iconWrapNext
+                      ]}
+                    >
                       <MaterialCommunityIcons
                         name={prayerIcon(item)}
                         size={20}
-                        color={isNext ? "#F1F6FD" : "#7D8DA8"}
+                        color={isNext ? "#F1F6FD" : rowIconColor}
                       />
                     </View>
 
                     <View>
-                      <Text style={[styles.rowPrayer, isNext && styles.rowPrayerNext]}>{item}</Text>
+                      <Text style={[styles.rowPrayer, { color: rowTextColor }, isNext && styles.rowPrayerNext]}>{item}</Text>
                       {isNext ? <Text style={styles.comingUpText}>COMING UP</Text> : null}
                     </View>
                   </View>
 
                   <View style={styles.rowRight}>
-                    <Text style={[styles.rowTime, isNext && styles.rowTimeNext]}>{timings?.times[item] ?? "--:--"}</Text>
+                    <Text style={[styles.rowTime, { color: rowTimeColor }, isNext && styles.rowTimeNext]}>
+                      {timings?.times[item] ?? "--:--"}
+                    </Text>
                     <Ionicons
                       name={isEnabled ? "notifications" : "notifications-off-outline"}
                       size={20}
@@ -401,6 +430,10 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 12 }
   },
+  heroCardCompact: {
+    padding: 18,
+    borderRadius: 20
+  },
   heroLabel: {
     fontSize: 18,
     fontWeight: "600",
@@ -421,6 +454,9 @@ const styles = StyleSheet.create({
     color: "#F4FAFF",
     paddingRight: 2
   },
+  heroPrayerCompact: {
+    fontSize: 36
+  },
   heroCountdown: {
     marginBottom: 6,
     minWidth: 96,
@@ -430,12 +466,23 @@ const styles = StyleSheet.create({
     color: "#D8ECFF",
     fontVariant: ["tabular-nums"]
   },
+  heroCountdownCompact: {
+    minWidth: 88,
+    fontSize: 18
+  },
   heroBottomRow: {
     marginTop: 26,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 14
+  },
+  heroBottomRowCompact: {
+    gap: 10
+  },
+  heroScheduleBlock: {
+    flex: 1,
+    paddingRight: 8
   },
   heroScheduledLabel: {
     fontSize: 18,
@@ -448,7 +495,7 @@ const styles = StyleSheet.create({
     color: "#F5FAFF"
   },
   reminderButton: {
-    minWidth: 180,
+    minWidth: 168,
     height: 60,
     borderRadius: 16,
     backgroundColor: "#F4F8FF",
@@ -458,10 +505,19 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 18
   },
+  reminderButtonCompact: {
+    minWidth: 0,
+    width: "52%",
+    height: 54,
+    paddingHorizontal: 12
+  },
   reminderButtonText: {
     fontSize: 18,
     color: "#1F7FE1",
     fontWeight: "700"
+  },
+  reminderButtonTextCompact: {
+    fontSize: 16
   },
   sectionTitle: {
     marginTop: 28,

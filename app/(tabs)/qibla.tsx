@@ -38,7 +38,8 @@ function shortestDiff(a: number, b: number): number {
 }
 
 export default function QiblaScreen() {
-  const { colors } = useAppTheme();
+  const { colors, resolvedTheme } = useAppTheme();
+  const isLight = resolvedTheme === "light";
   const [bearing, setBearing] = useState<number | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationName, setLocationName] = useState("Unknown location");
@@ -215,14 +216,20 @@ export default function QiblaScreen() {
             <Text style={[styles.locationText, { color: colors.textSecondary }]}>{locationName}</Text>
             <Text style={styles.statusText}>{statusText}</Text>
           </View>
-          <Pressable style={styles.refreshButton} onPress={() => void refresh()}>
-            <Ionicons name="refresh" size={20} color="#D9E8FA" />
+          <Pressable
+            style={[
+              styles.refreshButton,
+              isLight ? { backgroundColor: "#E4EFFB" } : null
+            ]}
+            onPress={() => void refresh()}
+          >
+            <Ionicons name="refresh" size={20} color={isLight ? "#1E5FA3" : "#D9E8FA"} />
           </Pressable>
         </View>
 
         {bearing !== null ? <Text style={[styles.qiblaText, { color: colors.accent }]}>Qibla: {Math.round(bearing)}deg</Text> : null}
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {loadState === "loading" ? (
             <View style={styles.loaderWrap}>
               <ActivityIndicator color="#2B8CEE" size="large" />
@@ -230,9 +237,18 @@ export default function QiblaScreen() {
           ) : null}
 
           {loadState === "error" ? (
-            <View style={styles.errorCard}>
-              <Text style={styles.errorTitle}>Location Permission Needed</Text>
-              <Text style={styles.errorText}>{errorText}</Text>
+            <View
+              style={[
+                styles.errorCard,
+                isLight
+                  ? { borderColor: "#E8C7D0", backgroundColor: "#FFF1F4" }
+                  : null
+              ]}
+            >
+              <Text style={[styles.errorTitle, isLight ? { color: "#B13D57" } : null]}>
+                Location Permission Needed
+              </Text>
+              <Text style={[styles.errorText, isLight ? { color: "#8D4153" } : null]}>{errorText}</Text>
               <Pressable style={styles.retryButton} onPress={() => void refresh()}>
                 <Text style={styles.retryButtonText}>Request Again</Text>
               </Pressable>
@@ -241,29 +257,73 @@ export default function QiblaScreen() {
 
           {loadState === "ready" && bearing !== null ? (
             <View style={styles.contentWrap}>
-              <QiblaCompass qiblaBearingDeg={bearing} deviceHeadingDeg={deviceHeading} mode={mode} />
+              <QiblaCompass
+                qiblaBearingDeg={bearing}
+                deviceHeadingDeg={deviceHeading}
+                mode={mode}
+                lightMode={isLight}
+              />
 
-              <View style={[styles.badge, mode === "live" ? styles.badgeLive : styles.badgeFallback]}>
-                <Text style={styles.badgeText}>
+              <View
+                style={[
+                  styles.badge,
+                  mode === "live"
+                    ? isLight
+                      ? { backgroundColor: "#DFF5E8" }
+                      : styles.badgeLive
+                    : isLight
+                      ? { backgroundColor: "#FFF0DB" }
+                      : styles.badgeFallback
+                ]}
+              >
+                <Text style={[styles.badgeText, isLight ? { color: "#274462" } : null]}>
                   {mode === "live" ? "Live compass: ON" : "Live compass: OFF (fallback)"}
                 </Text>
               </View>
 
-              {isCached ? <Text style={styles.cachedText}>Using cached Qibla data</Text> : null}
-              {isCached && errorText ? <Text style={styles.cachedWarning}>{errorText}</Text> : null}
+              {isCached ? (
+                <Text style={[styles.cachedText, isLight ? { color: "#5B718A" } : null]}>
+                  Using cached Qibla data
+                </Text>
+              ) : null}
+              {isCached && errorText ? (
+                <Text style={[styles.cachedWarning, isLight ? { color: "#8A6A40" } : null]}>{errorText}</Text>
+              ) : null}
 
               {mode === "fallback" && fallbackImageUrl ? (
-                <View style={styles.fallbackCard}>
-                  <Text style={styles.fallbackTitle}>Fallback Compass Image</Text>
+                <View
+                  style={[
+                    styles.fallbackCard,
+                    isLight
+                      ? { borderColor: "#C7DBEE", backgroundColor: "#F3F9FF" }
+                      : null
+                  ]}
+                >
+                  <Text style={[styles.fallbackTitle, isLight ? { color: "#345677" } : null]}>
+                    Fallback Compass Image
+                  </Text>
                   <Image source={{ uri: fallbackImageUrl }} style={styles.fallbackImage} resizeMode="contain" />
                 </View>
               ) : null}
 
-              <View style={styles.hintsCard}>
-                <Text style={styles.hintsTitle}>Tips</Text>
-                <Text style={styles.hintItem}>1. Hold your phone flat (screen up) for best accuracy.</Text>
-                <Text style={styles.hintItem}>2. If direction seems off, calibrate by moving the phone in a figure-8.</Text>
-                <Text style={styles.hintItem}>3. Avoid magnets/metal cases near the phone.</Text>
+              <View
+                style={[
+                  styles.hintsCard,
+                  isLight
+                    ? { borderColor: "#C4D9ED", backgroundColor: "#EEF6FF" }
+                    : null
+                ]}
+              >
+                <Text style={[styles.hintsTitle, isLight ? { color: "#1D3D5C" } : null]}>Tips</Text>
+                <Text style={[styles.hintItem, isLight ? { color: "#345677" } : null]}>
+                  1. Hold your phone flat (screen up) for best accuracy.
+                </Text>
+                <Text style={[styles.hintItem, isLight ? { color: "#345677" } : null]}>
+                  2. If direction seems off, calibrate by moving the phone in a figure-8.
+                </Text>
+                <Text style={[styles.hintItem, isLight ? { color: "#345677" } : null]}>
+                  3. Avoid magnets/metal cases near the phone.
+                </Text>
               </View>
             </View>
           ) : null}

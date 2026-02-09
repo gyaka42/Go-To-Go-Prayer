@@ -4,6 +4,7 @@ interface QiblaCompassProps {
   qiblaBearingDeg: number;
   deviceHeadingDeg?: number;
   mode: "live" | "fallback";
+  lightMode?: boolean;
 }
 
 function normalizeDegrees(value: number): number {
@@ -11,7 +12,7 @@ function normalizeDegrees(value: number): number {
   return v < 0 ? v + 360 : v;
 }
 
-export function QiblaCompass({ qiblaBearingDeg, deviceHeadingDeg, mode }: QiblaCompassProps) {
+export function QiblaCompass({ qiblaBearingDeg, deviceHeadingDeg, mode, lightMode = false }: QiblaCompassProps) {
   const rotation =
     mode === "live" && typeof deviceHeadingDeg === "number"
       ? normalizeDegrees(qiblaBearingDeg - deviceHeadingDeg)
@@ -22,16 +23,30 @@ export function QiblaCompass({ qiblaBearingDeg, deviceHeadingDeg, mode }: QiblaC
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.circle}>
+      <View
+        style={[
+          styles.circle,
+          lightMode
+            ? { backgroundColor: "#EFF6FF", borderColor: "#C6DAF0" }
+            : { backgroundColor: "#112436", borderColor: "#294764" }
+        ]}
+      >
         <View style={[styles.northLayer, { transform: [{ rotate: `${northRotation}deg` }] }]}>
-          <Text style={styles.north}>N</Text>
+          <Text style={[styles.north, lightMode ? { color: "#4D6984" } : null]}>N</Text>
         </View>
         <View style={[styles.arrow, { transform: [{ rotate: `${rotation}deg` }] }]}>
-          <View style={styles.arrowHead} />
-          <View style={styles.arrowTail} />
+          <View
+            style={[
+              styles.arrowHead,
+              lightMode
+                ? { borderBottomColor: "#1F7CDC" }
+                : null
+            ]}
+          />
+          <View style={[styles.arrowTail, lightMode ? { backgroundColor: "#1F7CDC" } : null]} />
         </View>
-        <View style={styles.centerDot} />
-        <Text style={styles.centerLabel}>{Math.round(qiblaBearingDeg)}deg</Text>
+        <View style={[styles.centerDot, lightMode ? { backgroundColor: "#FFFFFF" } : null]} />
+        <Text style={[styles.centerLabel, lightMode ? { color: "#3D5D7D" } : null]}>{Math.round(qiblaBearingDeg)}deg</Text>
       </View>
     </View>
   );
@@ -46,9 +61,7 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     borderRadius: 130,
-    backgroundColor: "#112436",
     borderWidth: 2,
-    borderColor: "#294764",
     alignItems: "center",
     justifyContent: "center"
   },
