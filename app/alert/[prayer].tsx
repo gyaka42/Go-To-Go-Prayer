@@ -4,17 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   View
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as Notifications from "expo-notifications";
+import { AppBackground } from "@/components/AppBackground";
 import { resolveLocationForSettings } from "@/services/location";
 import { registerForLocalNotifications, replanAll } from "@/services/notifications";
 import { getSettings, saveSettings } from "@/services/storage";
+import { useAppTheme } from "@/theme/ThemeProvider";
 import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
 
 const MINUTES_OPTIONS: Array<0 | 5 | 10 | 15 | 30> = [0, 5, 10, 15, 30];
@@ -26,6 +28,7 @@ const TONES: Array<"Adhan - Makkah (Normal)" | "Adhan - Madinah (Soft)" | "Beep"
 
 export default function PrayerAlertPreferencesScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
   const params = useLocalSearchParams<{ prayer?: string }>();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -71,9 +74,10 @@ export default function PrayerAlertPreferencesScreen() {
 
   if (!prayer) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <View style={styles.container}>
-          <Text style={styles.title}>Prayer not found</Text>
+          <AppBackground />
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Prayer not found</Text>
         </View>
       </SafeAreaView>
     );
@@ -159,14 +163,15 @@ export default function PrayerAlertPreferencesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
+        <AppBackground />
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Pressable onPress={() => router.back()} style={styles.headerIconButton}>
               <Ionicons name="chevron-back" size={24} color="#EAF2FF" />
             </Pressable>
-            <Text style={styles.title}>{prayer} Notifications</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{prayer} Notifications</Text>
           </View>
 
           <Pressable onPress={() => void onSave()} style={styles.saveLink}>

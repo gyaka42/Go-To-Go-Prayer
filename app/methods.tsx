@@ -6,21 +6,24 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   View
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { AppBackground } from "@/components/AppBackground";
 import { resolveLocationForSettings } from "@/services/location";
 import { fetchMethods, MethodItem, summarizeMethodParams } from "@/services/methods";
 import { replanAll } from "@/services/notifications";
 import { getSettings, saveSettings } from "@/services/storage";
+import { useAppTheme } from "@/theme/ThemeProvider";
 import { Settings } from "@/types/prayer";
 
 export default function MethodsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { colors } = useAppTheme();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [methods, setMethods] = useState<MethodItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,17 +103,18 @@ export default function MethodsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
+        <AppBackground />
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.headerButton}>
             <Ionicons name="chevron-back" size={24} color="#EAF2FF" />
           </Pressable>
-          <Text style={styles.title}>Calculation Method</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Calculation Method</Text>
           <View style={styles.headerButtonPlaceholder} />
         </View>
 
-        <Text style={styles.subtitle}>{subtitle}</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
         <View style={styles.searchWrap}>
           <Ionicons name="search" size={16} color="#8EA4BF" />
           <TextInput
@@ -144,7 +148,11 @@ export default function MethodsScreen() {
 
               return (
                 <Pressable
-                  style={[styles.row, selected && styles.rowSelected]}
+                  style={[
+                    styles.row,
+                    { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                    selected && styles.rowSelected
+                  ]}
                   onPress={() => void onSelectMethod(item)}
                   disabled={savingId !== null}
                 >

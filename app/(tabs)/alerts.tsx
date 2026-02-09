@@ -2,12 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { AppBackground } from "@/components/AppBackground";
 import { getSettings, saveSettings } from "@/services/storage";
+import { useAppTheme } from "@/theme/ThemeProvider";
 import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
 
 export default function AlertsScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
   const [settings, setSettings] = useState<Settings | null>(null);
 
   const load = useCallback(async () => {
@@ -43,10 +47,13 @@ export default function AlertsScreen() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
-        <Text style={styles.title}>Alerts</Text>
-        <Text style={styles.subtitle}>Tap een gebed om notification preferences te openen.</Text>
+        <AppBackground />
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Alerts</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Tap een gebed om notification preferences te openen.
+        </Text>
 
         <ScrollView contentContainerStyle={styles.list}>
           {PRAYER_NAMES.map((prayer) => {
@@ -54,7 +61,7 @@ export default function AlertsScreen() {
             return (
               <Pressable
                 key={prayer}
-                style={styles.row}
+                style={[styles.row, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                 onPress={() => router.push(`/alert/${prayer}`)}
               >
                 <View style={styles.left}>

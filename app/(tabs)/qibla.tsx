@@ -1,15 +1,273 @@
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import * as Location from "expo-location";
+import { AppBackground } from "@/components/AppBackground";
+import { QiblaCompass } from "@/components/QiblaCompass";
+import { getLocationName, resolveLocationForSettings } from "@/services/location";
+import { getQiblaCompassImageUrl, getQiblaDirection } from "@/services/qibla";
+import {
+  buildQiblaCacheKey,
+  getCachedQibla,
+  getLatestCachedQibla,
+  getSettings,
+  saveCachedQibla
+} from "@/services/storage";
+import { useAppTheme } from "@/theme/ThemeProvider";
+
+type LoadState = "idle" | "loading" | "ready" | "error";
+
+function normalizeHeading(value: number): number {
+  const v = value % 360;
+  return v < 0 ? v + 360 : v;
+}
+
+function shortestDiff(a: number, b: number): number {
+  const diff = Math.abs(a - b) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
 
 export default function QiblaScreen() {
+  const { colors } = useAppTheme();
+  const [bearing, setBearing] = useState<number | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [locationName, setLocationName] = useState("Unknown location");
+  const [statusText, setStatusText] = useState("GPS Connected");
+  const [loadState, setLoadState] = useState<LoadState>("idle");
+  const [errorText, setErrorText] = useState<string | null>(null);
+  const [isCached, setIsCached] = useState(false);
+
+  const [deviceHeading, setDeviceHeading] = useState<number | undefined>(undefined);
+  const [headingAvailable, setHeadingAvailable] = useState(false);
+  const [headingStable, setHeadingStable] = useState(false);
+
+  const previousHeadingRef = useRef<number | undefined>(undefined);
+  const deltaHistoryRef = useRef<number[]>([]);
+
+  const refresh = useCallback(async () => {
+    setLoadState("loading");
+    setErrorText(null);
+
+    try {
+      const settings = await getSettings();
+      const loc = await resolveLocationForSettings(settings);
+      setCoords({ lat: loc.lat, lon: loc.lon });
+
+      const resolvedName = await getLocationName(loc.lat, loc.lon);
+      const displayName = resolvedName === "Unknown location" ? loc.label : resolvedName;
+      setLocationName(displayName);
+      setStatusText(settings.locationMode === "manual" ? "Manual location active" : "GPS Connected");
+
+      const cacheKey = buildQiblaCacheKey(loc.lat, loc.lon);
+
+      try {
+        const qibla = await getQiblaDirection(loc.lat, loc.lon);
+        setBearing(qibla);
+        setIsCached(false);
+
+        await saveCachedQibla(cacheKey, {
+          bearing: qibla,
+          locationName: displayName,
+          updatedAt: new Date().toISOString(),
+          latRounded: Number(loc.lat.toFixed(2)),
+          lonRounded: Number(loc.lon.toFixed(2))
+        });
+      } catch (apiError) {
+        const cached = await getCachedQibla(cacheKey);
+        if (!cached) {
+          throw apiError;
+        }
+
+        setBearing(cached.bearing);
+        setLocationName(cached.locationName || displayName);
+        setIsCached(true);
+      }
+
+      setLoadState("ready");
+    } catch (error) {
+      const latest = await getLatestCachedQibla();
+      if (latest) {
+        setBearing(latest.bearing);
+        setLocationName(latest.locationName || "Cached location");
+        setStatusText("Location Permission Needed");
+        setIsCached(true);
+        setErrorText("Showing last cached Qibla. Enable location and refresh for live direction.");
+        setLoadState("ready");
+      } else {
+        setLoadState("error");
+        setStatusText("Location Permission Needed");
+        setErrorText(
+          String(error).includes("permission")
+            ? "Location access is required to determine Qibla from your position."
+            : `Unable to load Qibla right now: ${String(error)}`
+        );
+      }
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      let removeWatch: (() => void) | undefined;
+
+      void (async () => {
+        try {
+          const permission = await Location.requestForegroundPermissionsAsync();
+          if (!active) {
+            return;
+          }
+          if (permission.status !== "granted") {
+            setHeadingAvailable(false);
+            setHeadingStable(false);
+            return;
+          }
+
+          setHeadingAvailable(true);
+          setHeadingStable(false);
+          deltaHistoryRef.current = [];
+          previousHeadingRef.current = undefined;
+
+          const subscription = await Location.watchHeadingAsync((headingData) => {
+            const raw =
+              typeof headingData.trueHeading === "number" && headingData.trueHeading >= 0
+                ? headingData.trueHeading
+                : headingData.magHeading;
+
+            const headingDeg = normalizeHeading(Number(raw));
+            const accuracy = Number(headingData.accuracy);
+
+            if (!Number.isFinite(headingDeg)) {
+              setHeadingStable(false);
+              return;
+            }
+
+            setDeviceHeading(headingDeg);
+
+            const prev = previousHeadingRef.current;
+            previousHeadingRef.current = headingDeg;
+            if (typeof prev !== "number") {
+              return;
+            }
+
+            const delta = shortestDiff(prev, headingDeg);
+            const list = [...deltaHistoryRef.current, delta].slice(-10);
+            deltaHistoryRef.current = list;
+
+            if (list.length >= 6) {
+              const avg = list.reduce((sum, v) => sum + v, 0) / list.length;
+              const accuracyGood = Number.isFinite(accuracy) ? accuracy <= 25 : false;
+              setHeadingStable(avg < 20 && accuracyGood);
+            }
+          });
+          removeWatch = () => subscription.remove();
+        } catch {
+          setHeadingAvailable(false);
+          setHeadingStable(false);
+        }
+      })();
+
+      return () => {
+        active = false;
+        if (removeWatch) {
+          removeWatch();
+        }
+      };
+    }, [])
+  );
+
+  const mode = useMemo<"live" | "fallback">(() => {
+    if (headingAvailable && headingStable && typeof deviceHeading === "number") {
+      return "live";
+    }
+    return "fallback";
+  }, [deviceHeading, headingAvailable, headingStable]);
+
+  const fallbackImageUrl = useMemo(() => {
+    if (!coords) {
+      return null;
+    }
+    return getQiblaCompassImageUrl(coords.lat, coords.lon, 512);
+  }, [coords]);
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
-        <View style={styles.card}>
-          <Ionicons name="compass" size={48} color="#2B8CEE" />
-          <Text style={styles.title}>Qibla</Text>
-          <Text style={styles.subtitle}>Qibla finder komt in v1.1. Deze tab staat alvast klaar.</Text>
+        <AppBackground />
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Qibla</Text>
+            <Text style={[styles.locationText, { color: colors.textSecondary }]}>{locationName}</Text>
+            <Text style={styles.statusText}>{statusText}</Text>
+          </View>
+          <Pressable style={styles.refreshButton} onPress={() => void refresh()}>
+            <Ionicons name="refresh" size={20} color="#D9E8FA" />
+          </Pressable>
         </View>
+
+        {bearing !== null ? <Text style={[styles.qiblaText, { color: colors.accent }]}>Qibla: {Math.round(bearing)}deg</Text> : null}
+
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {loadState === "loading" ? (
+            <View style={styles.loaderWrap}>
+              <ActivityIndicator color="#2B8CEE" size="large" />
+            </View>
+          ) : null}
+
+          {loadState === "error" ? (
+            <View style={styles.errorCard}>
+              <Text style={styles.errorTitle}>Location Permission Needed</Text>
+              <Text style={styles.errorText}>{errorText}</Text>
+              <Pressable style={styles.retryButton} onPress={() => void refresh()}>
+                <Text style={styles.retryButtonText}>Request Again</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {loadState === "ready" && bearing !== null ? (
+            <View style={styles.contentWrap}>
+              <QiblaCompass qiblaBearingDeg={bearing} deviceHeadingDeg={deviceHeading} mode={mode} />
+
+              <View style={[styles.badge, mode === "live" ? styles.badgeLive : styles.badgeFallback]}>
+                <Text style={styles.badgeText}>
+                  {mode === "live" ? "Live compass: ON" : "Live compass: OFF (fallback)"}
+                </Text>
+              </View>
+
+              {isCached ? <Text style={styles.cachedText}>Using cached Qibla data</Text> : null}
+              {isCached && errorText ? <Text style={styles.cachedWarning}>{errorText}</Text> : null}
+
+              {mode === "fallback" && fallbackImageUrl ? (
+                <View style={styles.fallbackCard}>
+                  <Text style={styles.fallbackTitle}>Fallback Compass Image</Text>
+                  <Image source={{ uri: fallbackImageUrl }} style={styles.fallbackImage} resizeMode="contain" />
+                </View>
+              ) : null}
+
+              <View style={styles.hintsCard}>
+                <Text style={styles.hintsTitle}>Tips</Text>
+                <Text style={styles.hintItem}>1. Hold your phone flat (screen up) for best accuracy.</Text>
+                <Text style={styles.hintItem}>2. If direction seems off, calibrate by moving the phone in a figure-8.</Text>
+                <Text style={styles.hintItem}>3. Avoid magnets/metal cases near the phone.</Text>
+              </View>
+            </View>
+          ) : null}
+        </ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -25,27 +283,154 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 860,
     alignSelf: "center",
-    padding: 20,
-    justifyContent: "center"
+    paddingHorizontal: 20,
+    paddingTop: 14
   },
-  card: {
-    borderRadius: 20,
-    backgroundColor: "#162638",
-    borderWidth: 1,
-    borderColor: "#1D3349",
-    padding: 24,
-    alignItems: "center"
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
   },
   title: {
-    marginTop: 12,
-    fontSize: 24,
+    fontSize: 30,
     fontWeight: "800",
     color: "#EDF4FF"
   },
-  subtitle: {
-    marginTop: 8,
+  locationText: {
+    marginTop: 4,
+    maxWidth: 290,
     fontSize: 14,
-    color: "#8EA4BF",
+    color: "#AFC4DD"
+  },
+  statusText: {
+    marginTop: 3,
+    fontSize: 13,
+    color: "#7EE2AF"
+  },
+  refreshButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#18334A",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  qiblaText: {
+    marginTop: 14,
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#2B8CEE"
+  },
+  scrollContent: {
+    paddingTop: 14,
+    paddingBottom: 30
+  },
+  loaderWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40
+  },
+  errorCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#3E2B36",
+    backgroundColor: "#251922",
+    padding: 14
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFC6D2"
+  },
+  errorText: {
+    marginTop: 8,
+    color: "#E6AFBF",
+    fontSize: 13,
+    lineHeight: 19
+  },
+  retryButton: {
+    marginTop: 12,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "#2B8CEE",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  retryButtonText: {
+    color: "#F2F8FF",
+    fontWeight: "700"
+  },
+  contentWrap: {
+    alignItems: "center"
+  },
+  badge: {
+    marginTop: 14,
+    minHeight: 34,
+    borderRadius: 17,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  badgeLive: {
+    backgroundColor: "#173F34"
+  },
+  badgeFallback: {
+    backgroundColor: "#3A2F1C"
+  },
+  badgeText: {
+    color: "#E8F2FF",
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  cachedText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#9FB3CC"
+  },
+  cachedWarning: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#D9B88F",
     textAlign: "center"
+  },
+  fallbackCard: {
+    marginTop: 16,
+    width: "100%",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#1E354B",
+    backgroundColor: "#122434",
+    padding: 12,
+    alignItems: "center"
+  },
+  fallbackTitle: {
+    color: "#CFE2F7",
+    marginBottom: 8,
+    fontWeight: "700"
+  },
+  fallbackImage: {
+    width: 220,
+    height: 220,
+    borderRadius: 10
+  },
+  hintsCard: {
+    marginTop: 16,
+    width: "100%",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#244460",
+    backgroundColor: "#13283A",
+    padding: 14,
+    gap: 6
+  },
+  hintsTitle: {
+    color: "#E8F2FF",
+    fontWeight: "800",
+    marginBottom: 4
+  },
+  hintItem: {
+    color: "#B8CCE2",
+    fontSize: 13,
+    lineHeight: 18
   }
 });

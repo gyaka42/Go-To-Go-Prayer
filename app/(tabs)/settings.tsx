@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
@@ -15,6 +14,7 @@ import {
   TextInput,
   View
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   CitySuggestion,
   geocodeCityQuery,
@@ -22,8 +22,11 @@ import {
   resolveLocationForSettings,
   searchCitySuggestions
 } from "@/services/location";
+import { AppBackground } from "@/components/AppBackground";
 import { replanAll } from "@/services/notifications";
 import { getSettings, saveSettings } from "@/services/storage";
+import { useAppTheme } from "@/theme/ThemeProvider";
+import { ThemeMode } from "@/theme/theme";
 import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
 
 const MINUTES_OPTIONS: Array<0 | 5 | 10 | 15 | 30> = [0, 5, 10, 15, 30];
@@ -36,6 +39,7 @@ function nextMinutes(current: 0 | 5 | 10 | 15 | 30): 0 | 5 | 10 | 15 | 30 {
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { colors, mode, setMode } = useAppTheme();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [locationStatus, setLocationStatus] = useState("Current Location");
@@ -240,6 +244,7 @@ export default function SettingsScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
+          <AppBackground />
           <Text style={styles.pageTitle}>App Settings</Text>
           <Text style={styles.mutedText}>Loading...</Text>
         </View>
@@ -248,16 +253,41 @@ export default function SettingsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
+        <AppBackground />
         <View style={styles.headerRow}>
-          <Text style={styles.pageTitle}>App Settings</Text>
+          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>App Settings</Text>
           <Ionicons name="help-circle-outline" size={22} color="#B7C7DD" />
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.sectionLabel}>CALCULATION</Text>
-          <View style={styles.card}>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>APPEARANCE</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={styles.themeModeRow}>
+              {(["system", "dark", "light"] as ThemeMode[]).map((option) => {
+                const selected = mode === option;
+                return (
+                  <Pressable
+                    key={option}
+                    style={[
+                      styles.themeModeButton,
+                      { borderColor: colors.cardBorder },
+                      selected && { backgroundColor: colors.accent, borderColor: colors.accent }
+                    ]}
+                    onPress={() => void setMode(option)}
+                  >
+                    <Text style={[styles.themeModeButtonText, { color: selected ? "#F2F8FF" : colors.textPrimary }]}>
+                      {option === "system" ? "System" : option === "dark" ? "Dark" : "Light"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>CALCULATION</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <View style={styles.settingRowWithBorder}>
               <View style={styles.settingLeft}>
                 <View style={styles.iconBox}>
@@ -285,8 +315,8 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
 
-          <Text style={styles.sectionLabel}>LOCATION & REGION</Text>
-          <View style={styles.card}>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>LOCATION & REGION</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <View style={styles.locationRow}>
               <View style={styles.locationIconWrap}>
                 <Ionicons name="locate" size={22} color="#23D18B" />
@@ -348,11 +378,11 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.notificationHeader}>
-            <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>NOTIFICATIONS</Text>
             <Text style={styles.minutesBeforeLabel}>MINUTES BEFORE</Text>
           </View>
 
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             {PRAYER_NAMES.map((prayer, index) => {
               const entry = settings.prayerNotifications[prayer];
               const hasBorder = index < PRAYER_NAMES.length - 1;
@@ -372,7 +402,7 @@ export default function SettingsScreen() {
             })}
           </View>
 
-          <Pressable style={styles.saveButton} onPress={() => void persistAndReplan()} disabled={saving}>
+          <Pressable style={[styles.saveButton, { backgroundColor: colors.accent }]} onPress={() => void persistAndReplan()} disabled={saving}>
             <Text style={styles.saveButtonText}>{saving ? "Saving..." : "Save Settings"}</Text>
           </Pressable>
         </ScrollView>
@@ -415,6 +445,23 @@ const styles = StyleSheet.create({
     letterSpacing: 1.1,
     color: "#8CA2BE",
     marginBottom: 10
+  },
+  themeModeRow: {
+    flexDirection: "row",
+    gap: 8,
+    padding: 14
+  },
+  themeModeButton: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  themeModeButtonText: {
+    fontWeight: "700",
+    fontSize: 13
   },
   card: {
     backgroundColor: "#162638",

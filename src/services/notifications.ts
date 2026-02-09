@@ -7,7 +7,8 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldPlaySound: true,
     shouldSetBadge: false,
-    shouldShowAlert: true
+    shouldShowBanner: true,
+    shouldShowList: true
   })
 });
 
@@ -59,9 +60,9 @@ export async function schedulePrayerNotificationsForDay(
         }
       },
       trigger: {
-        type: "date",
-        timestamp: triggerAt.getTime()
-      } as any
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: triggerAt
+      }
     });
   }
 }

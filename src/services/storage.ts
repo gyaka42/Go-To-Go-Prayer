@@ -1,8 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CachedTimings, PRAYER_NAMES, Settings } from "@/types/prayer";
+import { CachedQibla, CachedTimings, PRAYER_NAMES, Settings } from "@/types/prayer";
 
 const SETTINGS_KEY = "settings:v1";
 const LATEST_CACHE_KEY = "timings:latest:v1";
+const QIBLA_CACHE_PREFIX = "qibla";
+const LATEST_QIBLA_CACHE_KEY = "qibla:latest:v1";
 
 function createDefaultSettings(): Settings {
   return {
@@ -140,6 +142,43 @@ export async function getLatestCachedTimings(): Promise<CachedTimings | null> {
 
   try {
     return JSON.parse(raw) as CachedTimings;
+  } catch {
+    return null;
+  }
+}
+
+export function buildQiblaCacheKey(lat: number, lon: number): string {
+  const latRounded = Number(lat.toFixed(2));
+  const lonRounded = Number(lon.toFixed(2));
+  return `${QIBLA_CACHE_PREFIX}:${latRounded}:${lonRounded}`;
+}
+
+export async function getCachedQibla(key: string): Promise<CachedQibla | null> {
+  const raw = await AsyncStorage.getItem(key);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as CachedQibla;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCachedQibla(key: string, value: CachedQibla): Promise<void> {
+  await AsyncStorage.setItem(key, JSON.stringify(value));
+  await AsyncStorage.setItem(LATEST_QIBLA_CACHE_KEY, JSON.stringify(value));
+}
+
+export async function getLatestCachedQibla(): Promise<CachedQibla | null> {
+  const raw = await AsyncStorage.getItem(LATEST_QIBLA_CACHE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as CachedQibla;
   } catch {
     return null;
   }

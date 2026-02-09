@@ -1,17 +1,18 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
-  SafeAreaView,
   StyleSheet,
   Text,
   View
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { AppBackground } from "@/components/AppBackground";
 import { getTimingsByCoordinates } from "@/services/aladhan";
 import { resolveLocationForSettings } from "@/services/location";
 import { replanAll } from "@/services/notifications";
@@ -25,6 +26,7 @@ import {
 import { PRAYER_NAMES, PrayerName, Settings, Timings } from "@/types/prayer";
 import { formatDateTime } from "@/utils/date";
 import { formatCountdown, getDateKey, getNextPrayer } from "@/utils/time";
+import { useAppTheme } from "@/theme/ThemeProvider";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 
@@ -49,6 +51,7 @@ function prayerIcon(prayer: PrayerName): keyof typeof MaterialCommunityIcons.gly
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
   const [timings, setTimings] = useState<Timings | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [countdown, setCountdown] = useState("00:00:00");
@@ -60,6 +63,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationName, setLocationName] = useState("Current Location");
+  const lastReplanSignatureRef = useRef<string>("");
 
   const updateCountdown = useCallback((activeTimings: Timings) => {
     const now = new Date();
@@ -109,12 +113,24 @@ export default function HomeScreen() {
           methodId: savedSettings.methodId
         });
 
-        await replanAll({
-          lat: location.lat,
-          lon: location.lon,
-          methodId: savedSettings.methodId,
-          settings: savedSettings
-        });
+        const dayKey = getDateKey(today);
+        const replanSignature = [
+          dayKey,
+          savedSettings.methodId,
+          location.lat.toFixed(3),
+          location.lon.toFixed(3),
+          JSON.stringify(savedSettings.prayerNotifications)
+        ].join("|");
+
+        if (lastReplanSignatureRef.current !== replanSignature) {
+          await replanAll({
+            lat: location.lat,
+            lon: location.lon,
+            methodId: savedSettings.methodId,
+            settings: savedSettings
+          });
+          lastReplanSignatureRef.current = replanSignature;
+        }
       } catch (apiError) {
         const cached = await getCachedTimings(cacheKey);
         if (!cached) {
@@ -210,27 +226,26 @@ export default function HomeScreen() {
   }, [nextPrayerName, timings]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
-        <View style={styles.backgroundGlowTop} />
-        <View style={styles.backgroundGlowBottom} />
+        <AppBackground />
 
         <View style={styles.headerRow}>
           <View style={styles.headerLocationBlock}>
             <View style={styles.locationRow}>
               <Ionicons name="location" size={18} color="#2B8CEE" />
               <View style={styles.locationTextWrap}>
-                <Text style={styles.locationCityText} numberOfLines={1}>
+                <Text style={[styles.locationCityText, { color: colors.textPrimary }]} numberOfLines={1}>
                   {locationParts.city}
                 </Text>
                 {locationParts.country ? (
-                  <Text style={styles.locationCountryText} numberOfLines={1}>
+                  <Text style={[styles.locationCountryText, { color: colors.textSecondary }]} numberOfLines={1}>
                     {locationParts.country}
                   </Text>
                 ) : null}
               </View>
             </View>
-            <Text style={styles.dateText}>{todaysDateLabel}</Text>
+            <Text style={[styles.dateText, { color: colors.textSecondary }]}>{todaysDateLabel}</Text>
           </View>
           <Pressable style={styles.refreshCircle} onPress={() => void onRefresh()}>
             <Ionicons name="refresh" size={24} color="#A7B7CC" />
@@ -240,7 +255,9 @@ export default function HomeScreen() {
         <View style={styles.heroCard}>
           <Text style={styles.heroLabel}>NEXT PRAYER</Text>
           <View style={styles.heroMainRow}>
-            <Text style={styles.heroPrayer}>{nextPrayerName}</Text>
+            <Text style={styles.heroPrayer} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+              {nextPrayerName}
+            </Text>
             <Text style={styles.heroCountdown}>in {countdown}</Text>
           </View>
 
@@ -257,8 +274,8 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>TODAY'S SCHEDULE</Text>
-        <Text style={styles.metaLine}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>TODAY'S SCHEDULE</Text>
+        <Text style={[styles.metaLine, { color: colors.textSecondary }]}>
           Source: {source ?? "-"} | Updated: {lastUpdated ? formatDateTime(lastUpdated) : "-"}
         </Text>
 
@@ -277,7 +294,13 @@ export default function HomeScreen() {
               const isEnabled = settings?.prayerNotifications[item].enabled ?? false;
 
               return (
-                <View style={[styles.row, isNext && styles.rowNext]}>
+                <View
+                  style={[
+                    styles.row,
+                    { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                    isNext && styles.rowNext
+                  ]}
+                >
                   <View style={styles.rowLeft}>
                     <View style={[styles.iconWrap, isNext && styles.iconWrapNext]}>
                       <MaterialCommunityIcons
@@ -324,24 +347,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     paddingHorizontal: 20,
     paddingTop: 14
-  },
-  backgroundGlowTop: {
-    position: "absolute",
-    top: -120,
-    right: -80,
-    width: 260,
-    height: 260,
-    borderRadius: 999,
-    backgroundColor: "#2B8CEE22"
-  },
-  backgroundGlowBottom: {
-    position: "absolute",
-    bottom: -80,
-    left: -80,
-    width: 220,
-    height: 220,
-    borderRadius: 999,
-    backgroundColor: "#2B8CEE1A"
   },
   headerRow: {
     flexDirection: "row",
@@ -406,19 +411,24 @@ const styles = StyleSheet.create({
     marginTop: 14,
     flexDirection: "row",
     alignItems: "flex-end",
-    flexWrap: "wrap",
-    gap: 8
+    justifyContent: "flex-start",
+    gap: 4
   },
   heroPrayer: {
-    fontSize: 44,
+    flexShrink: 1,
+    fontSize: 40,
     fontWeight: "800",
-    color: "#F4FAFF"
+    color: "#F4FAFF",
+    paddingRight: 2
   },
   heroCountdown: {
     marginBottom: 6,
-    fontSize: 24,
+    minWidth: 96,
+    textAlign: "left",
+    fontSize: 20,
     fontWeight: "500",
-    color: "#D8ECFF"
+    color: "#D8ECFF",
+    fontVariant: ["tabular-nums"]
   },
   heroBottomRow: {
     marginTop: 26,

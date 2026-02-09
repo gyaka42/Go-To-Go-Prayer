@@ -30,9 +30,7 @@ function fallbackLabel(lat: number, lon: number): string {
   return `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
 }
 
-export async function getCurrentLocationDetails(): Promise<{ lat: number; lon: number; label: string }> {
-  const { lat, lon } = await getCurrentLocation();
-
+export async function getLocationName(lat: number, lon: number): Promise<string> {
   try {
     const reverse = await Location.reverseGeocodeAsync({
       latitude: lat,
@@ -40,12 +38,31 @@ export async function getCurrentLocationDetails(): Promise<{ lat: number; lon: n
     });
     const first = reverse[0];
     if (!first) {
-      return { lat, lon, label: fallbackLabel(lat, lon) };
+      return "Unknown location";
     }
 
     const city = firstNonEmpty([first.city, first.subregion, first.region, first.district]);
+    const region = firstNonEmpty([first.region, first.subregion]);
     const country = firstNonEmpty([first.country, first.isoCountryCode]);
-    const label = city && country ? `${city}, ${country}` : city || country || fallbackLabel(lat, lon);
+
+    const parts = [city, region, country].filter(Boolean);
+    if (parts.length > 0) {
+      return parts.join(", ");
+    }
+    return "Unknown location";
+  } catch {
+    return "Unknown location";
+  }
+}
+
+export async function getCurrentLocationDetails(): Promise<{ lat: number; lon: number; label: string }> {
+  const { lat, lon } = await getCurrentLocation();
+
+  try {
+    const label = await getLocationName(lat, lon);
+    if (label === "Unknown location") {
+      return { lat, lon, label: fallbackLabel(lat, lon) };
+    }
     return { lat, lon, label };
   } catch {
     return { lat, lon, label: fallbackLabel(lat, lon) };

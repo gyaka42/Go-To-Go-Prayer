@@ -39,3 +39,11 @@ export interface CachedTimings {
   lonRounded: number;
   methodId: number;
 }
+
+export interface CachedQibla {
+  bearing: number;
+  locationName: string;
+  updatedAt: string;
+  latRounded: number;
+  lonRounded: number;
+}
