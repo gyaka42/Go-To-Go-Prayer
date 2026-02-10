@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { AppState } from "react-native";
+import { AppState, NativeModules, Platform } from "react-native";
 import { PrayerName } from "@/types/prayer";
 import { AppLanguage, languageLocaleMap, prayerTranslations, translations } from "@/i18n/translations";
 
@@ -29,7 +29,7 @@ function interpolate(template: string, params?: TranslateParams): string {
 }
 
 function resolveLanguageFromLocaleTag(localeTag: string): AppLanguage {
-  const normalized = localeTag.toLowerCase();
+  const normalized = localeTag.toLowerCase().replace("_", "-");
   if (normalized.startsWith("nl")) {
     return "nl";
   }
@@ -39,9 +39,36 @@ function resolveLanguageFromLocaleTag(localeTag: string): AppLanguage {
   return "en";
 }
 
+function getNativeLocaleTag(): string | null {
+  try {
+    if (Platform.OS === "ios") {
+      const settings = (NativeModules as any)?.SettingsManager?.settings;
+      const appleLocale = settings?.AppleLocale;
+      const appleLanguages = settings?.AppleLanguages;
+      if (typeof appleLocale === "string" && appleLocale.length > 0) {
+        return appleLocale;
+      }
+      if (Array.isArray(appleLanguages) && typeof appleLanguages[0] === "string") {
+        return appleLanguages[0];
+      }
+    }
+
+    if (Platform.OS === "android") {
+      const localeIdentifier = (NativeModules as any)?.I18nManager?.localeIdentifier;
+      if (typeof localeIdentifier === "string" && localeIdentifier.length > 0) {
+        return localeIdentifier;
+      }
+    }
+  } catch {
+    // Ignore and use Intl fallback.
+  }
+
+  return null;
+}
+
 export function getSystemLanguage(): AppLanguage {
   try {
-    const localeTag = Intl.DateTimeFormat().resolvedOptions().locale || "en-US";
+    const localeTag = getNativeLocaleTag() || Intl.DateTimeFormat().resolvedOptions().locale || "en-US";
     return resolveLanguageFromLocaleTag(localeTag);
   } catch {
     return "en";

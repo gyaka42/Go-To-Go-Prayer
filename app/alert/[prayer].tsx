@@ -4,6 +4,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
+  LayoutChangeEvent,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,6 +33,7 @@ export default function PrayerAlertPreferencesScreen() {
   const params = useLocalSearchParams<{ prayer?: string }>();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
+  const [sliderTrackWidth, setSliderTrackWidth] = useState(0);
 
   const prayer = useMemo<PrayerName | null>(() => {
     if (!params.prayer) {
@@ -75,6 +78,29 @@ export default function PrayerAlertPreferencesScreen() {
     });
   };
 
+  const setVolumeFromX = useCallback(
+    (locationX: number) => {
+      if (!prayer || sliderTrackWidth <= 0) {
+        return;
+      }
+      const normalized = Math.min(1, Math.max(0, locationX / sliderTrackWidth));
+      const nextVolume = Math.round(normalized * 100);
+      updatePrayerSettings({ volume: nextVolume });
+    },
+    [prayer, sliderTrackWidth]
+  );
+
+  const sliderResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (event) => setVolumeFromX(event.nativeEvent.locationX),
+        onPanResponderMove: (event) => setVolumeFromX(event.nativeEvent.locationX)
+      }),
+    [setVolumeFromX]
+  );
+
   if (!prayer) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -89,6 +115,8 @@ export default function PrayerAlertPreferencesScreen() {
   const entry = settings?.prayerNotifications[prayer];
   const prayerLabel = prayerName(prayer);
   const minutesBeforeValue = entry?.minutesBefore ?? 0;
+  const volumeValue = entry?.volume ?? 75;
+  const thumbLeftPercent = Math.max(0, Math.min(100, volumeValue));
 
   const onSave = async () => {
     if (!settings) {
@@ -141,7 +169,8 @@ export default function PrayerAlertPreferencesScreen() {
             ? t("notifications.body_at_time", { prayer: prayerLabel })
             : t("notifications.body_offset", { prayer: prayerLabel, mins: entry.minutesBefore }),
         data: {
-          playSound: entry.playSound
+          playSound: entry.playSound,
+          tone: entry.tone
         },
         sound: resolveNotificationSound(entry.playSound, entry.tone)
       },
@@ -250,9 +279,13 @@ export default function PrayerAlertPreferencesScreen() {
                 <Ionicons name="volume-low" size={16} color={isLight ? "#5C738A" : "#7F93AD"} />
               </Pressable>
 
-              <View style={[styles.sliderTrack, isLight ? { backgroundColor: "#DCE7F4" } : null]}>
-                <View style={[styles.sliderFill, { width: `${entry?.volume ?? 75}%` }]} />
-                <View style={[styles.sliderThumb, { left: `${Math.max(3, (entry?.volume ?? 75) - 2)}%` }]} />
+              <View
+                style={[styles.sliderTrack, isLight ? { backgroundColor: "#DCE7F4" } : null]}
+                onLayout={(event: LayoutChangeEvent) => setSliderTrackWidth(event.nativeEvent.layout.width)}
+                {...sliderResponder.panHandlers}
+              >
+                <View style={[styles.sliderFill, { width: `${volumeValue}%` }]} />
+                <View style={[styles.sliderThumb, { left: `${thumbLeftPercent}%` }]} pointerEvents="none" />
               </View>
 
               <Pressable

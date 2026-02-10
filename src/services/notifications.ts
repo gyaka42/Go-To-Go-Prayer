@@ -35,7 +35,7 @@ let lastAppliedSignature = "";
 let lastAppliedAt = 0;
 
 type ScheduledIntent = "offset" | "at_time";
-const ADHAN_SOUND_FILE = "majid_al_hamthany.wav";
+const ADHAN_SOUND_FILE = "adhan_short.wav";
 
 export function resolveNotificationSound(
   playSound: boolean,
@@ -123,6 +123,7 @@ async function scheduleOne(params: {
         intent: params.intent,
         minutesBefore: params.minutesBefore,
         playSound: params.playSound,
+        tone: params.tone,
         dedupeKey
       },
       sound: resolveNotificationSound(params.playSound, params.tone)

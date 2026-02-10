@@ -3,6 +3,7 @@
     "name": "Go-To-Go Prayer",
     "slug": "go-to-go-prayer",
     "scheme": "gotogoprayer",
+    "icon": "./assets/images/Dark/AppIcon~ios-marketing.png",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -14,11 +15,12 @@
       [
         "expo-notifications",
         {
-          "sounds": ["./assets/sounds/majid_al_hamthany.wav"]
+          "sounds": ["./assets/sounds/adhan_short.wav"]
         }
       ]
     ],
     "ios": {
+      "icon": "./assets/images/Dark/AppIcon~ios-marketing.png",
       "buildNumber": "1",
       "supportsTablet": true,
       "bundleIdentifier": "com.gogo22.gotogoprayer",
