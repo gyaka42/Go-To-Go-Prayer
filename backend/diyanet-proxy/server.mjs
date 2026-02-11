@@ -119,7 +119,15 @@ async function handleRequest(req, res) {
   if (candidates.length === 0) {
     sendJson(res, 502, {
       error: "Could not resolve cityId",
-      details: { lat, lon, date: dateKey, resolvedCity, resolvedCountryCode, resolvedCountryName }
+      details: {
+        lat,
+        lon,
+        date: dateKey,
+        resolvedCity,
+        resolvedCountryCode,
+        resolvedCountryName,
+        citiesLoaded: cities.length
+      }
     });
     return;
   }
@@ -243,10 +251,12 @@ async function getCities(token) {
     const id = Number(row?.id || row?.cityId || row?.cityID || 0);
     const name = String(row?.name || row?.cityName || row?.city || "").trim();
     const country = String(row?.country || row?.countryName || row?.countryTitle || "").trim();
-    const lat = Number(row?.latitude ?? row?.lat ?? row?.enlem ?? NaN);
-    const lon = Number(row?.longitude ?? row?.lon ?? row?.lng ?? row?.boylam ?? NaN);
+    const latRaw = Number(row?.latitude ?? row?.lat ?? row?.enlem ?? NaN);
+    const lonRaw = Number(row?.longitude ?? row?.lon ?? row?.lng ?? row?.boylam ?? NaN);
+    const lat = Number.isFinite(latRaw) ? latRaw : null;
+    const lon = Number.isFinite(lonRaw) ? lonRaw : null;
 
-    if (!(id > 0) || !name || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+    if (!(id > 0) || !name) {
       continue;
     }
     if (!map.has(id)) {
@@ -295,11 +305,13 @@ function matchCities(cities, context) {
       }
     }
 
-    const d = haversineKm(context.lat, context.lon, city.lat, city.lon);
-    if (d < 20) {
-      score += 20;
-    } else if (d < 60) {
-      score += 10;
+    if (Number.isFinite(city.lat) && Number.isFinite(city.lon)) {
+      const d = haversineKm(context.lat, context.lon, city.lat, city.lon);
+      if (d < 20) {
+        score += 20;
+      } else if (d < 60) {
+        score += 10;
+      }
     }
 
     if (score > 0) {
@@ -313,6 +325,7 @@ function matchCities(cities, context) {
 
 function nearestCities(cities, lat, lon, limit = 20) {
   return cities
+    .filter((city) => Number.isFinite(city.lat) && Number.isFinite(city.lon))
     .map((city) => ({ ...city, distKm: haversineKm(lat, lon, city.lat, city.lon) }))
     .sort((a, b) => a.distKm - b.distKm)
     .slice(0, limit);
