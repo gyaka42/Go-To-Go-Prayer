@@ -290,7 +290,7 @@ async function getCities(token) {
   const map = new Map();
 
   for (const row of rows) {
-    const id = Number(row?.id || row?.cityId || row?.cityID || 0);
+    const id = Number(row?.id || row?.cityId || row?.cityID || row?._id || 0);
     const name = String(row?.name || row?.cityName || row?.city || "").trim();
     const country = String(row?.country || row?.countryName || row?.countryTitle || "").trim();
     const latRaw = Number(row?.latitude ?? row?.lat ?? row?.enlem ?? NaN);
@@ -451,6 +451,7 @@ async function tryImsakiyemFallback(params) {
     const districtId = Number(
       item.districtId ||
         item.DistrictId ||
+        item._id ||
         item.id ||
         item.ID ||
         item.placeId ||
@@ -481,7 +482,7 @@ async function tryImsakiyemFallback(params) {
   );
   const states = collectAnyRows(statesSearch);
   for (const state of states.slice(0, 8)) {
-    const stateId = Number(state.stateId || state.id || state.StateId || 0);
+    const stateId = Number(state.stateId || state.state_id || state.id || state.StateId || state._id || 0);
     if (!(stateId > 0)) {
       continue;
     }
@@ -587,6 +588,22 @@ function collectAnyRows(payload) {
   if (nestedArrays.length > 0) {
     return nestedArrays[0];
   }
+
+  // Deep fallback: find first array node anywhere.
+  const queue = [payload];
+  while (queue.length > 0) {
+    const node = queue.shift();
+    if (!node) continue;
+    if (Array.isArray(node)) {
+      return node;
+    }
+    if (typeof node !== "object") continue;
+    for (const value of Object.values(node)) {
+      if (value && (typeof value === "object" || Array.isArray(value))) {
+        queue.push(value);
+      }
+    }
+  }
   return [];
 }
 
@@ -643,12 +660,13 @@ function normalizeDate(raw) {
 }
 
 function mapTimings(row) {
-  const Fajr = parseTime(row?.imsakVakti ?? row?.imsak ?? row?.fajr);
-  const Sunrise = parseTime(row?.gunesVakti ?? row?.gunes ?? row?.sunrise);
-  const Dhuhr = parseTime(row?.ogleVakti ?? row?.ogle ?? row?.dhuhr ?? row?.zuhr);
-  const Asr = parseTime(row?.ikindiVakti ?? row?.ikindi ?? row?.asr);
-  const Maghrib = parseTime(row?.aksamVakti ?? row?.aksam ?? row?.maghrib);
-  const Isha = parseTime(row?.yatsiVakti ?? row?.yatsi ?? row?.isha);
+  const times = row?.times && typeof row.times === "object" ? row.times : null;
+  const Fajr = parseTime(row?.imsakVakti ?? row?.imsak ?? row?.fajr ?? times?.imsak ?? times?.fajr);
+  const Sunrise = parseTime(row?.gunesVakti ?? row?.gunes ?? row?.sunrise ?? times?.gunes ?? times?.sunrise);
+  const Dhuhr = parseTime(row?.ogleVakti ?? row?.ogle ?? row?.dhuhr ?? row?.zuhr ?? times?.ogle ?? times?.dhuhr ?? times?.zuhr);
+  const Asr = parseTime(row?.ikindiVakti ?? row?.ikindi ?? row?.asr ?? times?.ikindi ?? times?.asr);
+  const Maghrib = parseTime(row?.aksamVakti ?? row?.aksam ?? row?.maghrib ?? times?.aksam ?? times?.maghrib);
+  const Isha = parseTime(row?.yatsiVakti ?? row?.yatsi ?? row?.isha ?? times?.yatsi ?? times?.isha);
 
   if (!Fajr || !Sunrise || !Dhuhr || !Asr || !Maghrib || !Isha) {
     return null;
