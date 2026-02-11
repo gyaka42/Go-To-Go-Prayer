@@ -2,6 +2,7 @@
 set -euo pipefail
 
 WORKDIR="${CI_PRIMARY_REPOSITORY_PATH:-${CI_WORKSPACE:-$(pwd)}}"
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 
 echo "==> ci_pre_xcodebuild: start"
 echo "==> working dir: ${WORKDIR}"
