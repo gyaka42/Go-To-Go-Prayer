@@ -117,6 +117,26 @@ async function handleRequest(req, res) {
   }
 
   if (candidates.length === 0) {
+    const fallback = await tryImsakiyemFallback({
+      lat,
+      lon,
+      dateKey,
+      city: resolvedCity,
+      countryCode: resolvedCountryCode,
+      countryName: resolvedCountryName
+    });
+
+    if (fallback?.times) {
+      sendJson(res, 200, {
+        dateKey,
+        cityId: fallback.districtId,
+        citySource: "imsakiyem-fallback",
+        source: "diyanet-proxy",
+        times: fallback.times
+      });
+      return;
+    }
+
     sendJson(res, 502, {
       error: "Could not resolve cityId",
       details: {
@@ -126,7 +146,8 @@ async function handleRequest(req, res) {
         resolvedCity,
         resolvedCountryCode,
         resolvedCountryName,
-        citiesLoaded: cities.length
+        citiesLoaded: cities.length,
+        fallback: fallback?.debug ?? null
       }
     });
     return;
@@ -163,6 +184,26 @@ async function handleRequest(req, res) {
     return;
   }
 
+  const fallback = await tryImsakiyemFallback({
+    lat,
+    lon,
+    dateKey,
+    city: resolvedCity,
+    countryCode: resolvedCountryCode,
+    countryName: resolvedCountryName
+  });
+
+  if (fallback?.times) {
+    sendJson(res, 200, {
+      dateKey,
+      cityId: fallback.districtId,
+      citySource: "imsakiyem-fallback",
+      source: "diyanet-proxy",
+      times: fallback.times
+    });
+    return;
+  }
+
   sendJson(res, 502, {
     error: "No timing rows returned",
     details: {
@@ -172,7 +213,8 @@ async function handleRequest(req, res) {
       resolvedCity,
       resolvedCountryCode,
       resolvedCountryName,
-      attempts: attempts.slice(0, 12)
+      attempts: attempts.slice(0, 12),
+      fallback: fallback?.debug ?? null
     }
   });
 }
@@ -386,6 +428,174 @@ async function fetchDailyRows(token, cityId, dateKey) {
   }
 
   return { rows: [], endpoint: null, status: 0 };
+}
+
+async function tryImsakiyemFallback(params) {
+  const debug = {
+    provider: "imsakiyem",
+    city: params.city,
+    countryCode: params.countryCode,
+    countryName: params.countryName
+  };
+
+  if (!params.city) {
+    return { debug: { ...debug, reason: "missing-city" } };
+  }
+
+  const districtCandidates = [];
+  const seenDistricts = new Set();
+  const addDistrict = (item, source) => {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    const districtId = Number(
+      item.districtId ||
+        item.DistrictId ||
+        item.id ||
+        item.ID ||
+        item.placeId ||
+        0
+    );
+    if (!(districtId > 0) || seenDistricts.has(districtId)) {
+      return;
+    }
+    seenDistricts.add(districtId);
+    districtCandidates.push({
+      districtId,
+      name: String(item.districtName || item.name || item.DistrictName || "").trim(),
+      stateName: String(item.stateName || item.cityName || item.StateName || "").trim(),
+      countryName: String(item.countryName || item.CountryName || "").trim(),
+      source
+    });
+  };
+
+  const districtsSearch = await imsakiyemGet(
+    `/api/locations/search/districts?q=${encodeURIComponent(params.city)}`
+  );
+  for (const item of collectAnyRows(districtsSearch)) {
+    addDistrict(item, "search-districts");
+  }
+
+  const statesSearch = await imsakiyemGet(
+    `/api/locations/search/states?q=${encodeURIComponent(params.city)}`
+  );
+  const states = collectAnyRows(statesSearch);
+  for (const state of states.slice(0, 8)) {
+    const stateId = Number(state.stateId || state.id || state.StateId || 0);
+    if (!(stateId > 0)) {
+      continue;
+    }
+    const districtsByState = await imsakiyemGet(`/api/locations/districts?stateId=${stateId}`);
+    for (const item of collectAnyRows(districtsByState)) {
+      addDistrict(item, "state->districts");
+    }
+  }
+
+  const countryHints = normalizedCountryHints(params.countryCode, params.countryName);
+  const cityNorm = normalizeText(params.city);
+
+  const scored = districtCandidates
+    .map((row) => {
+      let score = 0;
+      const districtNorm = normalizeText(row.name);
+      const stateNorm = normalizeText(row.stateName);
+      const countryNorm = normalizeText(row.countryName);
+
+      if (districtNorm === cityNorm || stateNorm === cityNorm) {
+        score += 100;
+      } else if (
+        districtNorm.includes(cityNorm) ||
+        cityNorm.includes(districtNorm) ||
+        stateNorm.includes(cityNorm) ||
+        cityNorm.includes(stateNorm)
+      ) {
+        score += 50;
+      }
+
+      for (const hint of countryHints) {
+        if (!hint) continue;
+        if (countryNorm === hint) {
+          score += 25;
+        } else if (countryNorm.includes(hint) || hint.includes(countryNorm)) {
+          score += 10;
+        }
+      }
+
+      return { ...row, score };
+    })
+    .sort((a, b) => b.score - a.score || a.districtId - b.districtId);
+
+  debug.candidateCount = scored.length;
+  debug.topCandidates = scored.slice(0, 5).map((item) => ({
+    districtId: item.districtId,
+    name: item.name,
+    stateName: item.stateName,
+    countryName: item.countryName,
+    score: item.score,
+    source: item.source
+  }));
+
+  const ymd = toYmd(params.dateKey);
+  for (const candidate of scored.slice(0, 8)) {
+    const timingsData = await imsakiyemGet(
+      `/api/prayer-times/${candidate.districtId}/monthly?startDate=${ymd}`
+    );
+    const timingsRows = collectAnyRows(timingsData);
+    if (!Array.isArray(timingsRows) || timingsRows.length === 0) {
+      continue;
+    }
+    const row = findByDate(timingsRows, params.dateKey) || timingsRows[0];
+    const times = mapTimings(row);
+    if (!times) {
+      continue;
+    }
+    return {
+      districtId: candidate.districtId,
+      times,
+      debug: { ...debug, chosen: candidate.districtId }
+    };
+  }
+
+  return { debug: { ...debug, reason: "no-usable-prayer-times" } };
+}
+
+async function imsakiyemGet(path) {
+  try {
+    const response = await fetch(`https://ezanvakti.imsakiyem.com${path}`, {
+      headers: { Accept: "application/json" }
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return await safeJson(response);
+  } catch {
+    return null;
+  }
+}
+
+function collectAnyRows(payload) {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  if (typeof payload !== "object") return [];
+  if (Array.isArray(payload.data)) return payload.data;
+  if (Array.isArray(payload.result)) return payload.result;
+  if (Array.isArray(payload.items)) return payload.items;
+  if (Array.isArray(payload.value)) return payload.value;
+
+  const obj = payload;
+  const nestedArrays = Object.values(obj).filter((value) => Array.isArray(value));
+  if (nestedArrays.length > 0) {
+    return nestedArrays[0];
+  }
+  return [];
+}
+
+function toYmd(dateKey) {
+  const match = String(dateKey).match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (!match) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  return `${match[3]}-${match[2]}-${match[1]}`;
 }
 
 function extractRows(payload) {
