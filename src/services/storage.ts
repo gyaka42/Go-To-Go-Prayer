@@ -1,13 +1,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CachedQibla, CachedTimings, PRAYER_NAMES, Settings } from "@/types/prayer";
+import { CachedLocation, CachedQibla, CachedTimings, PRAYER_NAMES, Settings } from "@/types/prayer";
 
 const SETTINGS_KEY = "settings:v1";
 const LATEST_CACHE_KEY = "timings:latest:v1";
 const QIBLA_CACHE_PREFIX = "qibla";
 const LATEST_QIBLA_CACHE_KEY = "qibla:latest:v1";
+const LATEST_LOCATION_CACHE_KEY = "location:latest:v1";
 
 function createDefaultSettings(): Settings {
   return {
+    timingsProvider: "aladhan",
     methodId: 3,
     methodName: "Muslim World League",
     hanafiOnly: true,
@@ -37,6 +39,10 @@ export async function getSettings(): Promise<Settings> {
     const defaults = createDefaultSettings();
 
     return {
+      timingsProvider:
+        (parsed as any).timingsProvider === "diyanet" || (parsed as any).provider === "diyanet"
+          ? "diyanet"
+          : "aladhan",
       methodId:
         typeof (parsed as any).methodId === "number"
           ? (parsed as any).methodId
@@ -112,10 +118,16 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
-export function buildTimingsCacheKey(dateKey: string, lat: number, lon: number, methodId: number): string {
+export function buildTimingsCacheKey(
+  dateKey: string,
+  lat: number,
+  lon: number,
+  methodId: number,
+  provider: "aladhan" | "diyanet" = "aladhan"
+): string {
   const latRounded = Number(lat.toFixed(2));
   const lonRounded = Number(lon.toFixed(2));
-  return `timings:${dateKey}:${latRounded}:${lonRounded}:m${methodId}`;
+  return `timings:${dateKey}:${latRounded}:${lonRounded}:p${provider}:m${methodId}`;
 }
 
 export async function getCachedTimings(key: string): Promise<CachedTimings | null> {
@@ -181,6 +193,23 @@ export async function getLatestCachedQibla(): Promise<CachedQibla | null> {
 
   try {
     return JSON.parse(raw) as CachedQibla;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveLatestCachedLocation(value: CachedLocation): Promise<void> {
+  await AsyncStorage.setItem(LATEST_LOCATION_CACHE_KEY, JSON.stringify(value));
+}
+
+export async function getLatestCachedLocation(): Promise<CachedLocation | null> {
+  const raw = await AsyncStorage.getItem(LATEST_LOCATION_CACHE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as CachedLocation;
   } catch {
     return null;
   }

@@ -8,27 +8,27 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		1B4FA35299A72F2035BE7C83 /* libPods-GoToGoPrayer.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 7F57428788C297807470FF7E /* libPods-GoToGoPrayer.a */; };
-		2D621389DC935A9D5E5F780B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D33E9E51FA3FB209CF047857 /* PrivacyInfo.xcprivacy */; };
-		3945B43457C88CF7F2553934 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 272DD398BA84FB9B81DDB86E /* ExpoModulesProvider.swift */; };
+		3E2EC6034DFE735826934BA6 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAD618763944E5A03657B350 /* ExpoModulesProvider.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		60FC28865FF04E8B88ECB813 /* adhan_short.wav in Resources */ = {isa = PBXBuildFile; fileRef = 002C50F728874A0EBB6952C7 /* adhan_short.wav */; };
+		4C97D6A31B705CD0FEC29A48 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = EBD115892612D05F54BDA442 /* PrivacyInfo.xcprivacy */; };
+		524A45B9D825B399F53E1E78 /* libPods-GoToGoPrayer.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 83EB5BA1817FA7DF6D9B51BD /* libPods-GoToGoPrayer.a */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
+		C593CF9E2C944E2BBD24E2E7 /* adhan_short.wav in Resources */ = {isa = PBXBuildFile; fileRef = B800BAE7D7234B22AD2C830D /* adhan_short.wav */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		002C50F728874A0EBB6952C7 /* adhan_short.wav */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = adhan_short.wav; path = GoToGoPrayer/adhan_short.wav; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* GoToGoPrayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GoToGoPrayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = GoToGoPrayer/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = GoToGoPrayer/Info.plist; sourceTree = "<group>"; };
-		272DD398BA84FB9B81DDB86E /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-GoToGoPrayer/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		32FD794421BBCD837E5FF2BE /* Pods-GoToGoPrayer.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GoToGoPrayer.debug.xcconfig"; path = "Target Support Files/Pods-GoToGoPrayer/Pods-GoToGoPrayer.debug.xcconfig"; sourceTree = "<group>"; };
-		7F57428788C297807470FF7E /* libPods-GoToGoPrayer.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-GoToGoPrayer.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		9D8A7AF7618A2FC2128C7BE1 /* Pods-GoToGoPrayer.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GoToGoPrayer.release.xcconfig"; path = "Target Support Files/Pods-GoToGoPrayer/Pods-GoToGoPrayer.release.xcconfig"; sourceTree = "<group>"; };
+		393BE669A4E2AB9078DEE74D /* Pods-GoToGoPrayer.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GoToGoPrayer.release.xcconfig"; path = "Target Support Files/Pods-GoToGoPrayer/Pods-GoToGoPrayer.release.xcconfig"; sourceTree = "<group>"; };
+		5A43E41B978B1311ED17C01D /* Pods-GoToGoPrayer.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GoToGoPrayer.debug.xcconfig"; path = "Target Support Files/Pods-GoToGoPrayer/Pods-GoToGoPrayer.debug.xcconfig"; sourceTree = "<group>"; };
+		83EB5BA1817FA7DF6D9B51BD /* libPods-GoToGoPrayer.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-GoToGoPrayer.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = GoToGoPrayer/SplashScreen.storyboard; sourceTree = "<group>"; };
+		AAD618763944E5A03657B350 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-GoToGoPrayer/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		B800BAE7D7234B22AD2C830D /* adhan_short.wav */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = adhan_short.wav; path = GoToGoPrayer/adhan_short.wav; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		D33E9E51FA3FB209CF047857 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = GoToGoPrayer/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		EBD115892612D05F54BDA442 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = GoToGoPrayer/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = GoToGoPrayer/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* GoToGoPrayer-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "GoToGoPrayer-Bridging-Header.h"; path = "GoToGoPrayer/GoToGoPrayer-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -39,7 +39,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1B4FA35299A72F2035BE7C83 /* libPods-GoToGoPrayer.a in Frameworks */,
+				524A45B9D825B399F53E1E78 /* libPods-GoToGoPrayer.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -55,8 +55,8 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				002C50F728874A0EBB6952C7 /* adhan_short.wav */,
-				D33E9E51FA3FB209CF047857 /* PrivacyInfo.xcprivacy */,
+				B800BAE7D7234B22AD2C830D /* adhan_short.wav */,
+				EBD115892612D05F54BDA442 /* PrivacyInfo.xcprivacy */,
 			);
 			name = GoToGoPrayer;
 			sourceTree = "<group>";
@@ -65,9 +65,26 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				7F57428788C297807470FF7E /* libPods-GoToGoPrayer.a */,
+				83EB5BA1817FA7DF6D9B51BD /* libPods-GoToGoPrayer.a */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		64FAC5CE0270F1B0330BEE71 /* GoToGoPrayer */ = {
+			isa = PBXGroup;
+			children = (
+				AAD618763944E5A03657B350 /* ExpoModulesProvider.swift */,
+			);
+			name = GoToGoPrayer;
+			sourceTree = "<group>";
+		};
+		6D30C6B68AB5F17E173F9D30 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				5A43E41B978B1311ED17C01D /* Pods-GoToGoPrayer.debug.xcconfig */,
+				393BE669A4E2AB9078DEE74D /* Pods-GoToGoPrayer.release.xcconfig */,
+			);
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -84,8 +101,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				EEFF0550F413FA12692E3D4B /* Pods */,
-				A12ABDA1EDC6E74CA508F5C4 /* ExpoModulesProviders */,
+				6D30C6B68AB5F17E173F9D30 /* Pods */,
+				D76F9BE768187EEBBB1F6FB7 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -100,14 +117,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		A12ABDA1EDC6E74CA508F5C4 /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				E0369159D70FB806290D90F5 /* GoToGoPrayer */,
-			);
-			name = ExpoModulesProviders;
-			sourceTree = "<group>";
-		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
@@ -117,22 +126,12 @@
 			path = GoToGoPrayer/Supporting;
 			sourceTree = "<group>";
 		};
-		E0369159D70FB806290D90F5 /* GoToGoPrayer */ = {
+		D76F9BE768187EEBBB1F6FB7 /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				272DD398BA84FB9B81DDB86E /* ExpoModulesProvider.swift */,
+				64FAC5CE0270F1B0330BEE71 /* GoToGoPrayer */,
 			);
-			name = GoToGoPrayer;
-			sourceTree = "<group>";
-		};
-		EEFF0550F413FA12692E3D4B /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				32FD794421BBCD837E5FF2BE /* Pods-GoToGoPrayer.debug.xcconfig */,
-				9D8A7AF7618A2FC2128C7BE1 /* Pods-GoToGoPrayer.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -143,13 +142,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "GoToGoPrayer" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				40B36FAB775AC03C5AA331E5 /* [Expo] Configure project */,
+				3D0AFAA3D62A44EA78446C25 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				6DAD9FBF6C532B8D3F444174 /* [CP] Embed Pods Frameworks */,
+				E2CCF7969F292AC4CDBC407E /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -199,8 +198,8 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				60FC28865FF04E8B88ECB813 /* adhan_short.wav in Resources */,
-				2D621389DC935A9D5E5F780B /* PrivacyInfo.xcprivacy in Resources */,
+				C593CF9E2C944E2BBD24E2E7 /* adhan_short.wav in Resources */,
+				4C97D6A31B705CD0FEC29A48 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -246,7 +245,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		40B36FAB775AC03C5AA331E5 /* [Expo] Configure project */ = {
+		3D0AFAA3D62A44EA78446C25 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -269,28 +268,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-GoToGoPrayer/expo-configure-project.sh\"\n";
-		};
-		6DAD9FBF6C532B8D3F444174 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-GoToGoPrayer/Pods-GoToGoPrayer-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-GoToGoPrayer/Pods-GoToGoPrayer-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -326,6 +303,28 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-GoToGoPrayer/Pods-GoToGoPrayer-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		E2CCF7969F292AC4CDBC407E /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-GoToGoPrayer/Pods-GoToGoPrayer-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-GoToGoPrayer/Pods-GoToGoPrayer-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -334,7 +333,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				3945B43457C88CF7F2553934 /* ExpoModulesProvider.swift in Sources */,
+				3E2EC6034DFE735826934BA6 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -343,12 +342,13 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 32FD794421BBCD837E5FF2BE /* Pods-GoToGoPrayer.debug.xcconfig */;
+			baseConfigurationReference = 5A43E41B978B1311ED17C01D /* Pods-GoToGoPrayer.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = GoToGoPrayer/GoToGoPrayer.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JURXXMF8XJ;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -379,12 +379,13 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 9D8A7AF7618A2FC2128C7BE1 /* Pods-GoToGoPrayer.release.xcconfig */;
+			baseConfigurationReference = 393BE669A4E2AB9078DEE74D /* Pods-GoToGoPrayer.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = GoToGoPrayer/GoToGoPrayer.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JURXXMF8XJ;
 				INFOPLIST_FILE = GoToGoPrayer/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (

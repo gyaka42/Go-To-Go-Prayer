@@ -15,15 +15,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
-import { getTimingsByCoordinates } from "@/services/aladhan";
 import { resolveLocationForSettings } from "@/services/location";
 import { replanAll } from "@/services/notifications";
+import { getTodayTomorrowTimings } from "@/services/timingsCache";
 import {
-  buildTimingsCacheKey,
-  getCachedTimings,
+  getLatestCachedLocation,
   getLatestCachedTimings,
   getSettings,
-  saveCachedTimings
+  saveLatestCachedLocation
 } from "@/services/storage";
 import { PRAYER_NAMES, PrayerName, Settings, Timings } from "@/types/prayer";
 import { formatDateTime } from "@/utils/date";
@@ -96,7 +95,9 @@ export default function HomeScreen() {
     setCountdown(formatCountdown(next.time.getTime() - now.getTime()));
   }, []);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (options?: { forceRefresh?: boolean; forceLocationRefresh?: boolean }) => {
+    const forceRefresh = options?.forceRefresh === true;
+    const forceLocationRefresh = options?.forceLocationRefresh === true;
     setLoadState("loading");
     setStatusMessage(t("home.fetching_prayers"));
 
@@ -105,50 +106,52 @@ export default function HomeScreen() {
 
     const today = new Date();
     const tomorrow = getTomorrow(today);
-    const dateKey = getDateKey(today);
-    const tomorrowKey = getDateKey(tomorrow);
 
     try {
-      const location = await resolveLocationForSettings(savedSettings);
+      let location: { lat: number; lon: number; label: string };
+      if (savedSettings.locationMode === "manual" && savedSettings.manualLocation) {
+        location = {
+          lat: savedSettings.manualLocation.lat,
+          lon: savedSettings.manualLocation.lon,
+          label: savedSettings.manualLocation.label
+        };
+      } else if (!forceLocationRefresh) {
+        const cachedLocation = await getLatestCachedLocation();
+        if (cachedLocation && cachedLocation.mode === "gps") {
+          location = {
+            lat: cachedLocation.lat,
+            lon: cachedLocation.lon,
+            label: cachedLocation.label
+          };
+        } else {
+          location = await resolveLocationForSettings(savedSettings);
+        }
+      } else {
+        location = await resolveLocationForSettings(savedSettings);
+      }
+
       setCoords(location);
       setLocationName(location.label);
-
-      const cacheKey = buildTimingsCacheKey(dateKey, location.lat, location.lon, savedSettings.methodId);
-      const tomorrowCacheKey = buildTimingsCacheKey(
-        tomorrowKey,
-        location.lat,
-        location.lon,
-        savedSettings.methodId
-      );
+      await saveLatestCachedLocation({
+        lat: location.lat,
+        lon: location.lon,
+        label: location.label,
+        mode: savedSettings.locationMode,
+        updatedAt: new Date().toISOString()
+      });
 
       try {
-        const [fromApi, nextDayFromApi] = await Promise.all([
-          getTimingsByCoordinates(today, location.lat, location.lon, savedSettings.methodId, 1),
-          getTimingsByCoordinates(tomorrow, location.lat, location.lon, savedSettings.methodId, 1)
-        ]);
-        setTimings(fromApi);
-        setTomorrowTimings(nextDayFromApi);
-        setSource("api");
-        const nowIso = new Date().toISOString();
-        setLastUpdated(nowIso);
-        setStatusMessage(t("home.live_loaded"));
-
-        await saveCachedTimings(cacheKey, {
-          timings: fromApi,
-          lastUpdated: nowIso,
-          source: "api",
-          latRounded: Number(location.lat.toFixed(2)),
-          lonRounded: Number(location.lon.toFixed(2)),
-          methodId: savedSettings.methodId
+        const resolved = await getTodayTomorrowTimings({
+          today,
+          location,
+          settings: savedSettings,
+          forceRefresh
         });
-        await saveCachedTimings(tomorrowCacheKey, {
-          timings: nextDayFromApi,
-          lastUpdated: nowIso,
-          source: "api",
-          latRounded: Number(location.lat.toFixed(2)),
-          lonRounded: Number(location.lon.toFixed(2)),
-          methodId: savedSettings.methodId
-        });
+        setTimings(resolved.today);
+        setTomorrowTimings(resolved.tomorrow);
+        setSource(resolved.source);
+        setLastUpdated(resolved.lastUpdated);
+        setStatusMessage(resolved.source === "api" ? t("home.live_loaded") : t("home.cache_loaded"));
 
         const dayKey = getDateKey(today);
         const replanSignature = [
@@ -169,17 +172,7 @@ export default function HomeScreen() {
           lastReplanSignatureRef.current = replanSignature;
         }
       } catch (apiError) {
-        const cached = await getCachedTimings(cacheKey);
-        if (!cached) {
-          throw apiError;
-        }
-
-        setTimings(cached.timings);
-        const tomorrowCached = await getCachedTimings(tomorrowCacheKey);
-        setTomorrowTimings(tomorrowCached?.timings ?? null);
-        setSource("cache");
-        setLastUpdated(cached.lastUpdated);
-        setStatusMessage(t("home.api_cache_fallback"));
+        throw apiError;
       }
 
       setLoadState("ready");
@@ -232,7 +225,7 @@ export default function HomeScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await loadData();
+      await loadData({ forceRefresh: true, forceLocationRefresh: true });
     } finally {
       setRefreshing(false);
     }

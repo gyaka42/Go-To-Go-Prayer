@@ -8,3 +8,6 @@ expo-env.d.ts
 node_modules/
 # @end expo-cli
 .DS_Store
+.env
+.env.*
+!.env.example

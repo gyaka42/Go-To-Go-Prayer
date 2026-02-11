@@ -1,6 +1,6 @@
 import * as Notifications from "expo-notifications";
 import { getSystemLanguage, translate, translatePrayerName } from "@/i18n/I18nProvider";
-import { getTimingsByCoordinates } from "@/services/aladhan";
+import { getTodayTomorrowTimings } from "@/services/timingsCache";
 import { getDateKey, getTomorrow, parsePrayerTimeForDate } from "@/utils/time";
 import { PRAYER_NAMES, PrayerNotificationSetting, Settings, Timings } from "@/types/prayer";
 
@@ -58,6 +58,7 @@ function createReplanSignature(params: {
   return JSON.stringify({
     lat: roundedLat,
     lon: roundedLon,
+    provider: params.settings.timingsProvider,
     methodId: params.methodId,
     locationMode: params.settings.locationMode,
     manualLocation: params.settings.manualLocation
@@ -202,8 +203,14 @@ async function replanAllOnce(params: {
     offset: 0
   };
 
-  const todayTimings = await getTimingsByCoordinates(today, params.lat, params.lon, params.methodId, 1);
-  const tomorrowTimings = await getTimingsByCoordinates(tomorrow, params.lat, params.lon, params.methodId, 1);
+  const resolved = await getTodayTomorrowTimings({
+    today,
+    location: { lat: params.lat, lon: params.lon },
+    settings: params.settings,
+    forceRefresh: false
+  });
+  const todayTimings = resolved.today;
+  const tomorrowTimings = resolved.tomorrow;
 
   if (todayTimings.dateKey !== getDateKey(today)) {
     throw new Error("Today timings date mismatch.");
@@ -263,7 +270,7 @@ async function replanAllOnce(params: {
 
   if (__DEV__) {
     console.log(
-      `[notifications] replanned total=${stats.scheduled} at_time=${stats.atTime} offset=${stats.offset} method=${params.methodId}`
+      `[notifications] replanned total=${stats.scheduled} at_time=${stats.atTime} offset=${stats.offset} provider=${params.settings.timingsProvider} method=${params.methodId}`
     );
   }
 }

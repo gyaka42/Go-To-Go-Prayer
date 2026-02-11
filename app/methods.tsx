@@ -21,6 +21,9 @@ import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { Settings } from "@/types/prayer";
 
+const DIYANET_OFFICIAL_ID = 98_001;
+const DIYANET_OFFICIAL_KEY = "DIYANET_OFFICIAL_API";
+
 export default function MethodsScreen() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -51,21 +54,37 @@ export default function MethodsScreen() {
   );
 
   const currentMethodId = settings?.methodId ?? 3;
+  const usingDiyanet = settings?.timingsProvider === "diyanet";
+
+  const providerOptions = useMemo<MethodItem[]>(() => {
+    return [
+      {
+        key: DIYANET_OFFICIAL_KEY,
+        id: DIYANET_OFFICIAL_ID,
+        name: t("methods.diyanet_official"),
+        params: {}
+      }
+    ];
+  }, [t]);
 
   const subtitle = useMemo(() => {
+    if (usingDiyanet) {
+      return t("methods.diyanet_active");
+    }
     const selected = methods.find((item) => item.id === currentMethodId);
     return selected ? `${selected.name} (${selected.id})` : t("methods.method_id", { id: currentMethodId });
-  }, [currentMethodId, methods, t]);
+  }, [currentMethodId, methods, t, usingDiyanet]);
 
   const filteredMethods = useMemo(() => {
+    const all = [...providerOptions, ...methods];
     const q = searchQuery.trim().toLowerCase();
     if (!q) {
-      return methods;
+      return all;
     }
-    return methods.filter((item) => {
+    return all.filter((item) => {
       return item.name.toLowerCase().includes(q) || item.key.toLowerCase().includes(q) || String(item.id).includes(q);
     });
-  }, [methods, searchQuery]);
+  }, [methods, providerOptions, searchQuery]);
 
   const onSelectMethod = useCallback(
     async (method: MethodItem) => {
@@ -75,8 +94,36 @@ export default function MethodsScreen() {
 
       setSavingId(method.id);
       try {
+        if (method.key === DIYANET_OFFICIAL_KEY) {
+          const updated: Settings = {
+            ...settings,
+            timingsProvider: "diyanet",
+            methodName: t("methods.diyanet_official"),
+            hanafiOnly: true
+          };
+
+          await saveSettings(updated);
+          setSettings(updated);
+
+          try {
+            const loc = await resolveLocationForSettings(updated);
+            await replanAll({
+              lat: loc.lat,
+              lon: loc.lon,
+              methodId: updated.methodId,
+              settings: updated
+            });
+          } catch {
+            // Persisting provider selection is still valid if location/replan fails.
+          }
+
+          navigation.goBack();
+          return;
+        }
+
         const updated: Settings = {
           ...settings,
+          timingsProvider: "aladhan",
           methodId: method.id,
           methodName: method.name,
           hanafiOnly: true
@@ -90,7 +137,7 @@ export default function MethodsScreen() {
           await replanAll({
             lat: loc.lat,
             lon: loc.lon,
-            methodId: method.id,
+            methodId: updated.methodId,
             settings: updated
           });
         } catch {
@@ -102,7 +149,7 @@ export default function MethodsScreen() {
         setSavingId(null);
       }
     },
-    [navigation, settings]
+    [navigation, settings, t]
   );
 
   return (
@@ -154,8 +201,15 @@ export default function MethodsScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => {
-              const selected = item.id === currentMethodId;
+              const selected =
+                item.key === DIYANET_OFFICIAL_KEY
+                  ? usingDiyanet
+                  : !usingDiyanet && item.id === currentMethodId;
               const rowBusy = savingId === item.id;
+              const subtitleText =
+                item.key === DIYANET_OFFICIAL_KEY
+                  ? t("methods.diyanet_official_desc")
+                  : summarizeMethodParams(item.params);
 
               return (
                 <Pressable
@@ -178,7 +232,7 @@ export default function MethodsScreen() {
                       {item.name}
                     </Text>
                     <Text style={[styles.rowSub, isLight ? { color: "#4E647C" } : null]}>
-                      {summarizeMethodParams(item.params)}
+                      {subtitleText}
                     </Text>
                   </View>
 

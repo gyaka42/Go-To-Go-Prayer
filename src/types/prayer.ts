@@ -18,6 +18,7 @@ export interface PrayerNotificationSetting {
 }
 
 export interface Settings {
+  timingsProvider: "aladhan" | "diyanet";
   methodId: number;
   methodName: string;
   hanafiOnly: boolean;
@@ -37,6 +38,7 @@ export interface CachedTimings {
   source: "api" | "cache";
   latRounded: number;
   lonRounded: number;
+  provider?: "aladhan" | "diyanet";
   methodId: number;
 }
 
@@ -46,4 +48,12 @@ export interface CachedQibla {
   updatedAt: string;
   latRounded: number;
   lonRounded: number;
+}
+
+export interface CachedLocation {
+  lat: number;
+  lon: number;
+  label: string;
+  mode: "gps" | "manual";
+  updatedAt: string;
 }
