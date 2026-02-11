@@ -1,10 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "==> ci_post_clone: start"
-echo "==> working dir: $CI_WORKSPACE"
+WORKDIR="${CI_PRIMARY_REPOSITORY_PATH:-${CI_WORKSPACE:-$(pwd)}}"
 
-cd "$CI_WORKSPACE"
+echo "==> ci_post_clone: start"
+echo "==> working dir: ${WORKDIR}"
+
+cd "${WORKDIR}"
 
 echo "==> Node: $(node -v || true)"
 echo "==> NPM: $(npm -v || true)"
@@ -17,4 +19,3 @@ cd ios
 pod install --repo-update
 
 echo "==> ci_post_clone: done"
-
