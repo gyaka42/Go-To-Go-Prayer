@@ -73,7 +73,7 @@ export async function getTimingsByCoordinates(
   date: Date,
   lat: number,
   lon: number,
-  _cityHint?: string
+  cityHint?: string
 ): Promise<Timings> {
   const baseUrlRaw = process.env.EXPO_PUBLIC_DIYANET_PROXY_URL?.trim();
   if (!baseUrlRaw) {
@@ -86,6 +86,18 @@ export async function getTimingsByCoordinates(
   url.searchParams.set("lat", String(lat));
   url.searchParams.set("lon", String(lon));
   url.searchParams.set("date", dateKey);
+  if (cityHint && cityHint.trim().length > 0) {
+    const parts = cityHint
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+    if (parts[0]) {
+      url.searchParams.set("city", parts[0]);
+    }
+    if (parts.length > 1) {
+      url.searchParams.set("country", parts[parts.length - 1]);
+    }
+  }
 
   const forcedCityId = toFiniteNumber(process.env.EXPO_PUBLIC_DIYANET_FORCE_CITY_ID);
   if (forcedCityId && forcedCityId > 0) {

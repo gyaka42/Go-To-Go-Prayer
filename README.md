@@ -10,6 +10,18 @@ Set this environment variable before starting Expo:
 - `EXPO_PUBLIC_DIYANET_PROXY_URL` (example: `https://your-worker.workers.dev`)
 - Optional: `EXPO_PUBLIC_DIYANET_FORCE_CITY_ID` (temporary debug override; forces a specific city id)
 
+## Railway Proxy Option
+
+This repo includes a Railway-ready backend at `backend/diyanet-proxy`.
+
+- Root directory: `backend/diyanet-proxy`
+- Start command: `npm start`
+- Required env vars on Railway:
+  - `DIYANET_USERNAME`
+  - `DIYANET_PASSWORD`
+
+Use your Railway domain as `EXPO_PUBLIC_DIYANET_PROXY_URL`.
+
 Example:
 
 ```bash

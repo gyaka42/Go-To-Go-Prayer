@@ -1,0 +1,534 @@
+import http from "node:http";
+
+const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
+const PORT = Number(process.env.PORT || 3000);
+
+let tokenState = null; // { token: string, expMs: number }
+let citiesState = null; // { items: Array<City>, atMs: number }
+
+const countryAliases = {
+  DE: ["germany", "deutschland", "almanya"],
+  NL: ["netherlands", "nederland", "holland", "hollanda"],
+  TR: ["turkey", "turkiye", "tuerkiye"],
+  GB: ["uk", "unitedkingdom", "england", "birlesikkrallik"],
+  US: ["usa", "unitedstates", "amerika"]
+};
+
+const server = http.createServer(async (req, res) => {
+  try {
+    await handleRequest(req, res);
+  } catch (error) {
+    sendJson(res, 500, { error: "Internal error", details: String(error) });
+  }
+});
+
+server.listen(PORT, () => {
+  // eslint-disable-next-line no-console
+  console.log(`[diyanet-proxy] listening on :${PORT}`);
+});
+
+async function handleRequest(req, res) {
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, corsHeaders());
+    res.end();
+    return;
+  }
+
+  if (!req.url) {
+    sendJson(res, 400, { error: "Missing URL" });
+    return;
+  }
+
+  const url = new URL(req.url, "http://localhost");
+
+  if (req.method === "GET" && url.pathname === "/health") {
+    sendJson(res, 200, { ok: true, service: "diyanet-proxy", at: new Date().toISOString() });
+    return;
+  }
+
+  if (req.method !== "GET" || url.pathname !== "/timings") {
+    sendJson(res, 404, { error: "Not found" });
+    return;
+  }
+
+  const lat = Number(url.searchParams.get("lat"));
+  const lon = Number(url.searchParams.get("lon"));
+  const dateKey = String(url.searchParams.get("date") || "");
+  const cityIdParam = Number(url.searchParams.get("cityId"));
+  const cityQuery = String(url.searchParams.get("city") || "").trim();
+  const countryQuery = String(url.searchParams.get("country") || "").trim();
+  const countryCodeQuery = String(url.searchParams.get("countryCode") || "").trim().toUpperCase();
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    sendJson(res, 400, { error: "Invalid lat/lon" });
+    return;
+  }
+  if (!/^\d{2}-\d{2}-\d{4}$/.test(dateKey)) {
+    sendJson(res, 400, { error: "Invalid date, expected dd-mm-yyyy" });
+    return;
+  }
+
+  const username = process.env.DIYANET_USERNAME?.trim();
+  const password = process.env.DIYANET_PASSWORD?.trim();
+  if (!username || !password) {
+    sendJson(res, 500, { error: "Server not configured (missing DIYANET_USERNAME / DIYANET_PASSWORD)" });
+    return;
+  }
+
+  const token = await login(username, password);
+  const candidates = [];
+  const seen = new Set();
+  const addCandidate = (id, source) => {
+    const n = Number(id);
+    if (Number.isFinite(n) && n > 0 && !seen.has(n)) {
+      seen.add(n);
+      candidates.push({ cityId: n, source });
+    }
+  };
+
+  if (Number.isFinite(cityIdParam) && cityIdParam > 0) {
+    addCandidate(cityIdParam, "query-cityId");
+  }
+
+  const byGeo = await resolveCityIdByGeo(token, lat, lon);
+  if (byGeo) {
+    addCandidate(byGeo, "diyanet-geocode");
+  }
+
+  const reverse = await reverseGeocode(lat, lon);
+  const resolvedCity = cityQuery || reverse.city || "";
+  const resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
+  const resolvedCountryName = countryQuery || reverse.country || "";
+
+  const cities = await getCities(token);
+  const matched = matchCities(cities, {
+    lat,
+    lon,
+    city: resolvedCity,
+    countryCode: resolvedCountryCode,
+    countryName: resolvedCountryName
+  });
+  for (const id of matched) {
+    addCandidate(id, "cities-match");
+  }
+
+  for (const item of nearestCities(cities, lat, lon, 30)) {
+    addCandidate(item.id, "nearest");
+  }
+
+  if (candidates.length === 0) {
+    sendJson(res, 502, {
+      error: "Could not resolve cityId",
+      details: { lat, lon, date: dateKey, resolvedCity, resolvedCountryCode, resolvedCountryName }
+    });
+    return;
+  }
+
+  const attempts = [];
+  for (const c of candidates) {
+    const daily = await fetchDailyRows(token, c.cityId, dateKey);
+    attempts.push({
+      cityId: c.cityId,
+      source: c.source,
+      endpoint: daily.endpoint,
+      status: daily.status,
+      rows: daily.rows.length
+    });
+
+    if (daily.rows.length === 0) {
+      continue;
+    }
+
+    const row = findByDate(daily.rows, dateKey) || daily.rows[0];
+    const times = mapTimings(row);
+    if (!times) {
+      continue;
+    }
+
+    sendJson(res, 200, {
+      dateKey,
+      cityId: c.cityId,
+      citySource: c.source,
+      source: "diyanet-proxy",
+      times
+    });
+    return;
+  }
+
+  sendJson(res, 502, {
+    error: "No timing rows returned",
+    details: {
+      lat,
+      lon,
+      date: dateKey,
+      resolvedCity,
+      resolvedCountryCode,
+      resolvedCountryName,
+      attempts: attempts.slice(0, 12)
+    }
+  });
+}
+
+async function login(username, password) {
+  if (tokenState && Date.now() < tokenState.expMs - 60_000) {
+    return tokenState.token;
+  }
+
+  const paths = ["/api/Auth/Login", "/Auth/Login"];
+  const bodies = [
+    { email: username, password },
+    { Email: username, Password: password },
+    { username, password },
+    { Username: username, Password: password }
+  ];
+
+  let lastStatus = null;
+  let lastBody = null;
+  for (const path of paths) {
+    for (const body of bodies) {
+      const response = await fetch(`${DIYANET_BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(body)
+      });
+      const payload = await safeJson(response);
+      const token = payload?.data?.accessToken || payload?.accessToken || payload?.token || "";
+      const expiresInRaw = Number(payload?.data?.expiresIn || payload?.expiresIn || 3600);
+      const expiresIn = Number.isFinite(expiresInRaw) ? expiresInRaw : 3600;
+      if (token) {
+        tokenState = { token, expMs: Date.now() + expiresIn * 1000 };
+        return token;
+      }
+      lastStatus = response.status;
+      lastBody = payload;
+    }
+  }
+
+  throw new Error(`Diyanet login failed: ${lastStatus} body=${JSON.stringify(lastBody)}`);
+}
+
+async function resolveCityIdByGeo(token, lat, lon) {
+  const urls = [
+    `${DIYANET_BASE}/api/AwqatSalah/CityIdByGeoCode?lat=${lat}&lon=${lon}`,
+    `${DIYANET_BASE}/api/AwqatSalah/CityIdByGeoCode?lat=${lat}&lng=${lon}`,
+    `${DIYANET_BASE}/api/AwqatSalah/CityIdByGeoCode?latitude=${lat}&longitude=${lon}`
+  ];
+  for (const url of urls) {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+    });
+    const payload = await safeJson(response);
+    const id = firstNumber(payload, ["cityId", "cityID", "id"]);
+    if (id) {
+      return id;
+    }
+  }
+  return null;
+}
+
+async function getCities(token) {
+  const ttlMs = 6 * 60 * 60 * 1000;
+  if (citiesState && Date.now() - citiesState.atMs < ttlMs) {
+    return citiesState.items;
+  }
+
+  const response = await fetch(`${DIYANET_BASE}/api/Place/Cities`, {
+    headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+  });
+  const payload = await safeJson(response);
+  const rows = collectObjects(payload);
+  const map = new Map();
+
+  for (const row of rows) {
+    const id = Number(row?.id || row?.cityId || row?.cityID || 0);
+    const name = String(row?.name || row?.cityName || row?.city || "").trim();
+    const country = String(row?.country || row?.countryName || row?.countryTitle || "").trim();
+    const lat = Number(row?.latitude ?? row?.lat ?? row?.enlem ?? NaN);
+    const lon = Number(row?.longitude ?? row?.lon ?? row?.lng ?? row?.boylam ?? NaN);
+
+    if (!(id > 0) || !name || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+      continue;
+    }
+    if (!map.has(id)) {
+      map.set(id, {
+        id,
+        name,
+        country,
+        nameNorm: normalizeText(name),
+        countryNorm: normalizeText(country),
+        lat,
+        lon
+      });
+    }
+  }
+
+  const items = Array.from(map.values());
+  citiesState = { items, atMs: Date.now() };
+  return items;
+}
+
+function matchCities(cities, context) {
+  const cityNorm = normalizeText(context.city || "");
+  const countryNorms = normalizedCountryHints(context.countryCode || "", context.countryName || "");
+
+  const scored = [];
+  for (const city of cities) {
+    let score = 0;
+    if (cityNorm) {
+      if (city.nameNorm === cityNorm) {
+        score += 100;
+      } else if (city.nameNorm.startsWith(cityNorm) || cityNorm.startsWith(city.nameNorm)) {
+        score += 60;
+      } else if (city.nameNorm.includes(cityNorm) || cityNorm.includes(city.nameNorm)) {
+        score += 30;
+      }
+    }
+
+    for (const cNorm of countryNorms) {
+      if (!cNorm || !city.countryNorm) {
+        continue;
+      }
+      if (city.countryNorm === cNorm) {
+        score += 25;
+      } else if (city.countryNorm.includes(cNorm) || cNorm.includes(city.countryNorm)) {
+        score += 10;
+      }
+    }
+
+    const d = haversineKm(context.lat, context.lon, city.lat, city.lon);
+    if (d < 20) {
+      score += 20;
+    } else if (d < 60) {
+      score += 10;
+    }
+
+    if (score > 0) {
+      scored.push({ cityId: city.id, score });
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, 10).map((item) => item.cityId);
+}
+
+function nearestCities(cities, lat, lon, limit = 20) {
+  return cities
+    .map((city) => ({ ...city, distKm: haversineKm(lat, lon, city.lat, city.lon) }))
+    .sort((a, b) => a.distKm - b.distKm)
+    .slice(0, limit);
+}
+
+async function reverseGeocode(lat, lon) {
+  try {
+    const url = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en&count=1`;
+    const response = await fetch(url, { headers: { Accept: "application/json" } });
+    const payload = await safeJson(response);
+    const first = Array.isArray(payload?.results) ? payload.results[0] : null;
+    return {
+      city: String(first?.city || first?.name || first?.admin2 || "").trim(),
+      country: String(first?.country || "").trim(),
+      countryCode: String(first?.country_code || "").trim().toUpperCase()
+    };
+  } catch {
+    return { city: "", country: "", countryCode: "" };
+  }
+}
+
+function normalizedCountryHints(countryCode, countryName) {
+  const hints = new Set();
+  const cc = normalizeText(countryCode);
+  const cn = normalizeText(countryName);
+  if (cc) {
+    hints.add(cc);
+    const aliases = countryAliases[countryCode.toUpperCase()] || [];
+    for (const alias of aliases) {
+      hints.add(normalizeText(alias));
+    }
+  }
+  if (cn) {
+    hints.add(cn);
+  }
+  return Array.from(hints);
+}
+
+async function fetchDailyRows(token, cityId, dateKey) {
+  const endpoints = [
+    `${DIYANET_BASE}/api/PrayerTime/Daily/${cityId}`,
+    `${DIYANET_BASE}/api/AwqatSalah/Daily/${cityId}`,
+    `${DIYANET_BASE}/api/PrayerTime/Daily/${cityId}?date=${dateKey}`,
+    `${DIYANET_BASE}/api/AwqatSalah/Daily/${cityId}?date=${dateKey}`,
+    `${DIYANET_BASE}/api/PrayerTime/Monthly/${cityId}`,
+    `${DIYANET_BASE}/api/AwqatSalah/Monthly/${cityId}`
+  ];
+
+  for (const endpoint of endpoints) {
+    const response = await fetch(endpoint, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+    });
+    const payload = await safeJson(response);
+    const rows = extractRows(payload);
+    if (rows.length > 0) {
+      return { rows, endpoint, status: response.status };
+    }
+  }
+
+  return { rows: [], endpoint: null, status: 0 };
+}
+
+function extractRows(payload) {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload.filter((item) => item && typeof item === "object");
+  if (typeof payload !== "object") return [];
+
+  if (Array.isArray(payload.data)) return payload.data.filter((item) => item && typeof item === "object");
+  if (Array.isArray(payload.result)) return payload.result.filter((item) => item && typeof item === "object");
+  if (Array.isArray(payload.items)) return payload.items.filter((item) => item && typeof item === "object");
+  if (Array.isArray(payload.prayerTimeList)) return payload.prayerTimeList.filter((item) => item && typeof item === "object");
+
+  if (hasTimingFields(payload)) return [payload];
+  if (payload.data && typeof payload.data === "object" && hasTimingFields(payload.data)) return [payload.data];
+
+  const deepRows = collectObjects(payload);
+  for (const row of deepRows) {
+    if (hasTimingFields(row)) {
+      return [row];
+    }
+  }
+  return [];
+}
+
+function findByDate(rows, target) {
+  return rows.find((row) => {
+    const raw =
+      row?.gregorianDateShortIso8601 ||
+      row?.gregorianDateLongIso8601 ||
+      row?.gregorianDate ||
+      row?.date ||
+      row?.day ||
+      row?.miladiTarihUzunIso8601;
+    return normalizeDate(raw) === target;
+  });
+}
+
+function normalizeDate(raw) {
+  if (!raw || typeof raw !== "string") return null;
+  const ddmmyyyy = raw.match(/^(\d{2})[./-](\d{2})[./-](\d{4})$/);
+  if (ddmmyyyy) return `${ddmmyyyy[1]}-${ddmmyyyy[2]}-${ddmmyyyy[3]}`;
+  const yyyymmdd = raw.match(/^(\d{4})[./-](\d{2})[./-](\d{2})/);
+  if (yyyymmdd) return `${yyyymmdd[3]}-${yyyymmdd[2]}-${yyyymmdd[1]}`;
+  return null;
+}
+
+function mapTimings(row) {
+  const Fajr = parseTime(row?.imsakVakti ?? row?.imsak ?? row?.fajr);
+  const Sunrise = parseTime(row?.gunesVakti ?? row?.gunes ?? row?.sunrise);
+  const Dhuhr = parseTime(row?.ogleVakti ?? row?.ogle ?? row?.dhuhr ?? row?.zuhr);
+  const Asr = parseTime(row?.ikindiVakti ?? row?.ikindi ?? row?.asr);
+  const Maghrib = parseTime(row?.aksamVakti ?? row?.aksam ?? row?.maghrib);
+  const Isha = parseTime(row?.yatsiVakti ?? row?.yatsi ?? row?.isha);
+
+  if (!Fajr || !Sunrise || !Dhuhr || !Asr || !Maghrib || !Isha) {
+    return null;
+  }
+  return { Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha };
+}
+
+function parseTime(value) {
+  if (typeof value !== "string") return null;
+  const match = value.match(/(\d{1,2}:\d{2})/);
+  return match ? match[1] : null;
+}
+
+function hasTimingFields(row) {
+  return Boolean(
+    row?.imsakVakti || row?.imsak || row?.fajr ||
+      row?.gunesVakti || row?.gunes || row?.sunrise ||
+      row?.ogleVakti || row?.ogle || row?.dhuhr || row?.zuhr ||
+      row?.ikindiVakti || row?.ikindi || row?.asr ||
+      row?.aksamVakti || row?.aksam || row?.maghrib ||
+      row?.yatsiVakti || row?.yatsi || row?.isha
+  );
+}
+
+function firstNumber(payload, keys) {
+  const queue = [payload];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) continue;
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+    if (typeof current !== "object") continue;
+
+    for (const key of keys) {
+      const n = Number(current[key]);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+
+    for (const value of Object.values(current)) {
+      if (value && typeof value === "object") {
+        queue.push(value);
+      }
+    }
+  }
+  return null;
+}
+
+function collectObjects(payload) {
+  const queue = [payload];
+  const rows = [];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) continue;
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+    if (typeof current !== "object") continue;
+    rows.push(current);
+    for (const value of Object.values(current)) {
+      if (value && typeof value === "object") queue.push(value);
+    }
+  }
+  return rows;
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 6371 * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+async function safeJson(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function sendJson(res, status, payload) {
+  res.writeHead(status, { ...corsHeaders(), "Content-Type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(payload));
+}
+
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+  };
+}
