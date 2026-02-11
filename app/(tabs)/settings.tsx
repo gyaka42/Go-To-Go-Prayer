@@ -64,6 +64,7 @@ export default function SettingsScreen() {
   const [loadingCountries, setLoadingCountries] = useState(false);
   const [loadingStates, setLoadingStates] = useState(false);
   const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [countriesLoadError, setCountriesLoadError] = useState<string | null>(null);
   const [pickerType, setPickerType] = useState<PickerType>(null);
   const [pickerQuery, setPickerQuery] = useState("");
 
@@ -89,11 +90,13 @@ export default function SettingsScreen() {
   useEffect(() => {
     void (async () => {
       setLoadingCountries(true);
+      setCountriesLoadError(null);
       try {
         const result = await fetchDiyanetCountries();
         setCountries(result);
-      } catch {
+      } catch (error) {
         setCountries([]);
+        setCountriesLoadError(String(error));
       } finally {
         setLoadingCountries(false);
       }
@@ -531,7 +534,16 @@ export default function SettingsScreen() {
                   styles.selectorButton,
                   isLight ? { backgroundColor: "#F2F7FD", borderColor: "#C8DBEE" } : null
                 ]}
-                onPress={() => setPickerType("country")}
+                onPress={() => {
+                  if (countries.length === 0) {
+                    Alert.alert(
+                      t("settings.location_title"),
+                      countriesLoadError || t("settings.no_location_options")
+                    );
+                    return;
+                  }
+                  setPickerType("country");
+                }}
               >
                 <Text style={[styles.selectorLabel, isLight ? { color: "#607890" } : null]}>
                   {t("settings.country_label")}
@@ -583,6 +595,11 @@ export default function SettingsScreen() {
               <View style={styles.suggestionsLoadingWrap}>
                 <ActivityIndicator size="small" color="#2B8CEE" />
               </View>
+            ) : null}
+            {countriesLoadError ? (
+              <Text style={[styles.loadErrorText, { color: isLight ? "#A33D3D" : "#FF8A8A" }]}>
+                {t("settings.location_options_failed")}
+              </Text>
             ) : null}
           </View>
 
@@ -655,7 +672,11 @@ export default function SettingsScreen() {
                   </Pressable>
                 )}
                 ListEmptyComponent={
-                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("common.loading")}</Text>
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                    {loadingCountries || loadingStates || loadingDistricts
+                      ? t("common.loading")
+                      : t("settings.no_location_options")}
+                  </Text>
                 }
               />
               <Pressable style={[styles.cancelButton, { borderColor: colors.cardBorder }]} onPress={() => setPickerType(null)}>
@@ -875,6 +896,11 @@ const styles = StyleSheet.create({
     flex: 1,
     color: "#CFE0F4",
     fontSize: 13
+  },
+  loadErrorText: {
+    fontSize: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 10
   },
   modalBackdrop: {
     flex: 1,
