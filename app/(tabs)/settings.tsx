@@ -6,6 +6,7 @@ import {
   Alert,
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,15 +17,21 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  CitySuggestion,
   geocodeCityQuery,
   getCurrentLocationDetails,
-  resolveLocationForSettings,
-  searchCitySuggestions
+  resolveLocationForSettings
 } from "@/services/location";
 import { AppBackground } from "@/components/AppBackground";
 import { LanguageMode, useI18n } from "@/i18n/I18nProvider";
 import { replanAll } from "@/services/notifications";
+import {
+  DiyanetCountryOption,
+  DiyanetDistrictOption,
+  DiyanetStateOption,
+  fetchDiyanetCountries,
+  fetchDiyanetDistricts,
+  fetchDiyanetStates
+} from "@/services/diyanetLocations";
 import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { ThemeMode } from "@/theme/theme";
@@ -38,6 +45,8 @@ function nextMinutes(current: 0 | 5 | 10 | 15 | 30): 0 | 5 | 10 | 15 | 30 {
   return MINUTES_OPTIONS[nextIndex];
 }
 
+type PickerType = "country" | "state" | "district" | null;
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { colors, mode: themeMode, setMode: setThemeMode, resolvedTheme } = useAppTheme();
@@ -46,17 +55,21 @@ export default function SettingsScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [locationStatus, setLocationStatus] = useState(t("common.current_location"));
-  const [manualCityQuery, setManualCityQuery] = useState("");
-  const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([]);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  const [selectedSuggestion, setSelectedSuggestion] = useState<CitySuggestion | null>(null);
+  const [countries, setCountries] = useState<DiyanetCountryOption[]>([]);
+  const [states, setStates] = useState<DiyanetStateOption[]>([]);
+  const [districts, setDistricts] = useState<DiyanetDistrictOption[]>([]);
+  const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
+  const [selectedStateId, setSelectedStateId] = useState<number | null>(null);
+  const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
+  const [loadingCountries, setLoadingCountries] = useState(false);
+  const [loadingStates, setLoadingStates] = useState(false);
+  const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [pickerType, setPickerType] = useState<PickerType>(null);
+  const [pickerQuery, setPickerQuery] = useState("");
 
   const loadSettings = useCallback(async () => {
     const saved = await getSettings();
     setSettings(saved);
-    setManualCityQuery("");
-    setSelectedSuggestion(null);
-    setCitySuggestions([]);
   }, []);
 
   const loadLocationLabel = useCallback(async () => {
@@ -73,6 +86,20 @@ export default function SettingsScreen() {
     void loadSettings();
   }, [loadSettings]);
 
+  useEffect(() => {
+    void (async () => {
+      setLoadingCountries(true);
+      try {
+        const result = await fetchDiyanetCountries();
+        setCountries(result);
+      } catch {
+        setCountries([]);
+      } finally {
+        setLoadingCountries(false);
+      }
+    })();
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void loadSettings();
@@ -81,29 +108,46 @@ export default function SettingsScreen() {
   );
 
   useEffect(() => {
-    const query = manualCityQuery.trim();
-    setSelectedSuggestion((prev) => (prev && prev.label === query ? prev : null));
-
-    if (query.length < 2) {
-      setCitySuggestions([]);
-      setLoadingSuggestions(false);
+    if (!selectedCountryId) {
+      setStates([]);
+      setDistricts([]);
+      setSelectedStateId(null);
+      setSelectedDistrictId(null);
       return;
     }
 
-    const timeout = setTimeout(() => {
-      void (async () => {
-        setLoadingSuggestions(true);
-        try {
-          const list = await searchCitySuggestions(query);
-          setCitySuggestions(list);
-        } finally {
-          setLoadingSuggestions(false);
-        }
-      })();
-    }, 300);
+    void (async () => {
+      setLoadingStates(true);
+      try {
+        const result = await fetchDiyanetStates(selectedCountryId);
+        setStates(result);
+      } catch {
+        setStates([]);
+      } finally {
+        setLoadingStates(false);
+      }
+    })();
+  }, [selectedCountryId]);
 
-    return () => clearTimeout(timeout);
-  }, [manualCityQuery]);
+  useEffect(() => {
+    if (!selectedStateId) {
+      setDistricts([]);
+      setSelectedDistrictId(null);
+      return;
+    }
+
+    void (async () => {
+      setLoadingDistricts(true);
+      try {
+        const result = await fetchDiyanetDistricts(selectedStateId);
+        setDistricts(result);
+      } catch {
+        setDistricts([]);
+      } finally {
+        setLoadingDistricts(false);
+      }
+    })();
+  }, [selectedStateId]);
 
   const togglePrayer = useCallback((prayer: PrayerName, enabled: boolean) => {
     setSettings((prev) => {
@@ -178,46 +222,100 @@ export default function SettingsScreen() {
       return;
     }
 
+    const selectedCountry = countries.find((item) => item.id === selectedCountryId);
+    const selectedState = states.find((item) => item.id === selectedStateId);
+    const selectedDistrict = districts.find((item) => item.id === selectedDistrictId);
+
+    if (!selectedCountry || !selectedState || !selectedDistrict) {
+      Alert.alert(t("settings.manual_city_title"), t("settings.select_all_location_levels"));
+      return;
+    }
+
     setSaving(true);
     try {
-      const manual =
-        selectedSuggestion && selectedSuggestion.label === manualCityQuery.trim()
-          ? selectedSuggestion
-          : await geocodeCityQuery(manualCityQuery);
+      const label = `${selectedDistrict.name}, ${selectedState.name}, ${selectedCountry.name}`;
+      let lat = selectedDistrict.lat;
+      let lon = selectedDistrict.lon;
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        const geocoded = await geocodeCityQuery(label);
+        lat = geocoded.lat;
+        lon = geocoded.lon;
+      }
+
       const updated: Settings = {
         ...settings,
         locationMode: "manual",
         manualLocation: {
-          query: manualCityQuery.trim(),
-          label: manual.label,
-          lat: manual.lat,
-          lon: manual.lon
+          query: label,
+          label,
+          lat: lat as number,
+          lon: lon as number
         }
       };
       setSettings(updated);
-      setLocationStatus(manual.label);
-      setManualCityQuery("");
-      setSelectedSuggestion(null);
-      setCitySuggestions([]);
+      setLocationStatus(label);
       await saveSettings(updated);
 
       await replanAll({
-        lat: manual.lat,
-        lon: manual.lon,
+        lat: lat as number,
+        lon: lon as number,
         methodId: updated.methodId,
         settings: updated
       });
 
       Alert.alert(
         t("settings.manual_set_title"),
-        t("settings.manual_set_body", { label: manual.label })
+        t("settings.manual_set_body", { label })
       );
     } catch (error) {
       Alert.alert(t("settings.manual_city_title"), String(error));
     } finally {
       setSaving(false);
     }
-  }, [manualCityQuery, settings, selectedSuggestion, t]);
+  }, [countries, districts, selectedCountryId, selectedDistrictId, selectedStateId, settings, states, t]);
+
+  const selectedCountry = countries.find((item) => item.id === selectedCountryId) || null;
+  const selectedState = states.find((item) => item.id === selectedStateId) || null;
+  const selectedDistrict = districts.find((item) => item.id === selectedDistrictId) || null;
+
+  const pickerItems =
+    pickerType === "country"
+      ? countries.map((item) => ({ id: item.id, label: item.name }))
+      : pickerType === "state"
+        ? states.map((item) => ({ id: item.id, label: item.name }))
+        : pickerType === "district"
+          ? districts.map((item) => ({ id: item.id, label: item.name }))
+          : [];
+
+  const filteredPickerItems =
+    pickerQuery.trim().length === 0
+      ? pickerItems
+      : pickerItems.filter((item) => item.label.toLowerCase().includes(pickerQuery.trim().toLowerCase()));
+
+  const pickerTitle =
+    pickerType === "country"
+      ? t("settings.country_label")
+      : pickerType === "state"
+        ? t("settings.state_label")
+        : t("settings.district_label");
+
+  const onSelectPickerItem = useCallback(
+    (id: number) => {
+      if (pickerType === "country") {
+        setSelectedCountryId(id);
+        setSelectedStateId(null);
+        setSelectedDistrictId(null);
+      } else if (pickerType === "state") {
+        setSelectedStateId(id);
+        setSelectedDistrictId(null);
+      } else if (pickerType === "district") {
+        setSelectedDistrictId(id);
+      }
+      setPickerType(null);
+      setPickerQuery("");
+    },
+    [pickerType]
+  );
 
   const persistAndReplan = useCallback(async () => {
     if (!settings) {
@@ -418,50 +516,63 @@ export default function SettingsScreen() {
               </Pressable>
             </View>
             <View style={[styles.manualWrap, { borderTopColor: colors.cardBorder }]}>
-              <TextInput
+              <Pressable
                 style={[
-                  styles.manualInput,
-                  isLight
-                    ? { backgroundColor: "#F2F7FD", borderColor: "#C8DBEE", color: "#1A2E45" }
-                    : null
+                  styles.selectorButton,
+                  isLight ? { backgroundColor: "#F2F7FD", borderColor: "#C8DBEE" } : null
                 ]}
-                value={manualCityQuery}
-                onChangeText={(value) => {
-                  setManualCityQuery(value);
-                }}
-                placeholder={t("settings.manual_placeholder")}
-                placeholderTextColor={isLight ? "#607890" : "#6F849D"}
-                autoCapitalize="words"
-              />
+                onPress={() => setPickerType("country")}
+              >
+                <Text style={[styles.selectorLabel, isLight ? { color: "#607890" } : null]}>
+                  {t("settings.country_label")}
+                </Text>
+                <Text style={[styles.selectorValue, isLight ? { color: "#1A2E45" } : null]}>
+                  {selectedCountry?.name || t("settings.select_country")}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.selectorButton,
+                  isLight ? { backgroundColor: "#F2F7FD", borderColor: "#C8DBEE" } : null,
+                  !selectedCountryId ? { opacity: 0.6 } : null
+                ]}
+                onPress={() => setPickerType("state")}
+                disabled={!selectedCountryId}
+              >
+                <Text style={[styles.selectorLabel, isLight ? { color: "#607890" } : null]}>
+                  {t("settings.state_label")}
+                </Text>
+                <Text style={[styles.selectorValue, isLight ? { color: "#1A2E45" } : null]}>
+                  {selectedState?.name || t("settings.select_state")}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.selectorButton,
+                  isLight ? { backgroundColor: "#F2F7FD", borderColor: "#C8DBEE" } : null,
+                  !selectedStateId ? { opacity: 0.6 } : null
+                ]}
+                onPress={() => setPickerType("district")}
+                disabled={!selectedStateId}
+              >
+                <Text style={[styles.selectorLabel, isLight ? { color: "#607890" } : null]}>
+                  {t("settings.district_label")}
+                </Text>
+                <Text style={[styles.selectorValue, isLight ? { color: "#1A2E45" } : null]}>
+                  {selectedDistrict?.name || t("settings.select_district")}
+                </Text>
+              </Pressable>
+
               <Pressable style={styles.manualButton} onPress={() => void applyManualCity()} disabled={saving}>
                 <Text style={styles.manualButtonText}>{t("settings.use_city")}</Text>
               </Pressable>
             </View>
-            {loadingSuggestions ? (
+            {loadingCountries || loadingStates || loadingDistricts ? (
               <View style={styles.suggestionsLoadingWrap}>
                 <ActivityIndicator size="small" color="#2B8CEE" />
               </View>
-            ) : null}
-            {citySuggestions.length > 0 ? (
-              <FlatList
-                data={citySuggestions}
-                keyExtractor={(item, index) => `${item.label}-${index}`}
-                scrollEnabled={false}
-                style={[styles.suggestionsList, { borderTopColor: colors.cardBorder }]}
-                renderItem={({ item }) => (
-                  <Pressable
-                    style={[styles.suggestionRow, { borderBottomColor: colors.cardBorder }]}
-                    onPress={() => {
-                      setManualCityQuery(item.label);
-                      setSelectedSuggestion(item);
-                      setCitySuggestions([]);
-                    }}
-                  >
-                    <Ionicons name="location-outline" size={14} color="#7EA0C3" />
-                    <Text style={[styles.suggestionText, isLight ? { color: "#344E68" } : null]}>{item.label}</Text>
-                  </Pressable>
-                )}
-              />
             ) : null}
           </View>
 
@@ -505,6 +616,44 @@ export default function SettingsScreen() {
             <Text style={styles.saveButtonText}>{saving ? t("settings.saving") : t("settings.save_settings")}</Text>
           </Pressable>
         </ScrollView>
+
+        <Modal transparent visible={pickerType !== null} animationType="fade" onRequestClose={() => setPickerType(null)}>
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>{pickerTitle}</Text>
+              <TextInput
+                style={[
+                  styles.modalSearchInput,
+                  isLight ? { backgroundColor: "#F2F7FD", borderColor: "#C8DBEE", color: "#1A2E45" } : null
+                ]}
+                value={pickerQuery}
+                onChangeText={setPickerQuery}
+                placeholder={t("methods.search_placeholder")}
+                placeholderTextColor={isLight ? "#607890" : "#6F849D"}
+              />
+              <FlatList
+                data={filteredPickerItems}
+                keyExtractor={(item) => `${pickerType}-${item.id}`}
+                style={[styles.modalList, { borderTopColor: colors.cardBorder }]}
+                renderItem={({ item }) => (
+                  <Pressable
+                    style={[styles.suggestionRow, { borderBottomColor: colors.cardBorder }]}
+                    onPress={() => onSelectPickerItem(item.id)}
+                  >
+                    <Ionicons name="location-outline" size={14} color="#7EA0C3" />
+                    <Text style={[styles.suggestionText, isLight ? { color: "#344E68" } : null]}>{item.label}</Text>
+                  </Pressable>
+                )}
+                ListEmptyComponent={
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("common.loading")}</Text>
+                }
+              />
+              <Pressable style={[styles.cancelButton, { borderColor: colors.cardBorder }]} onPress={() => setPickerType(null)}>
+                <Text style={[styles.cancelButtonText, { color: colors.textPrimary }]}>{t("common.close")}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -656,20 +805,31 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#1D3349",
     padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: "column",
+    alignItems: "stretch",
     gap: 8
   },
-  manualInput: {
-    flex: 1,
-    minHeight: 42,
+  selectorButton: {
+    minHeight: 52,
     borderRadius: 10,
     backgroundColor: "#102131",
     borderWidth: 1,
     borderColor: "#23405B",
-    color: "#EAF2FF",
     paddingHorizontal: 12,
-    fontSize: 14
+    paddingVertical: 8,
+    justifyContent: "center"
+  },
+  selectorLabel: {
+    fontSize: 11,
+    color: "#6F849D",
+    fontWeight: "700",
+    letterSpacing: 0.4
+  },
+  selectorValue: {
+    fontSize: 14,
+    color: "#EAF2FF",
+    marginTop: 2,
+    fontWeight: "600"
   },
   manualButton: {
     height: 42,
@@ -704,6 +864,53 @@ const styles = StyleSheet.create({
   suggestionText: {
     flex: 1,
     color: "#CFE0F4",
+    fontSize: 13
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(2, 8, 16, 0.7)",
+    justifyContent: "center",
+    paddingHorizontal: 20
+  },
+  modalCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    maxHeight: "72%",
+    padding: 12
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 8
+  },
+  modalSearchInput: {
+    minHeight: 42,
+    borderRadius: 10,
+    backgroundColor: "#102131",
+    borderWidth: 1,
+    borderColor: "#23405B",
+    color: "#EAF2FF",
+    paddingHorizontal: 12,
+    fontSize: 14,
+    marginBottom: 8
+  },
+  modalList: {
+    borderTopWidth: 1
+  },
+  cancelButton: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  emptyText: {
+    padding: 12,
     fontSize: 13
   },
   notificationHeader: {
