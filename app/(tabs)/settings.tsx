@@ -256,17 +256,27 @@ export default function SettingsScreen() {
       setLocationStatus(label);
       await saveSettings(updated);
 
-      await replanAll({
-        lat: lat as number,
-        lon: lon as number,
-        methodId: updated.methodId,
-        settings: updated
-      });
-
       Alert.alert(
         t("settings.manual_set_title"),
         t("settings.manual_set_body", { label })
       );
+      setSelectedCountryId(null);
+      setSelectedStateId(null);
+      setSelectedDistrictId(null);
+      setStates([]);
+      setDistricts([]);
+
+      void replanAll({
+        lat: lat as number,
+        lon: lon as number,
+        methodId: updated.methodId,
+        settings: updated
+      }).catch((error) => {
+        Alert.alert(
+          t("common.warning"),
+          t("settings.replan_failed", { error: String(error) })
+        );
+      });
     } catch (error) {
       Alert.alert(t("settings.manual_city_title"), String(error));
     } finally {
