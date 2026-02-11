@@ -2,9 +2,11 @@ import http from "node:http";
 
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
 const PORT = Number(process.env.PORT || 3000);
+const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 * 60 * 1000);
 
 let tokenState = null; // { token: string, expMs: number }
 let citiesState = null; // { items: Array<City>, atMs: number }
+const timingsCache = new Map(); // key -> { payload, expMs }
 
 const countryAliases = {
   DE: ["germany", "deutschland", "almanya"],
@@ -68,6 +70,21 @@ async function handleRequest(req, res) {
     return;
   }
 
+  const requestCacheKey = buildRequestCacheKey({
+    lat,
+    lon,
+    dateKey,
+    cityId: cityIdParam,
+    city: cityQuery,
+    country: countryQuery,
+    countryCode: countryCodeQuery
+  });
+  const cached = getCachedTimingsResponse(requestCacheKey);
+  if (cached) {
+    sendJson(res, 200, cached);
+    return;
+  }
+
   const username = process.env.DIYANET_USERNAME?.trim();
   const password = process.env.DIYANET_PASSWORD?.trim();
   if (!username || !password) {
@@ -127,13 +144,15 @@ async function handleRequest(req, res) {
     });
 
     if (fallback?.times) {
-      sendJson(res, 200, {
+      const payload = {
         dateKey,
         cityId: fallback.districtId,
         citySource: "imsakiyem-fallback",
         source: "diyanet-proxy",
         times: fallback.times
-      });
+      };
+      cacheTimingsResponse(requestCacheKey, payload);
+      sendJson(res, 200, payload);
       return;
     }
 
@@ -174,13 +193,15 @@ async function handleRequest(req, res) {
       continue;
     }
 
-    sendJson(res, 200, {
+    const payload = {
       dateKey,
       cityId: c.cityId,
       citySource: c.source,
       source: "diyanet-proxy",
       times
-    });
+    };
+    cacheTimingsResponse(requestCacheKey, payload);
+    sendJson(res, 200, payload);
     return;
   }
 
@@ -194,13 +215,15 @@ async function handleRequest(req, res) {
   });
 
   if (fallback?.times) {
-    sendJson(res, 200, {
+    const payload = {
       dateKey,
       cityId: fallback.districtId,
       citySource: "imsakiyem-fallback",
       source: "diyanet-proxy",
       times: fallback.times
-    });
+    };
+    cacheTimingsResponse(requestCacheKey, payload);
+    sendJson(res, 200, payload);
     return;
   }
 
@@ -613,6 +636,37 @@ function toYmd(dateKey) {
     return new Date().toISOString().slice(0, 10);
   }
   return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function buildRequestCacheKey(input) {
+  const latRounded = Number(input.lat.toFixed(3));
+  const lonRounded = Number(input.lon.toFixed(3));
+  return [
+    input.dateKey,
+    latRounded,
+    lonRounded,
+    Number.isFinite(input.cityId) && input.cityId > 0 ? `cid:${Number(input.cityId)}` : "cid:none",
+    `city:${normalizeText(input.city || "")}`,
+    `country:${normalizeText(input.country || "")}`,
+    `cc:${normalizeText(input.countryCode || "")}`
+  ].join("|");
+}
+
+function getCachedTimingsResponse(key) {
+  const hit = timingsCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.expMs) {
+    timingsCache.delete(key);
+    return null;
+  }
+  return hit.payload;
+}
+
+function cacheTimingsResponse(key, payload) {
+  timingsCache.set(key, {
+    payload,
+    expMs: Date.now() + TIMINGS_CACHE_TTL_MS
+  });
 }
 
 function extractRows(payload) {
