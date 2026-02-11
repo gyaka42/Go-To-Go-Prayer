@@ -2,23 +2,20 @@
 
 ## Diyanet Official API
 
-To use Diyanet as prayer-time provider, set these environment variables before starting Expo:
+The app now uses a server-side proxy (Cloudflare Worker) for Diyanet.
+Do not put Diyanet username/password in the mobile app.
 
-- `EXPO_PUBLIC_DIYANET_USERNAME`
-- `EXPO_PUBLIC_DIYANET_PASSWORD`
-- Optional: `EXPO_PUBLIC_DIYANET_CITY_ID` (fallback only; used only when geo-city resolution fails)
+Set this environment variable before starting Expo:
+
+- `EXPO_PUBLIC_DIYANET_PROXY_URL` (example: `https://your-worker.workers.dev`)
 - Optional: `EXPO_PUBLIC_DIYANET_FORCE_CITY_ID` (temporary debug override; forces a specific city id)
-
-If your username/password contains special characters (like `#`), keep the value in quotes in `.env`.
 
 Example:
 
 ```bash
 cp .env.example .env
-# edit .env with your real credentials
-EXPO_PUBLIC_DIYANET_USERNAME="your_email"
-EXPO_PUBLIC_DIYANET_PASSWORD="your_password"
-EXPO_PUBLIC_DIYANET_CITY_ID="539"
+# edit .env with your Worker URL
+EXPO_PUBLIC_DIYANET_PROXY_URL="https://your-worker.workers.dev"
 # EXPO_PUBLIC_DIYANET_FORCE_CITY_ID="13976"
 npm run start
 ```
