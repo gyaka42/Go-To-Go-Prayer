@@ -52,10 +52,15 @@ fi
 
 echo "==> Installing CocoaPods dependencies"
 cd ios
-if grep -q "objectVersion = 70;" "GoToGoPrayer.xcodeproj/project.pbxproj"; then
-  echo "==> Patching project objectVersion 70 -> 56 for CocoaPods compatibility"
-  sed -i '' 's/objectVersion = 70;/objectVersion = 56;/' "GoToGoPrayer.xcodeproj/project.pbxproj"
-fi
+echo "==> Scanning pbxproj objectVersion values"
+find . -name "*.pbxproj" -print0 | while IFS= read -r -d '' f; do
+  if grep -q "objectVersion = 70;" "$f"; then
+    echo "==> Patching $f : objectVersion 70 -> 56"
+    sed -i '' 's/objectVersion = 70;/objectVersion = 56;/g' "$f"
+  fi
+done
+echo "==> objectVersion values after patch:"
+grep -R "objectVersion =" . --include="*.pbxproj" || true
 if ! pod install; then
   echo "==> pod install failed, retrying with --repo-update"
   pod install --repo-update
