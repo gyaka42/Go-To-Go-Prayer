@@ -52,6 +52,10 @@ fi
 
 echo "==> Installing CocoaPods dependencies"
 cd ios
+if grep -q "objectVersion = 70;" "GoToGoPrayer.xcodeproj/project.pbxproj"; then
+  echo "==> Patching project objectVersion 70 -> 56 for CocoaPods compatibility"
+  sed -i '' 's/objectVersion = 70;/objectVersion = 56;/' "GoToGoPrayer.xcodeproj/project.pbxproj"
+fi
 if ! pod install; then
   echo "==> pod install failed, retrying with --repo-update"
   pod install --repo-update
