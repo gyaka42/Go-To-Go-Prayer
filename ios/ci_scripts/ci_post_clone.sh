@@ -45,10 +45,16 @@ echo "==> Node: $(node -v || true)"
 echo "==> NPM: $(npm -v || true)"
 
 echo "==> Installing JS dependencies"
-npm ci --include=dev
+if ! npm ci --include=dev; then
+  echo "==> npm ci failed, retrying with npm install"
+  npm install --include=dev
+fi
 
 echo "==> Installing CocoaPods dependencies"
 cd ios
-pod install
+if ! pod install; then
+  echo "==> pod install failed, retrying with --repo-update"
+  pod install --repo-update
+fi
 
 echo "==> ci_post_clone: done"
