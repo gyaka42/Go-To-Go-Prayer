@@ -153,6 +153,7 @@ export default function HomeScreen() {
         const resolved = await getTodayTomorrowTimings({
           today,
           location,
+          locationLabel: location.label,
           settings: savedSettings,
           forceRefresh
         });

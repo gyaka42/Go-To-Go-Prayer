@@ -213,8 +213,11 @@ export default function SettingsScreen() {
       await getTodayTomorrowTimings({
         today: new Date(),
         location: { lat: loc.lat, lon: loc.lon },
+        locationLabel: loc.label,
         settings: updated,
         forceRefresh: true
+      }).catch(() => {
+        // Keep GPS switch usable even if provider resolve temporarily fails.
       });
 
       await replanAll({

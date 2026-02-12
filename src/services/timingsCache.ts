@@ -19,6 +19,7 @@ async function fetchAndCacheRange(params: {
   startDate: Date;
   days: number;
   location: LocationInput;
+  locationLabel?: string;
   settings: Settings;
 }): Promise<Map<string, Timings>> {
   const result = new Map<string, Timings>();
@@ -33,7 +34,13 @@ async function fetchAndCacheRange(params: {
     const slice = dates.slice(offset, offset + batchSize);
     const rows = await Promise.all(
       slice.map(async (day) => {
-        const timings = await getTimingsBySettings(day, params.location.lat, params.location.lon, params.settings);
+        const timings = await getTimingsBySettings(
+          day,
+          params.location.lat,
+          params.location.lon,
+          params.settings,
+          params.locationLabel
+        );
         const dateKey = getDateKey(day);
         const cacheKey = buildTimingsCacheKey(
           dateKey,
@@ -67,6 +74,7 @@ async function fetchAndCacheRange(params: {
 export async function getTodayTomorrowTimings(params: {
   today: Date;
   location: LocationInput;
+  locationLabel?: string;
   settings: Settings;
   forceRefresh?: boolean;
   rangeDays?: number;
@@ -109,6 +117,7 @@ export async function getTodayTomorrowTimings(params: {
     startDate: params.today,
     days: params.rangeDays ?? 30,
     location: params.location,
+    locationLabel: params.locationLabel,
     settings: params.settings
   });
 
