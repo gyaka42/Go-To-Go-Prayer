@@ -254,15 +254,15 @@ export default function SettingsScreen() {
 
     setSaving(true);
     try {
-      const label = `${selectedDistrict.displayName}, ${selectedState.displayName}, ${selectedCountry.name}`;
+      const label = `${selectedDistrict.name}, ${selectedState.name}, ${selectedCountry.name}`;
       let lat = selectedDistrict.lat;
       let lon = selectedDistrict.lon;
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
         const resolved = await resolveDiyanetDistrictCoordinates({
           districtId: selectedDistrict.id,
-          districtName: selectedDistrict.displayName || selectedDistrict.name,
+          districtName: selectedDistrict.name,
           stateId: selectedState.id,
-          stateName: selectedState.displayName || selectedState.name,
+          stateName: selectedState.name,
           countryCode: selectedCountry.code,
           countryName: selectedCountry.name,
           locale: localeTag
@@ -273,9 +273,9 @@ export default function SettingsScreen() {
         } else {
           // Client-side fallback chain for districts without usable backend coordinates.
           const fallbackQueries = [
-            `${selectedDistrict.displayName}, ${selectedState.displayName}, ${selectedCountry.name}`,
-            `${selectedDistrict.displayName}, ${selectedCountry.name}`,
-            selectedDistrict.displayName
+            `${selectedDistrict.name}, ${selectedState.name}, ${selectedCountry.name}`,
+            `${selectedDistrict.name}, ${selectedCountry.name}`,
+            selectedDistrict.name
           ];
           let resolvedFallback: { lat: number; lon: number } | null = null;
           for (const query of fallbackQueries) {
@@ -356,9 +356,9 @@ export default function SettingsScreen() {
           label: item.code && countryDisplayNames ? countryDisplayNames.of(item.code) || item.name : item.name
         }))
       : pickerType === "state"
-        ? states.map((item) => ({ id: item.id, label: item.displayName || item.name }))
+        ? states.map((item) => ({ id: item.id, label: item.name }))
         : pickerType === "district"
-          ? districts.map((item) => ({ id: item.id, label: item.displayName || item.name }))
+          ? districts.map((item) => ({ id: item.id, label: item.name }))
           : [];
 
   const filteredPickerItems =
@@ -631,7 +631,7 @@ export default function SettingsScreen() {
                   {t("settings.state_label")}
                 </Text>
                 <Text style={[styles.selectorValue, isLight ? { color: "#1A2E45" } : null]}>
-                  {selectedState?.displayName || selectedState?.name || t("settings.select_state")}
+                  {selectedState?.name || t("settings.select_state")}
                 </Text>
               </Pressable>
 
@@ -648,7 +648,7 @@ export default function SettingsScreen() {
                   {t("settings.district_label")}
                 </Text>
                 <Text style={[styles.selectorValue, isLight ? { color: "#1A2E45" } : null]}>
-                  {selectedDistrict?.displayName || selectedDistrict?.name || t("settings.select_district")}
+                  {selectedDistrict?.name || t("settings.select_district")}
                 </Text>
               </Pressable>
 
