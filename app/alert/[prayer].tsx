@@ -34,6 +34,7 @@ export default function PrayerAlertPreferencesScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [sliderTrackWidth, setSliderTrackWidth] = useState(0);
+  const [isSliding, setIsSliding] = useState(false);
 
   const prayer = useMemo<PrayerName | null>(() => {
     if (!params.prayer) {
@@ -95,8 +96,15 @@ export default function PrayerAlertPreferencesScreen() {
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (event) => setVolumeFromX(event.nativeEvent.locationX),
-        onPanResponderMove: (event) => setVolumeFromX(event.nativeEvent.locationX)
+        onStartShouldSetPanResponderCapture: () => true,
+        onMoveShouldSetPanResponderCapture: () => true,
+        onPanResponderGrant: (event) => {
+          setIsSliding(true);
+          setVolumeFromX(event.nativeEvent.locationX);
+        },
+        onPanResponderMove: (event) => setVolumeFromX(event.nativeEvent.locationX),
+        onPanResponderRelease: () => setIsSliding(false),
+        onPanResponderTerminate: () => setIsSliding(false)
       }),
     [setVolumeFromX]
   );
@@ -217,7 +225,11 @@ export default function PrayerAlertPreferencesScreen() {
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          scrollEnabled={!isSliding}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
           <View style={styles.alertHeadRow}>
             <View style={[styles.alertHeadIconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
               <Ionicons name="notifications" size={22} color="#2B8CEE" />
@@ -280,12 +292,14 @@ export default function PrayerAlertPreferencesScreen() {
               </Pressable>
 
               <View
-                style={[styles.sliderTrack, isLight ? { backgroundColor: "#DCE7F4" } : null]}
+                style={styles.sliderTouchArea}
                 onLayout={(event: LayoutChangeEvent) => setSliderTrackWidth(event.nativeEvent.layout.width)}
                 {...sliderResponder.panHandlers}
               >
-                <View style={[styles.sliderFill, { width: `${volumeValue}%` }]} />
-                <View style={[styles.sliderThumb, { left: `${thumbLeftPercent}%` }]} pointerEvents="none" />
+                <View style={[styles.sliderTrack, isLight ? { backgroundColor: "#DCE7F4" } : null]}>
+                  <View style={[styles.sliderFill, { width: `${volumeValue}%` }]} />
+                  <View style={[styles.sliderThumb, { left: `${thumbLeftPercent}%` }]} pointerEvents="none" />
+                </View>
               </View>
 
               <Pressable
@@ -527,11 +541,16 @@ const styles = StyleSheet.create({
     gap: 10
   },
   volButton: {
-    width: 22,
+    width: 28,
     alignItems: "center"
   },
-  sliderTrack: {
+  sliderTouchArea: {
     flex: 1,
+    minHeight: 34,
+    justifyContent: "center"
+  },
+  sliderTrack: {
+    width: "100%",
     height: 6,
     borderRadius: 3,
     backgroundColor: "#2C3F57",
@@ -547,10 +566,10 @@ const styles = StyleSheet.create({
   },
   sliderThumb: {
     position: "absolute",
-    marginLeft: -6,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    marginLeft: -8,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: "#F4F8FF",
     borderWidth: 2,
     borderColor: "#2B8CEE"

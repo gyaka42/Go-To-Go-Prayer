@@ -41,8 +41,28 @@ function resolveLanguageFromLocaleTag(localeTag: string): AppLanguage {
 
 function getNativeLocaleTag(): string | null {
   try {
+    const platformLocales = (NativeModules as any)?.PlatformConstants?.locales;
+    if (Array.isArray(platformLocales) && platformLocales.length > 0) {
+      const first = platformLocales[0];
+      if (typeof first === "string" && first.length > 0) {
+        return first;
+      }
+      if (first && typeof first === "object") {
+        const languageCode = String(first.languageCode || "").trim();
+        const countryCode = String(first.countryCode || "").trim();
+        if (languageCode && countryCode) {
+          return `${languageCode}-${countryCode}`;
+        }
+        if (languageCode) {
+          return languageCode;
+        }
+      }
+    }
+
     if (Platform.OS === "ios") {
-      const settings = (NativeModules as any)?.SettingsManager?.settings;
+      const settings =
+        (NativeModules as any)?.SettingsManager?.settings ??
+        (NativeModules as any)?.SettingsManager?.getConstants?.()?.settings;
       const appleLocale = settings?.AppleLocale;
       const appleLanguages = settings?.AppleLanguages;
       if (typeof appleLocale === "string" && appleLocale.length > 0) {
@@ -51,10 +71,15 @@ function getNativeLocaleTag(): string | null {
       if (Array.isArray(appleLanguages) && typeof appleLanguages[0] === "string") {
         return appleLanguages[0];
       }
+      if (typeof appleLanguages === "string" && appleLanguages.length > 0) {
+        return appleLanguages;
+      }
     }
 
     if (Platform.OS === "android") {
-      const localeIdentifier = (NativeModules as any)?.I18nManager?.localeIdentifier;
+      const localeIdentifier =
+        (NativeModules as any)?.I18nManager?.localeIdentifier ??
+        (NativeModules as any)?.I18nManager?.getConstants?.()?.localeIdentifier;
       if (typeof localeIdentifier === "string" && localeIdentifier.length > 0) {
         return localeIdentifier;
       }

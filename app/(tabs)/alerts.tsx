@@ -58,7 +58,7 @@ export default function AlertsScreen() {
           {t("alerts.subtitle")}
         </Text>
 
-        <ScrollView contentContainerStyle={styles.list}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
           {PRAYER_NAMES.map((prayer) => {
             const item = settings?.prayerNotifications[prayer];
             return (
