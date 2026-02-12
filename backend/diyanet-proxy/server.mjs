@@ -7,7 +7,7 @@ const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 
 let tokenState = null; // { token: string, expMs: number }
 let citiesState = null; // { items: Array<City>, atMs: number }
 const timingsCache = new Map(); // key -> { payload, expMs }
-let countriesState = null; // { atMs, items }
+const countriesCache = new Map(); // lang -> { atMs, items }
 const statesCache = new Map(); // countryId -> { atMs, items }
 const districtsCache = new Map(); // stateId -> { atMs, items }
 
@@ -45,6 +45,7 @@ async function handleRequest(req, res) {
   }
 
   const url = new URL(req.url, "http://localhost");
+  const lang = normalizeLang(url.searchParams.get("lang"));
 
   if (req.method === "GET" && url.pathname === "/health") {
     sendJson(res, 200, { ok: true, service: "diyanet-proxy", at: new Date().toISOString() });
@@ -52,7 +53,7 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/locations/countries") {
-    const countries = await getImsakiyemCountries();
+    const countries = await getImsakiyemCountries(lang);
     sendJson(res, 200, { items: countries });
     return;
   }
@@ -64,7 +65,7 @@ async function handleRequest(req, res) {
 
     let countryId = Number.isFinite(countryIdQuery) && countryIdQuery > 0 ? countryIdQuery : null;
     if (!countryId && (countryCode || countryName)) {
-      const countries = await getImsakiyemCountries();
+      const countries = await getImsakiyemCountries(lang);
       const codeNorm = normalizeText(countryCode);
       const nameNorm = normalizeText(countryName);
       const hit =
@@ -81,7 +82,7 @@ async function handleRequest(req, res) {
       return;
     }
 
-    const states = await getImsakiyemStates(countryId);
+    const states = await getImsakiyemStates(countryId, lang);
     sendJson(res, 200, { countryId, items: states });
     return;
   }
@@ -93,8 +94,33 @@ async function handleRequest(req, res) {
       return;
     }
 
-    const districts = await getImsakiyemDistricts(stateId);
+    const districts = await getImsakiyemDistricts(stateId, lang);
     sendJson(res, 200, { stateId, items: districts });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/locations/resolve-coordinates") {
+    const districtId = Number(url.searchParams.get("districtId"));
+    const district = String(url.searchParams.get("district") || "").trim();
+    const stateId = Number(url.searchParams.get("stateId"));
+    const state = String(url.searchParams.get("state") || "").trim();
+    const country = String(url.searchParams.get("country") || "").trim();
+    const countryCode = String(url.searchParams.get("countryCode") || "").trim().toUpperCase();
+
+    const resolved = await resolveCoordinatesFromLocationSelection({
+      districtId: Number.isFinite(districtId) ? districtId : null,
+      district,
+      stateId: Number.isFinite(stateId) ? stateId : null,
+      state,
+      country,
+      countryCode,
+      lang
+    });
+    if (!resolved) {
+      sendJson(res, 404, { error: "Coordinates not found" });
+      return;
+    }
+    sendJson(res, 200, resolved);
     return;
   }
 
@@ -544,14 +570,16 @@ async function tryImsakiyemFallback(params) {
   };
 
   const districtsSearch = await imsakiyemGet(
-    `/api/locations/search/districts?q=${encodeURIComponent(params.city)}`
+    `/api/locations/search/districts?q=${encodeURIComponent(params.city)}`,
+    "en"
   );
   for (const item of collectAnyRows(districtsSearch)) {
     addDistrict(item, "search-districts");
   }
 
   const statesSearch = await imsakiyemGet(
-    `/api/locations/search/states?q=${encodeURIComponent(params.city)}`
+    `/api/locations/search/states?q=${encodeURIComponent(params.city)}`,
+    "en"
   );
   const states = collectAnyRows(statesSearch);
   for (const state of states.slice(0, 8)) {
@@ -559,7 +587,7 @@ async function tryImsakiyemFallback(params) {
     if (!(stateId > 0)) {
       continue;
     }
-    const districtsByState = await imsakiyemGet(`/api/locations/districts?stateId=${stateId}`);
+    const districtsByState = await imsakiyemGet(`/api/locations/districts?stateId=${stateId}`, "en");
     for (const item of collectAnyRows(districtsByState)) {
       addDistrict(item, "state->districts");
     }
@@ -612,7 +640,8 @@ async function tryImsakiyemFallback(params) {
   const ymd = toYmd(params.dateKey);
   for (const candidate of scored.slice(0, 8)) {
     const timingsData = await imsakiyemGet(
-      `/api/prayer-times/${candidate.districtId}/monthly?startDate=${ymd}`
+      `/api/prayer-times/${candidate.districtId}/monthly?startDate=${ymd}`,
+      "en"
     );
     const timingsRows = collectAnyRows(timingsData);
     if (!Array.isArray(timingsRows) || timingsRows.length === 0) {
@@ -633,13 +662,14 @@ async function tryImsakiyemFallback(params) {
   return { debug: { ...debug, reason: "no-usable-prayer-times" } };
 }
 
-async function getImsakiyemCountries() {
+async function getImsakiyemCountries(lang = "en") {
   const ttlMs = 24 * 60 * 60 * 1000;
-  if (countriesState && Date.now() - countriesState.atMs < ttlMs) {
-    return countriesState.items;
+  const cacheHit = countriesCache.get(lang);
+  if (cacheHit && Date.now() - cacheHit.atMs < ttlMs) {
+    return cacheHit.items;
   }
 
-  const payload = await imsakiyemGet("/api/locations/countries");
+  const payload = await imsakiyemGet("/api/locations/countries", lang);
   const rows = collectAnyRows(payload);
   const map = new Map();
 
@@ -654,18 +684,19 @@ async function getImsakiyemCountries() {
   }
 
   const items = Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  countriesState = { atMs: Date.now(), items };
+  countriesCache.set(lang, { atMs: Date.now(), items });
   return items;
 }
 
-async function getImsakiyemStates(countryId) {
+async function getImsakiyemStates(countryId, lang = "en") {
   const ttlMs = 24 * 60 * 60 * 1000;
-  const cacheHit = statesCache.get(countryId);
+  const cacheKey = `${countryId}:${lang}`;
+  const cacheHit = statesCache.get(cacheKey);
   if (cacheHit && Date.now() - cacheHit.atMs < ttlMs) {
     return cacheHit.items;
   }
 
-  const payload = await imsakiyemGet(`/api/locations/states?countryId=${countryId}`);
+  const payload = await imsakiyemGet(`/api/locations/states?countryId=${countryId}`, lang);
   const rows = collectAnyRows(payload);
   const map = new Map();
 
@@ -683,18 +714,19 @@ async function getImsakiyemStates(countryId) {
   }
 
   const items = Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  statesCache.set(countryId, { atMs: Date.now(), items });
+  statesCache.set(cacheKey, { atMs: Date.now(), items });
   return items;
 }
 
-async function getImsakiyemDistricts(stateId) {
+async function getImsakiyemDistricts(stateId, lang = "en") {
   const ttlMs = 24 * 60 * 60 * 1000;
-  const cacheHit = districtsCache.get(stateId);
+  const cacheKey = `${stateId}:${lang}`;
+  const cacheHit = districtsCache.get(cacheKey);
   if (cacheHit && Date.now() - cacheHit.atMs < ttlMs) {
     return cacheHit.items;
   }
 
-  const payload = await imsakiyemGet(`/api/locations/districts?stateId=${stateId}`);
+  const payload = await imsakiyemGet(`/api/locations/districts?stateId=${stateId}`, lang);
   const rows = collectAnyRows(payload);
   const map = new Map();
 
@@ -715,14 +747,17 @@ async function getImsakiyemDistricts(stateId) {
   }
 
   const items = Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  districtsCache.set(stateId, { atMs: Date.now(), items });
+  districtsCache.set(cacheKey, { atMs: Date.now(), items });
   return items;
 }
 
-async function imsakiyemGet(path) {
+async function imsakiyemGet(path, lang = "en") {
   try {
     const response = await fetch(`https://ezanvakti.imsakiyem.com${path}`, {
-      headers: { Accept: "application/json" }
+      headers: {
+        Accept: "application/json",
+        "Accept-Language": `${lang};q=0.9,en;q=0.8,tr;q=0.7`
+      }
     });
     if (!response.ok) {
       return null;
@@ -772,6 +807,51 @@ function toYmd(dateKey) {
     return new Date().toISOString().slice(0, 10);
   }
   return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+async function resolveCoordinatesFromLocationSelection(params) {
+  if (params.stateId && params.districtId) {
+    const districts = await getImsakiyemDistricts(params.stateId, params.lang);
+    const match = districts.find((item) => item.id === params.districtId);
+    if (match && Number.isFinite(match.lat) && Number.isFinite(match.lon)) {
+      return { lat: match.lat, lon: match.lon, source: "district-list" };
+    }
+  }
+
+  const parts = [params.district, params.state, params.country].filter((item) => item && item.trim().length > 0);
+  if (parts.length === 0) {
+    return null;
+  }
+
+  const geocoded = await geocodeOpenMeteo(parts.join(", "), params.countryCode, params.lang);
+  if (!geocoded) {
+    return null;
+  }
+
+  return { lat: geocoded.lat, lon: geocoded.lon, source: "open-meteo" };
+}
+
+async function geocodeOpenMeteo(query, countryCode, lang = "en") {
+  try {
+    const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
+    url.searchParams.set("name", query);
+    url.searchParams.set("count", "1");
+    url.searchParams.set("language", normalizeLang(lang));
+    if (countryCode && countryCode.length === 2) {
+      url.searchParams.set("countryCode", countryCode.toUpperCase());
+    }
+    const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+    const payload = await safeJson(response);
+    const first = Array.isArray(payload?.results) ? payload.results[0] : null;
+    const lat = Number(first?.latitude);
+    const lon = Number(first?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return null;
+    }
+    return { lat, lon };
+  } catch {
+    return null;
+  }
 }
 
 function buildRequestCacheKey(input) {
@@ -931,6 +1011,18 @@ function normalizeText(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
+}
+
+function normalizeLang(raw) {
+  const base = String(raw || "en")
+    .split(",")[0]
+    .split("-")[0]
+    .trim()
+    .toLowerCase();
+  if (base === "tr" || base === "nl" || base === "en") {
+    return base;
+  }
+  return "en";
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {

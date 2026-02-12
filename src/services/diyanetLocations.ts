@@ -17,6 +17,11 @@ export interface DiyanetDistrictOption {
   lon: number | null;
 }
 
+export interface ResolvedCoordinates {
+  lat: number;
+  lon: number;
+}
+
 function getProxyBaseUrl(): string {
   const raw = process.env.EXPO_PUBLIC_DIYANET_PROXY_URL?.trim();
   if (!raw) {
@@ -33,8 +38,9 @@ async function safeJson(response: Response): Promise<unknown> {
   }
 }
 
-export async function fetchDiyanetCountries(): Promise<DiyanetCountryOption[]> {
-  const response = await fetch(`${getProxyBaseUrl()}/locations/countries`, {
+export async function fetchDiyanetCountries(locale?: string): Promise<DiyanetCountryOption[]> {
+  const lang = (locale || "en").split("-")[0].toLowerCase();
+  const response = await fetch(`${getProxyBaseUrl()}/locations/countries?lang=${encodeURIComponent(lang)}`, {
     headers: { Accept: "application/json" }
   });
   const payload = (await safeJson(response)) as { items?: unknown; error?: unknown } | null;
@@ -55,10 +61,14 @@ export async function fetchDiyanetCountries(): Promise<DiyanetCountryOption[]> {
     .filter((item): item is DiyanetCountryOption => item !== null);
 }
 
-export async function fetchDiyanetStates(countryId: number): Promise<DiyanetStateOption[]> {
-  const response = await fetch(`${getProxyBaseUrl()}/locations/states?countryId=${countryId}`, {
-    headers: { Accept: "application/json" }
-  });
+export async function fetchDiyanetStates(countryId: number, locale?: string): Promise<DiyanetStateOption[]> {
+  const lang = (locale || "en").split("-")[0].toLowerCase();
+  const response = await fetch(
+    `${getProxyBaseUrl()}/locations/states?countryId=${countryId}&lang=${encodeURIComponent(lang)}`,
+    {
+      headers: { Accept: "application/json" }
+    }
+  );
   const payload = (await safeJson(response)) as { items?: unknown; error?: unknown } | null;
   if (!response.ok) {
     throw new Error(typeof payload?.error === "string" ? payload.error : `States request failed (${response.status})`);
@@ -77,10 +87,14 @@ export async function fetchDiyanetStates(countryId: number): Promise<DiyanetStat
     .filter((item): item is DiyanetStateOption => item !== null);
 }
 
-export async function fetchDiyanetDistricts(stateId: number): Promise<DiyanetDistrictOption[]> {
-  const response = await fetch(`${getProxyBaseUrl()}/locations/districts?stateId=${stateId}`, {
-    headers: { Accept: "application/json" }
-  });
+export async function fetchDiyanetDistricts(stateId: number, locale?: string): Promise<DiyanetDistrictOption[]> {
+  const lang = (locale || "en").split("-")[0].toLowerCase();
+  const response = await fetch(
+    `${getProxyBaseUrl()}/locations/districts?stateId=${stateId}&lang=${encodeURIComponent(lang)}`,
+    {
+      headers: { Accept: "application/json" }
+    }
+  );
   const payload = (await safeJson(response)) as { items?: unknown; error?: unknown } | null;
   if (!response.ok) {
     throw new Error(typeof payload?.error === "string" ? payload.error : `Districts request failed (${response.status})`);
@@ -103,4 +117,51 @@ export async function fetchDiyanetDistricts(stateId: number): Promise<DiyanetDis
       };
     })
     .filter((item): item is DiyanetDistrictOption => item !== null);
+}
+
+export async function resolveDiyanetDistrictCoordinates(params: {
+  districtId: number;
+  districtName: string;
+  stateId: number;
+  stateName: string;
+  countryCode?: string;
+  countryName?: string;
+  locale?: string;
+}): Promise<ResolvedCoordinates | null> {
+  const lang = (params.locale || "en").split("-")[0].toLowerCase();
+  const url = new URL(`${getProxyBaseUrl()}/locations/resolve-coordinates`);
+  url.searchParams.set("districtId", String(params.districtId));
+  url.searchParams.set("district", params.districtName);
+  url.searchParams.set("stateId", String(params.stateId));
+  url.searchParams.set("state", params.stateName);
+  if (params.countryCode) {
+    url.searchParams.set("countryCode", params.countryCode);
+  }
+  if (params.countryName) {
+    url.searchParams.set("country", params.countryName);
+  }
+  url.searchParams.set("lang", lang);
+
+  const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+  const payload = (await safeJson(response)) as { lat?: unknown; lon?: unknown; error?: unknown } | null;
+  if (!response.ok) {
+    return null;
+  }
+
+  const lat = Number(payload?.lat);
+  const lon = Number(payload?.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return null;
+  }
+
+  return { lat, lon };
+}
+
+// Keep old name compatibility for current imports if any call site lags.
+export async function fetchDiyanetStatesLegacy(countryId: number): Promise<DiyanetStateOption[]> {
+  return fetchDiyanetStates(countryId);
+}
+
+export async function fetchDiyanetDistrictsLegacy(stateId: number): Promise<DiyanetDistrictOption[]> {
+  return fetchDiyanetDistricts(stateId);
 }

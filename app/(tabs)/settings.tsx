@@ -17,7 +17,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  geocodeCityQuery,
   getCurrentLocationDetails,
   resolveLocationForSettings
 } from "@/services/location";
@@ -30,7 +29,8 @@ import {
   DiyanetStateOption,
   fetchDiyanetCountries,
   fetchDiyanetDistricts,
-  fetchDiyanetStates
+  fetchDiyanetStates,
+  resolveDiyanetDistrictCoordinates
 } from "@/services/diyanetLocations";
 import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
@@ -50,7 +50,7 @@ type PickerType = "country" | "state" | "district" | null;
 export default function SettingsScreen() {
   const router = useRouter();
   const { colors, mode: themeMode, setMode: setThemeMode, resolvedTheme } = useAppTheme();
-  const { t, prayerName, mode: languageMode, setMode: setLanguageMode } = useI18n();
+  const { t, prayerName, mode: languageMode, setMode: setLanguageMode, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -92,7 +92,7 @@ export default function SettingsScreen() {
       setLoadingCountries(true);
       setCountriesLoadError(null);
       try {
-        const result = await fetchDiyanetCountries();
+        const result = await fetchDiyanetCountries(localeTag);
         setCountries(result);
       } catch (error) {
         setCountries([]);
@@ -101,7 +101,7 @@ export default function SettingsScreen() {
         setLoadingCountries(false);
       }
     })();
-  }, []);
+  }, [localeTag]);
 
   useFocusEffect(
     useCallback(() => {
@@ -122,7 +122,7 @@ export default function SettingsScreen() {
     void (async () => {
       setLoadingStates(true);
       try {
-        const result = await fetchDiyanetStates(selectedCountryId);
+        const result = await fetchDiyanetStates(selectedCountryId, localeTag);
         setStates(result);
       } catch {
         setStates([]);
@@ -130,7 +130,7 @@ export default function SettingsScreen() {
         setLoadingStates(false);
       }
     })();
-  }, [selectedCountryId]);
+  }, [localeTag, selectedCountryId]);
 
   useEffect(() => {
     if (!selectedStateId) {
@@ -142,7 +142,7 @@ export default function SettingsScreen() {
     void (async () => {
       setLoadingDistricts(true);
       try {
-        const result = await fetchDiyanetDistricts(selectedStateId);
+        const result = await fetchDiyanetDistricts(selectedStateId, localeTag);
         setDistricts(result);
       } catch {
         setDistricts([]);
@@ -150,7 +150,7 @@ export default function SettingsScreen() {
         setLoadingDistricts(false);
       }
     })();
-  }, [selectedStateId]);
+  }, [localeTag, selectedStateId]);
 
   const togglePrayer = useCallback((prayer: PrayerName, enabled: boolean) => {
     setSettings((prev) => {
@@ -240,9 +240,20 @@ export default function SettingsScreen() {
       let lat = selectedDistrict.lat;
       let lon = selectedDistrict.lon;
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        const geocoded = await geocodeCityQuery(label);
-        lat = geocoded.lat;
-        lon = geocoded.lon;
+        const resolved = await resolveDiyanetDistrictCoordinates({
+          districtId: selectedDistrict.id,
+          districtName: selectedDistrict.name,
+          stateId: selectedState.id,
+          stateName: selectedState.name,
+          countryCode: selectedCountry.code,
+          countryName: selectedCountry.name,
+          locale: localeTag
+        });
+        if (!resolved) {
+          throw new Error(t("settings.coordinates_not_found"));
+        }
+        lat = resolved.lat;
+        lon = resolved.lon;
       }
 
       const updated: Settings = {
@@ -285,15 +296,26 @@ export default function SettingsScreen() {
     } finally {
       setSaving(false);
     }
-  }, [countries, districts, selectedCountryId, selectedDistrictId, selectedStateId, settings, states, t]);
+  }, [countries, districts, localeTag, selectedCountryId, selectedDistrictId, selectedStateId, settings, states, t]);
 
   const selectedCountry = countries.find((item) => item.id === selectedCountryId) || null;
   const selectedState = states.find((item) => item.id === selectedStateId) || null;
   const selectedDistrict = districts.find((item) => item.id === selectedDistrictId) || null;
 
+  const countryDisplayNames = (() => {
+    try {
+      return new Intl.DisplayNames([localeTag], { type: "region" });
+    } catch {
+      return null;
+    }
+  })();
+
   const pickerItems =
     pickerType === "country"
-      ? countries.map((item) => ({ id: item.id, label: item.name }))
+      ? countries.map((item) => ({
+          id: item.id,
+          label: item.code && countryDisplayNames ? countryDisplayNames.of(item.code) || item.name : item.name
+        }))
       : pickerType === "state"
         ? states.map((item) => ({ id: item.id, label: item.name }))
         : pickerType === "district"
@@ -549,7 +571,11 @@ export default function SettingsScreen() {
                   {t("settings.country_label")}
                 </Text>
                 <Text style={[styles.selectorValue, isLight ? { color: "#1A2E45" } : null]}>
-                  {selectedCountry?.name || t("settings.select_country")}
+                  {selectedCountry
+                    ? selectedCountry.code && countryDisplayNames
+                      ? countryDisplayNames.of(selectedCountry.code) || selectedCountry.name
+                      : selectedCountry.name
+                    : t("settings.select_country")}
                 </Text>
               </Pressable>
 

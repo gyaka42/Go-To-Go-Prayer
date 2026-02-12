@@ -70,6 +70,7 @@ export default function HomeScreen() {
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationName, setLocationName] = useState(t("common.current_location"));
   const lastReplanSignatureRef = useRef<string>("");
+  const latestLoadRequestRef = useRef(0);
 
   const updateCountdown = useCallback((activeTimings: Timings, nextDayTimings: Timings | null) => {
     const now = new Date();
@@ -96,12 +97,17 @@ export default function HomeScreen() {
   }, []);
 
   const loadData = useCallback(async (options?: { forceRefresh?: boolean; forceLocationRefresh?: boolean }) => {
+    const requestId = ++latestLoadRequestRef.current;
+    const isStale = () => requestId !== latestLoadRequestRef.current;
     const forceRefresh = options?.forceRefresh === true;
     const forceLocationRefresh = options?.forceLocationRefresh === true;
     setLoadState("loading");
     setStatusMessage(t("home.fetching_prayers"));
 
     const savedSettings = await getSettings();
+    if (isStale()) {
+      return;
+    }
     setSettings(savedSettings);
 
     const today = new Date();
@@ -130,6 +136,9 @@ export default function HomeScreen() {
         location = await resolveLocationForSettings(savedSettings);
       }
 
+      if (isStale()) {
+        return;
+      }
       setCoords(location);
       setLocationName(location.label);
       await saveLatestCachedLocation({
@@ -147,6 +156,9 @@ export default function HomeScreen() {
           settings: savedSettings,
           forceRefresh
         });
+        if (isStale()) {
+          return;
+        }
         setTimings(resolved.today);
         setTomorrowTimings(resolved.tomorrow);
         setSource(resolved.source);
@@ -175,10 +187,19 @@ export default function HomeScreen() {
         throw apiError;
       }
 
+      if (isStale()) {
+        return;
+      }
       setLoadState("ready");
     } catch {
+      if (isStale()) {
+        return;
+      }
       const latestCache = await getLatestCachedTimings();
       if (latestCache) {
+        if (isStale()) {
+          return;
+        }
         setTimings(latestCache.timings);
         setTomorrowTimings(null);
         setSource("cache");
@@ -188,6 +209,9 @@ export default function HomeScreen() {
         return;
       }
 
+      if (isStale()) {
+        return;
+      }
       setStatusMessage(t("home.no_data_permission"));
       setLoadState("error");
     }
