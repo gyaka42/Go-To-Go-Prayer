@@ -10,6 +10,7 @@ const timingsCache = new Map(); // key -> { payload, expMs }
 const countriesCache = new Map(); // lang -> { atMs, items }
 const statesCache = new Map(); // countryId -> { atMs, items }
 const districtsCache = new Map(); // stateId -> { atMs, items }
+const localizedNameCache = new Map(); // key -> localized label
 
 const countryAliases = {
   DE: ["germany", "deutschland", "almanya"],
@@ -17,6 +18,27 @@ const countryAliases = {
   TR: ["turkey", "turkiye", "tuerkiye"],
   GB: ["uk", "unitedkingdom", "england", "birlesikkrallik"],
   US: ["usa", "unitedstates", "amerika"]
+};
+
+const exonymMap = {
+  almanya: { en: "Germany", nl: "Duitsland" },
+  arjantin: { en: "Argentina", nl: "Argentinie" },
+  hollanda: { en: "Netherlands", nl: "Nederland" },
+  ingiltere: { en: "United Kingdom", nl: "Verenigd Koninkrijk" },
+  amerika: { en: "United States", nl: "Verenigde Staten" },
+  isvicre: { en: "Switzerland", nl: "Zwitserland" },
+  avusturya: { en: "Austria", nl: "Oostenrijk" },
+  belcika: { en: "Belgium", nl: "Belgie" },
+  yunanistan: { en: "Greece", nl: "Griekenland" },
+  ispanya: { en: "Spain", nl: "Spanje" },
+  italya: { en: "Italy", nl: "Italie" },
+  fransa: { en: "France", nl: "Frankrijk" },
+  londra: { en: "London", nl: "Londen" },
+  viyana: { en: "Vienna", nl: "Wenen" },
+  atina: { en: "Athens", nl: "Athene" },
+  moskova: { en: "Moscow", nl: "Moskou" },
+  kolonya: { en: "Cologne", nl: "Keulen" },
+  munih: { en: "Munich", nl: "Munchen" }
 };
 
 const server = http.createServer(async (req, res) => {
@@ -83,7 +105,13 @@ async function handleRequest(req, res) {
     }
 
     const states = await getImsakiyemStates(countryId, lang);
-    sendJson(res, 200, { countryId, items: states });
+    const countries = await getImsakiyemCountries("en");
+    const countryMeta = countries.find((item) => item.id === countryId) || null;
+    const localizedStates = await localizeOptions(states, lang, {
+      countryCode: countryMeta?.code || "",
+      countryName: countryMeta?.name || ""
+    });
+    sendJson(res, 200, { countryId, items: localizedStates });
     return;
   }
 
@@ -95,7 +123,8 @@ async function handleRequest(req, res) {
     }
 
     const districts = await getImsakiyemDistricts(stateId, lang);
-    sendJson(res, 200, { stateId, items: districts });
+    const localizedDistricts = await localizeOptions(districts, lang);
+    sendJson(res, 200, { stateId, items: localizedDistricts });
     return;
   }
 
@@ -472,9 +501,11 @@ function nearestCities(cities, lat, lon, limit = 20) {
     .slice(0, limit);
 }
 
-async function reverseGeocode(lat, lon) {
+async function reverseGeocode(lat, lon, lang = "en") {
   try {
-    const url = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en&count=1`;
+    const url = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=${normalizeLang(
+      lang
+    )}&count=1`;
     const response = await fetch(url, { headers: { Accept: "application/json" } });
     const payload = await safeJson(response);
     const first = Array.isArray(payload?.results) ? payload.results[0] : null;
@@ -708,7 +739,8 @@ async function getImsakiyemStates(countryId, lang = "en") {
       map.set(id, {
         id,
         name,
-        countryId
+        countryId,
+        displayName: name
       });
     }
   }
@@ -740,6 +772,7 @@ async function getImsakiyemDistricts(stateId, lang = "en") {
       map.set(id, {
         id,
         name,
+        displayName: name,
         lat: Number.isFinite(latRaw) ? latRaw : null,
         lon: Number.isFinite(lonRaw) ? lonRaw : null
       });
@@ -859,10 +892,72 @@ async function geocodeOpenMeteo(query, countryCode, lang = "en") {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
       return null;
     }
-    return { lat, lon };
+    return { lat, lon, name: String(first?.name || "").trim() };
   } catch {
     return null;
   }
+}
+
+async function localizeOptions(items, lang, context = {}) {
+  if (normalizeLang(lang) === "tr" || !Array.isArray(items) || items.length === 0) {
+    return items.map((item) => ({ ...item, displayName: item.displayName || item.name }));
+  }
+
+  const maxLocalize = items.length > 300 ? 120 : items.length;
+  const out = [...items];
+  for (let i = 0; i < maxLocalize; i += 1) {
+    const item = out[i];
+    const localized = await localizeName(item.name, lang, {
+      countryCode: context.countryCode,
+      countryName: context.countryName,
+      lat: item.lat,
+      lon: item.lon
+    });
+    out[i] = { ...item, displayName: localized || item.name };
+  }
+  for (let i = maxLocalize; i < out.length; i += 1) {
+    out[i] = { ...out[i], displayName: out[i].displayName || out[i].name };
+  }
+  return out;
+}
+
+async function localizeName(name, lang, context = {}) {
+  const targetLang = normalizeLang(lang);
+  if (!name || targetLang === "tr") {
+    return name;
+  }
+  const key = `${targetLang}|${normalizeText(name)}|${normalizeText(context.countryCode || "")}|${normalizeText(
+    context.countryName || ""
+  )}`;
+  const cached = localizedNameCache.get(key);
+  if (cached) {
+    return cached;
+  }
+
+  const normalized = normalizeText(name);
+  const exonym = exonymMap[normalized];
+  if (exonym?.[targetLang]) {
+    localizedNameCache.set(key, exonym[targetLang]);
+    return exonym[targetLang];
+  }
+
+  if (Number.isFinite(context.lat) && Number.isFinite(context.lon)) {
+    const reverse = await reverseGeocode(context.lat, context.lon, targetLang);
+    if (reverse?.city) {
+      localizedNameCache.set(key, reverse.city);
+      return reverse.city;
+    }
+  }
+
+  const query = [name, context.countryName].filter(Boolean).join(", ");
+  const geo = await geocodeOpenMeteo(query, context.countryCode, targetLang);
+  if (geo?.name) {
+    localizedNameCache.set(key, geo.name);
+    return geo.name;
+  }
+
+  localizedNameCache.set(key, name);
+  return name;
 }
 
 function buildRequestCacheKey(input) {

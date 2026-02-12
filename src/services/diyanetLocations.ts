@@ -7,12 +7,14 @@ export interface DiyanetCountryOption {
 export interface DiyanetStateOption {
   id: number;
   name: string;
+  displayName: string;
   countryId: number;
 }
 
 export interface DiyanetDistrictOption {
   id: number;
   name: string;
+  displayName: string;
   lat: number | null;
   lon: number | null;
 }
@@ -80,9 +82,10 @@ export async function fetchDiyanetStates(countryId: number, locale?: string): Pr
       const item = row as Record<string, unknown>;
       const id = Number(item.id);
       const name = String(item.name || "").trim();
+      const displayName = String(item.displayName || item.name || "").trim();
       const country = Number(item.countryId);
       if (!(id > 0) || !name) return null;
-      return { id, name, countryId: country };
+      return { id, name, displayName: displayName || name, countryId: country };
     })
     .filter((item): item is DiyanetStateOption => item !== null);
 }
@@ -106,12 +109,14 @@ export async function fetchDiyanetDistricts(stateId: number, locale?: string): P
       const item = row as Record<string, unknown>;
       const id = Number(item.id);
       const name = String(item.name || "").trim();
+      const displayName = String(item.displayName || item.name || "").trim();
       const lat = item.lat === null ? null : Number(item.lat);
       const lon = item.lon === null ? null : Number(item.lon);
       if (!(id > 0) || !name) return null;
       return {
         id,
         name,
+        displayName: displayName || name,
         lat: Number.isFinite(lat) ? lat : null,
         lon: Number.isFinite(lon) ? lon : null
       };
