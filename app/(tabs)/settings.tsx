@@ -24,6 +24,7 @@ import {
 import { AppBackground } from "@/components/AppBackground";
 import { LanguageMode, useI18n } from "@/i18n/I18nProvider";
 import { replanAll } from "@/services/notifications";
+import { getTodayTomorrowTimings } from "@/services/timingsCache";
 import {
   DiyanetCountryOption,
   DiyanetDistrictOption,
@@ -208,12 +209,25 @@ export default function SettingsScreen() {
       setSettings(updated);
       await saveSettings(updated);
 
+      // Force a fresh API fetch to refill the 30-day cache window for GPS location.
+      await getTodayTomorrowTimings({
+        today: new Date(),
+        location: { lat: loc.lat, lon: loc.lon },
+        settings: updated,
+        forceRefresh: true
+      });
+
       await replanAll({
         lat: loc.lat,
         lon: loc.lon,
         methodId: updated.methodId,
         settings: updated
       });
+
+      Alert.alert(
+        t("settings.gps_set_title"),
+        t("settings.gps_set_body", { label: loc.label })
+      );
     } catch (error) {
       Alert.alert(t("settings.location_title"), String(error));
     } finally {
