@@ -18,6 +18,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
 import { replanAll } from "@/services/notifications";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
+import { syncWidgetWithTimings } from "@/services/widgetBridge";
 import {
   getLatestCachedLocation,
   getLatestCachedTimings,
@@ -112,6 +113,7 @@ export default function HomeScreen() {
 
     const today = new Date();
     const tomorrow = getTomorrow(today);
+    let widgetLocationLabel = t("common.current_location");
 
     try {
       let location: { lat: number; lon: number; label: string };
@@ -141,6 +143,7 @@ export default function HomeScreen() {
       }
       setCoords(location);
       setLocationName(location.label);
+      widgetLocationLabel = location.label;
       await saveLatestCachedLocation({
         lat: location.lat,
         lon: location.lon,
@@ -165,6 +168,11 @@ export default function HomeScreen() {
         setSource(resolved.source);
         setLastUpdated(resolved.lastUpdated);
         setStatusMessage(resolved.source === "api" ? t("home.live_loaded") : t("home.cache_loaded"));
+        syncWidgetWithTimings({
+          today: resolved.today,
+          tomorrow: resolved.tomorrow,
+          locationLabel: widgetLocationLabel
+        });
 
         const dayKey = getDateKey(today);
         const replanSignature = [
@@ -206,6 +214,11 @@ export default function HomeScreen() {
         setSource("cache");
         setLastUpdated(latestCache.lastUpdated);
         setStatusMessage(t("home.location_cache_fallback"));
+        syncWidgetWithTimings({
+          today: latestCache.timings,
+          tomorrow: null,
+          locationLabel: widgetLocationLabel
+        });
         setLoadState("ready");
         return;
       }
