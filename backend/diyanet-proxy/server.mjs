@@ -818,17 +818,28 @@ async function resolveCoordinatesFromLocationSelection(params) {
     }
   }
 
-  const parts = [params.district, params.state, params.country].filter((item) => item && item.trim().length > 0);
-  if (parts.length === 0) {
+  const districtClean = cleanDistrictName(params.district);
+  const stateClean = cleanDistrictName(params.state);
+  const countryClean = cleanDistrictName(params.country);
+
+  const queries = [
+    [districtClean, stateClean, countryClean].filter(Boolean).join(", "),
+    [districtClean, countryClean].filter(Boolean).join(", "),
+    districtClean
+  ].filter((query) => query.length > 0);
+
+  if (queries.length === 0) {
     return null;
   }
 
-  const geocoded = await geocodeOpenMeteo(parts.join(", "), params.countryCode, params.lang);
-  if (!geocoded) {
-    return null;
+  for (const query of queries) {
+    const geocoded = await geocodeOpenMeteo(query, params.countryCode, params.lang);
+    if (geocoded) {
+      return { lat: geocoded.lat, lon: geocoded.lon, source: "open-meteo" };
+    }
   }
 
-  return { lat: geocoded.lat, lon: geocoded.lon, source: "open-meteo" };
+  return null;
 }
 
 async function geocodeOpenMeteo(query, countryCode, lang = "en") {
@@ -1023,6 +1034,15 @@ function normalizeLang(raw) {
     return base;
   }
   return "en";
+}
+
+function cleanDistrictName(raw) {
+  return String(raw || "")
+    .replace(/\s*\(.*?\)\s*/g, " ")
+    .replace(/\s*[-/]\s*.*/g, "")
+    .replace(/\bmerkez\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {

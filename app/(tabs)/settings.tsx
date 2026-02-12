@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  geocodeCityQuery,
   getCurrentLocationDetails,
   resolveLocationForSettings
 } from "@/services/location";
@@ -249,11 +250,32 @@ export default function SettingsScreen() {
           countryName: selectedCountry.name,
           locale: localeTag
         });
-        if (!resolved) {
-          throw new Error(t("settings.coordinates_not_found"));
+        if (resolved) {
+          lat = resolved.lat;
+          lon = resolved.lon;
+        } else {
+          // Client-side fallback chain for districts without usable backend coordinates.
+          const fallbackQueries = [
+            `${selectedDistrict.name}, ${selectedState.name}, ${selectedCountry.name}`,
+            `${selectedDistrict.name}, ${selectedCountry.name}`,
+            selectedDistrict.name
+          ];
+          let resolvedFallback: { lat: number; lon: number } | null = null;
+          for (const query of fallbackQueries) {
+            try {
+              const geocoded = await geocodeCityQuery(query);
+              resolvedFallback = { lat: geocoded.lat, lon: geocoded.lon };
+              break;
+            } catch {
+              // Continue fallback chain.
+            }
+          }
+          if (!resolvedFallback) {
+            throw new Error(t("settings.coordinates_not_found"));
+          }
+          lat = resolvedFallback.lat;
+          lon = resolvedFallback.lon;
         }
-        lat = resolved.lat;
-        lon = resolved.lon;
       }
 
       const updated: Settings = {
