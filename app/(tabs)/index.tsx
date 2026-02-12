@@ -171,7 +171,8 @@ export default function HomeScreen() {
         syncWidgetWithTimings({
           today: resolved.today,
           tomorrow: resolved.tomorrow,
-          locationLabel: widgetLocationLabel
+          locationLabel: widgetLocationLabel,
+          localeTag
         });
 
         const dayKey = getDateKey(today);
@@ -217,7 +218,8 @@ export default function HomeScreen() {
         syncWidgetWithTimings({
           today: latestCache.timings,
           tomorrow: null,
-          locationLabel: widgetLocationLabel
+          locationLabel: widgetLocationLabel,
+          localeTag
         });
         setLoadState("ready");
         return;
@@ -229,7 +231,7 @@ export default function HomeScreen() {
       setStatusMessage(t("home.no_data_permission"));
       setLoadState("error");
     }
-  }, [t]);
+  }, [localeTag, t]);
 
   useEffect(() => {
     void loadData();
