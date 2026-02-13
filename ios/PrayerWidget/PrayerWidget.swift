@@ -84,27 +84,30 @@ struct PrayerWidgetEntryView: View {
     GeometryReader { geo in
       ZStack {
         cardBackground
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
+          Spacer(minLength: 0)
+
           Text(localized("Upcoming", localeTag: entry.localeTag).uppercased())
-            .font(.system(size: 9, weight: .bold))
+            .font(.system(size: 10, weight: .bold))
             .foregroundStyle(accent.opacity(0.9))
             .lineLimit(1)
 
           Text(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag))
-            .font(.system(size: 24, weight: .bold))
+            .font(.system(size: 22, weight: .bold))
             .foregroundStyle(.white)
             .lineLimit(1)
-            .minimumScaleFactor(0.65)
+            .minimumScaleFactor(0.72)
 
           Text(entry.nextTime)
             .font(.system(size: 18, weight: .bold, design: .rounded))
             .foregroundStyle(accent)
+            .lineLimit(1)
 
           Spacer(minLength: 0)
 
           HStack(spacing: 4) {
             Image(systemName: "location.fill")
-              .font(.system(size: 9))
+              .font(.system(size: 10))
               .foregroundStyle(.white.opacity(0.5))
             Text(entry.location)
               .font(.system(size: 11, weight: .medium))
@@ -112,11 +115,10 @@ struct PrayerWidgetEntryView: View {
               .truncationMode(.tail)
               .foregroundStyle(.white.opacity(0.65))
           }
-          .padding(.bottom, 1)
         }
-        .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
       }
       .frame(width: geo.size.width, height: geo.size.height)
     }
@@ -129,7 +131,7 @@ struct PrayerWidgetEntryView: View {
       let leftTitleSize: CGFloat = isLarge ? 11 : 10
       let leftPrayerSize: CGFloat = isLarge ? 50 : 42
       let leftTimeSize: CGFloat = isLarge ? 34 : 28
-      let rowFontSize: CGFloat = isLarge ? 18 : 15
+      let rowFontSize: CGFloat = isLarge ? 17 : 14
       let rowIconSize: CGFloat = isLarge ? 14 : 12
 
       ZStack {
@@ -182,7 +184,8 @@ struct PrayerWidgetEntryView: View {
                 isCurrent: item.key == entry.currentPrayer,
                 rowFontSize: rowFontSize,
                 rowIconSize: rowIconSize,
-                isLarge: isLarge
+                isLarge: isLarge,
+                timeColumnWidth: isLarge ? 66 : 58
               )
             }
             Spacer(minLength: 0)
@@ -217,7 +220,8 @@ struct PrayerWidgetEntryView: View {
     isCurrent: Bool,
     rowFontSize: CGFloat,
     rowIconSize: CGFloat,
-    isLarge: Bool
+    isLarge: Bool,
+    timeColumnWidth: CGFloat
   ) -> some View {
     HStack(spacing: 8) {
       Image(systemName: iconName(for: item.key))
@@ -227,16 +231,17 @@ struct PrayerWidgetEntryView: View {
       Text(localizedPrayer(item.key, localeTag: entry.localeTag))
         .font(.system(size: rowFontSize, weight: isCurrent ? .bold : .medium))
         .lineLimit(1)
-        .minimumScaleFactor(0.65)
+        .minimumScaleFactor(0.72)
         .foregroundStyle(isCurrent ? .white : .white.opacity(0.72))
+        .layoutPriority(1)
 
       Spacer(minLength: 8)
 
       Text(item.value)
-        .font(.system(size: rowFontSize, weight: isCurrent ? .bold : .medium, design: .rounded))
+        .font(.system(size: rowFontSize, weight: isCurrent ? .bold : .medium, design: .rounded).monospacedDigit())
         .lineLimit(1)
-        .minimumScaleFactor(0.8)
         .foregroundStyle(isCurrent ? accent : .white.opacity(0.72))
+        .frame(width: timeColumnWidth, alignment: .trailing)
     }
     .padding(.horizontal, isLarge ? 10 : 8)
     .padding(.vertical, isLarge ? 5 : 4)
