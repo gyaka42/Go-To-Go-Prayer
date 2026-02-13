@@ -245,6 +245,7 @@ private struct DotPattern: View {
       .frame(width: proxy.size.width, height: proxy.size.height)
     }
     .allowsHitTesting(false)
+  }
 }
 
 struct PrayerWidget: Widget {
