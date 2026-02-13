@@ -127,12 +127,12 @@ struct PrayerWidgetEntryView: View {
   private var fullLayout: some View {
     GeometryReader { geo in
       let isLarge = family == .systemLarge
-      let leftWidth = geo.size.width * (isLarge ? 0.5 : 0.48)
+      let leftWidth = geo.size.width * (isLarge ? 0.44 : 0.48)
       let leftTitleSize: CGFloat = isLarge ? 11 : 10
       let leftPrayerSize: CGFloat = isLarge ? 50 : 42
       let leftTimeSize: CGFloat = isLarge ? 34 : 28
-      let rowFontSize: CGFloat = isLarge ? 17 : 14
-      let rowIconSize: CGFloat = isLarge ? 14 : 12
+      let rowFontSize: CGFloat = isLarge ? 15 : 14
+      let rowIconSize: CGFloat = isLarge ? 13 : 12
 
       ZStack {
         cardBackground
@@ -185,7 +185,7 @@ struct PrayerWidgetEntryView: View {
                 rowFontSize: rowFontSize,
                 rowIconSize: rowIconSize,
                 isLarge: isLarge,
-                timeColumnWidth: isLarge ? 66 : 58
+                timeColumnWidth: isLarge ? 62 : 58
               )
             }
             Spacer(minLength: 0)
