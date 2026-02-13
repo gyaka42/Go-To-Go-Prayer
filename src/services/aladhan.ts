@@ -2,6 +2,11 @@ import { PrayerName, Timings } from "@/types/prayer";
 
 const BASE_URL = "https://api.aladhan.com/v1";
 const REQUIRED_PRAYERS: PrayerName[] = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function toDateKey(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
@@ -42,9 +47,22 @@ export async function getTimingsByCoordinates(
     params.set("tune", tuneCsv);
   }
 
-  const response = await fetch(`${BASE_URL}/timings/${dateKey}?${params.toString()}`);
-  if (!response.ok) {
-    throw new Error(`Aladhan API error: ${response.status}`);
+  const url = `${BASE_URL}/timings/${dateKey}?${params.toString()}`;
+  let response: Response | null = null;
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    response = await fetch(url);
+    if (response.ok) {
+      break;
+    }
+    lastStatus = response.status;
+    if (!RETRYABLE_STATUSES.has(response.status) || attempt === 2) {
+      break;
+    }
+    await sleep(700 * (attempt + 1));
+  }
+  if (!response || !response.ok) {
+    throw new Error(`Aladhan API error: ${lastStatus || response?.status || "unknown"}`);
   }
 
   let payload: any;

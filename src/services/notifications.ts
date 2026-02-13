@@ -207,7 +207,8 @@ async function replanAllOnce(params: {
     today,
     location: { lat: params.lat, lon: params.lon },
     settings: params.settings,
-    forceRefresh: false
+    forceRefresh: false,
+    rangeDays: params.settings.timingsProvider === "aladhan" ? 2 : 30
   });
   const todayTimings = resolved.today;
   const tomorrowTimings = resolved.tomorrow;
