@@ -66,6 +66,7 @@ struct PrayerProvider: TimelineProvider {
 struct PrayerWidgetEntryView: View {
   @Environment(\.widgetFamily) private var family
   var entry: PrayerProvider.Entry
+
   private let accent = Color(red: 43 / 255, green: 140 / 255, blue: 238 / 255)
 
   var body: some View {
@@ -80,86 +81,118 @@ struct PrayerWidgetEntryView: View {
   }
 
   private var smallLayout: some View {
-    ZStack {
-      cardBackground
-      VStack(alignment: .leading, spacing: 6) {
-        Text(localized("Upcoming", localeTag: entry.localeTag).uppercased())
-          .font(.system(size: 10, weight: .bold))
-          .foregroundStyle(accent.opacity(0.85))
-        Text(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag))
-          .font(.title3.weight(.bold))
-          .foregroundStyle(.white)
-        Text(entry.nextTime)
-          .font(.headline.weight(.semibold))
-          .foregroundStyle(accent)
-        Spacer(minLength: 2)
-        HStack(spacing: 4) {
-          Image(systemName: "location.fill")
-            .font(.system(size: 10))
-            .foregroundStyle(.white.opacity(0.45))
-          Text(entry.location)
-            .font(.caption2)
+    GeometryReader { geo in
+      ZStack {
+        cardBackground
+        VStack(alignment: .leading, spacing: 4) {
+          Text(localized("Upcoming", localeTag: entry.localeTag).uppercased())
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(accent.opacity(0.9))
             .lineLimit(1)
-            .foregroundStyle(.white.opacity(0.55))
+
+          Text(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag))
+            .font(.system(size: 24, weight: .bold))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.65)
+
+          Text(entry.nextTime)
+            .font(.system(size: 18, weight: .bold, design: .rounded))
+            .foregroundStyle(accent)
+
+          Spacer(minLength: 0)
+
+          HStack(spacing: 4) {
+            Image(systemName: "location.fill")
+              .font(.system(size: 9))
+              .foregroundStyle(.white.opacity(0.5))
+            Text(entry.location)
+              .font(.system(size: 11, weight: .medium))
+              .lineLimit(1)
+              .truncationMode(.tail)
+              .foregroundStyle(.white.opacity(0.65))
+          }
+          .padding(.bottom, 1)
         }
+        .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
       }
-      .padding(12)
+      .frame(width: geo.size.width, height: geo.size.height)
     }
   }
 
   private var fullLayout: some View {
-    ZStack {
-      cardBackground
+    GeometryReader { geo in
+      let isLarge = family == .systemLarge
+      let leftWidth = geo.size.width * (isLarge ? 0.5 : 0.48)
+      let leftTitleSize: CGFloat = isLarge ? 11 : 10
+      let leftPrayerSize: CGFloat = isLarge ? 50 : 42
+      let leftTimeSize: CGFloat = isLarge ? 34 : 28
+      let rowFontSize: CGFloat = isLarge ? 18 : 15
+      let rowIconSize: CGFloat = isLarge ? 14 : 12
 
-      HStack(spacing: 0) {
-        // Left pane: next prayer focus
-        VStack(alignment: .leading, spacing: 5) {
-          Text(localized("Upcoming", localeTag: entry.localeTag).uppercased())
-            .font(.system(size: 11, weight: .bold))
-            .tracking(1.2)
-            .foregroundStyle(accent.opacity(0.85))
+      ZStack {
+        cardBackground
 
-          Text(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag))
-            .font(.system(size: 30, weight: .bold))
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-
-          Text(entry.nextTime)
-            .font(.system(size: 22, weight: .bold, design: .rounded))
-            .foregroundStyle(accent)
-
-          Spacer()
-          HStack(spacing: 5) {
-            Image(systemName: "location.fill")
-              .font(.system(size: 11))
-              .foregroundStyle(.white.opacity(0.45))
-            Text(entry.location)
-              .font(.system(size: 12, weight: .medium))
+        HStack(spacing: 0) {
+          VStack(alignment: .leading, spacing: isLarge ? 8 : 6) {
+            Text(localized("Upcoming", localeTag: entry.localeTag).uppercased())
+              .font(.system(size: leftTitleSize, weight: .bold))
+              .tracking(1.0)
+              .foregroundStyle(accent.opacity(0.9))
               .lineLimit(1)
-              .foregroundStyle(.white.opacity(0.6))
-          }
-        }
-        .padding(.vertical, 14)
-        .padding(.horizontal, 14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-        Rectangle()
-          .fill(.white.opacity(0.08))
-          .frame(width: 1)
-          .padding(.vertical, 10)
+            Text(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag))
+              .font(.system(size: leftPrayerSize, weight: .bold))
+              .foregroundStyle(.white)
+              .lineLimit(1)
+              .minimumScaleFactor(0.6)
 
-        // Right pane: all prayers; highlight current period
-        VStack(spacing: 3) {
-          ForEach(entry.times, id: \.key) { item in
-            prayerRow(item: item, isCurrent: item.key == entry.currentPrayer)
+            Text(entry.nextTime)
+              .font(.system(size: leftTimeSize, weight: .bold, design: .rounded))
+              .foregroundStyle(accent)
+              .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 5) {
+              Image(systemName: "location.fill")
+                .font(.system(size: isLarge ? 12 : 10))
+                .foregroundStyle(.white.opacity(0.5))
+              Text(entry.location)
+                .font(.system(size: isLarge ? 14 : 12, weight: .medium))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .foregroundStyle(.white.opacity(0.66))
+            }
           }
-          Spacer(minLength: 0)
+          .padding(.vertical, isLarge ? 16 : 12)
+          .padding(.horizontal, isLarge ? 16 : 12)
+          .frame(width: leftWidth, height: geo.size.height, alignment: .topLeading)
+
+          Rectangle()
+            .fill(.white.opacity(0.08))
+            .frame(width: 1, height: geo.size.height - (isLarge ? 20 : 16))
+
+          VStack(spacing: isLarge ? 6 : 4) {
+            ForEach(entry.times, id: \.key) { item in
+              prayerRow(
+                item: item,
+                isCurrent: item.key == entry.currentPrayer,
+                rowFontSize: rowFontSize,
+                rowIconSize: rowIconSize,
+                isLarge: isLarge
+              )
+            }
+            Spacer(minLength: 0)
+          }
+          .padding(.vertical, isLarge ? 12 : 10)
+          .padding(.horizontal, isLarge ? 12 : 10)
+          .frame(width: geo.size.width - leftWidth - 1, height: geo.size.height, alignment: .top)
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
       }
+      .frame(width: geo.size.width, height: geo.size.height)
     }
   }
 
@@ -170,35 +203,43 @@ struct PrayerWidgetEntryView: View {
         startPoint: .topLeading,
         endPoint: .bottomTrailing
       )
-      DotPattern()
-        .opacity(0.12)
+      DotPattern().opacity(0.12)
       Circle()
         .fill(accent.opacity(0.22))
         .frame(width: 190, height: 190)
         .blur(radius: 46)
         .offset(x: -130, y: -70)
     }
-    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
   }
 
-  private func prayerRow(item: (key: String, value: String), isCurrent: Bool) -> some View {
+  private func prayerRow(
+    item: (key: String, value: String),
+    isCurrent: Bool,
+    rowFontSize: CGFloat,
+    rowIconSize: CGFloat,
+    isLarge: Bool
+  ) -> some View {
     HStack(spacing: 8) {
       Image(systemName: iconName(for: item.key))
-        .font(.system(size: 11, weight: .semibold))
+        .font(.system(size: rowIconSize, weight: .semibold))
         .foregroundStyle(isCurrent ? accent : .white.opacity(0.42))
 
       Text(localizedPrayer(item.key, localeTag: entry.localeTag))
-        .font(.system(size: 13, weight: isCurrent ? .bold : .medium))
+        .font(.system(size: rowFontSize, weight: isCurrent ? .bold : .medium))
+        .lineLimit(1)
+        .minimumScaleFactor(0.65)
         .foregroundStyle(isCurrent ? .white : .white.opacity(0.72))
 
       Spacer(minLength: 8)
 
       Text(item.value)
-        .font(.system(size: 13, weight: isCurrent ? .bold : .medium, design: .rounded))
+        .font(.system(size: rowFontSize, weight: isCurrent ? .bold : .medium, design: .rounded))
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
         .foregroundStyle(isCurrent ? accent : .white.opacity(0.72))
     }
-    .padding(.horizontal, 9)
-    .padding(.vertical, 5)
+    .padding(.horizontal, isLarge ? 10 : 8)
+    .padding(.vertical, isLarge ? 5 : 4)
     .background(rowBackground(isCurrent: isCurrent))
     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
   }
@@ -226,7 +267,7 @@ struct PrayerWidgetEntryView: View {
     case "Maghrib": return "sunset.fill"
     case "Isha": return "moon.fill"
     default: return "circle.fill"
-  }
+    }
   }
 }
 
@@ -255,12 +296,14 @@ struct PrayerWidget: Widget {
     StaticConfiguration(kind: kind, provider: PrayerProvider()) { entry in
       if #available(iOS 17.0, *) {
         PrayerWidgetEntryView(entry: entry)
-          .containerBackground(.fill.tertiary, for: .widget)
+          .containerBackground(for: .widget) {
+            Color.clear
+          }
       } else {
         PrayerWidgetEntryView(entry: entry)
-          .padding(2)
       }
     }
+    .contentMarginsDisabled()
     .configurationDisplayName("Prayer Times")
     .description("Current and next prayer, plus daily times.")
     .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
