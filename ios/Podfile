@@ -59,5 +59,15 @@ target 'GoToGoPrayer' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    # Fix Expo Constants script phase for project paths with spaces.
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'EXConstants'
+
+      target.shell_script_build_phases.each do |phase|
+        next unless phase.name == '[CP-User] Generate app.config for prebuilt Constants.manifest'
+        phase.shell_script = 'bash -l "$PODS_TARGET_SRCROOT/../scripts/get-app-config-ios.sh"'
+      end
+    end
   end
 end

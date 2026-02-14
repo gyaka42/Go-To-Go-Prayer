@@ -127,12 +127,17 @@ struct PrayerWidgetEntryView: View {
   private var fullLayout: some View {
     GeometryReader { geo in
       let isLarge = family == .systemLarge
-      let leftWidth = geo.size.width * (isLarge ? 0.44 : 0.48)
+      let leftWidth = geo.size.width * (isLarge ? 0.44 : 0.42)
       let leftTitleSize: CGFloat = isLarge ? 11 : 10
       let leftPrayerSize: CGFloat = isLarge ? 50 : 42
       let leftTimeSize: CGFloat = isLarge ? 34 : 28
-      let rowFontSize: CGFloat = isLarge ? 15 : 14
-      let rowIconSize: CGFloat = isLarge ? 13 : 12
+      let rowFontSize: CGFloat = isLarge ? 15 : 13
+      let rowIconSize: CGFloat = isLarge ? 13 : 11
+      let rowHorizontalPadding: CGFloat = isLarge ? 10 : 6
+      let rowVerticalPadding: CGFloat = isLarge ? 5 : 2
+      let rowSpacing: CGFloat = isLarge ? 6 : 2
+      let listVerticalPadding: CGFloat = isLarge ? 12 : 8
+      let timeColumnWidth: CGFloat = isLarge ? 62 : 52
 
       ZStack {
         cardBackground
@@ -177,7 +182,7 @@ struct PrayerWidgetEntryView: View {
             .fill(.white.opacity(0.08))
             .frame(width: 1, height: geo.size.height - (isLarge ? 20 : 16))
 
-          VStack(spacing: isLarge ? 6 : 4) {
+          VStack(spacing: rowSpacing) {
             ForEach(entry.times, id: \.key) { item in
               prayerRow(
                 item: item,
@@ -185,12 +190,14 @@ struct PrayerWidgetEntryView: View {
                 rowFontSize: rowFontSize,
                 rowIconSize: rowIconSize,
                 isLarge: isLarge,
-                timeColumnWidth: isLarge ? 62 : 58
+                timeColumnWidth: timeColumnWidth,
+                rowHorizontalPadding: rowHorizontalPadding,
+                rowVerticalPadding: rowVerticalPadding
               )
             }
             Spacer(minLength: 0)
           }
-          .padding(.vertical, isLarge ? 12 : 10)
+          .padding(.vertical, listVerticalPadding)
           .padding(.horizontal, isLarge ? 12 : 10)
           .frame(width: geo.size.width - leftWidth - 1, height: geo.size.height, alignment: .top)
         }
@@ -221,7 +228,9 @@ struct PrayerWidgetEntryView: View {
     rowFontSize: CGFloat,
     rowIconSize: CGFloat,
     isLarge: Bool,
-    timeColumnWidth: CGFloat
+    timeColumnWidth: CGFloat,
+    rowHorizontalPadding: CGFloat,
+    rowVerticalPadding: CGFloat
   ) -> some View {
     HStack(spacing: 8) {
       Image(systemName: iconName(for: item.key))
@@ -243,8 +252,8 @@ struct PrayerWidgetEntryView: View {
         .foregroundStyle(isCurrent ? accent : .white.opacity(0.72))
         .frame(width: timeColumnWidth, alignment: .trailing)
     }
-    .padding(.horizontal, isLarge ? 10 : 8)
-    .padding(.vertical, isLarge ? 5 : 4)
+    .padding(.horizontal, rowHorizontalPadding)
+    .padding(.vertical, rowVerticalPadding)
     .background(rowBackground(isCurrent: isCurrent))
     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
   }
