@@ -72,6 +72,8 @@ export default function HomeScreen() {
   const [locationName, setLocationName] = useState(t("common.current_location"));
   const lastReplanSignatureRef = useRef<string>("");
   const latestLoadRequestRef = useRef(0);
+  const scheduleListRef = useRef<FlatList<PrayerName> | null>(null);
+  const lastAutoScrollKeyRef = useRef<string>("");
 
   const updateCountdown = useCallback((activeTimings: Timings, nextDayTimings: Timings | null) => {
     const now = new Date();
@@ -317,6 +319,42 @@ export default function HomeScreen() {
     return t("home.source_unknown");
   }, [source, t]);
 
+  const scrollToPrayerContext = useCallback(
+    (animated: boolean) => {
+      if (!scheduleListRef.current) {
+        return;
+      }
+      const nextIndex = PRAYER_NAMES.indexOf(nextPrayerName);
+      if (nextIndex < 0) {
+        return;
+      }
+      const targetIndex = Math.max(0, nextIndex - 1);
+      scheduleListRef.current.scrollToIndex({
+        index: targetIndex,
+        animated,
+        viewPosition: 0
+      });
+    },
+    [nextPrayerName]
+  );
+
+  useEffect(() => {
+    if (!timings) {
+      return;
+    }
+    const key = `${timings.dateKey}:${nextPrayerName}:${nextPrayerTomorrow ? "tomorrow" : "today"}`;
+    if (lastAutoScrollKeyRef.current === key) {
+      return;
+    }
+    lastAutoScrollKeyRef.current = key;
+
+    const timeout = setTimeout(() => {
+      scrollToPrayerContext(false);
+    }, 80);
+
+    return () => clearTimeout(timeout);
+  }, [nextPrayerName, nextPrayerTomorrow, scrollToPrayerContext, timings]);
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
@@ -392,11 +430,26 @@ export default function HomeScreen() {
           </View>
         ) : (
           <FlatList
+            ref={scheduleListRef}
             data={PRAYER_NAMES}
             keyExtractor={(item) => item}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2B8CEE" />}
             contentContainerStyle={styles.listContent}
+            getItemLayout={(_, index) => ({
+              length: 100,
+              offset: 100 * index,
+              index
+            })}
+            onScrollToIndexFailed={(info) => {
+              scheduleListRef.current?.scrollToOffset({
+                offset: Math.max(0, info.averageItemLength * info.index),
+                animated: false
+              });
+              setTimeout(() => {
+                scrollToPrayerContext(false);
+              }, 50);
+            }}
             renderItem={({ item }) => {
               const isNext = item === nextPrayerName;
               const isEnabled = settings?.prayerNotifications[item].enabled ?? false;
