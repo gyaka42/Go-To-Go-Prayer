@@ -100,6 +100,14 @@ export function getSystemLanguage(): AppLanguage {
   }
 }
 
+export async function getPreferredLanguage(mode?: LanguageMode): Promise<AppLanguage> {
+  const resolvedMode = mode ?? (await AsyncStorage.getItem(LANGUAGE_MODE_KEY));
+  if (resolvedMode === "nl" || resolvedMode === "en" || resolvedMode === "tr") {
+    return resolvedMode;
+  }
+  return getSystemLanguage();
+}
+
 export function translate(language: AppLanguage, key: string, params?: TranslateParams): string {
   const dict = translations[language] ?? translations.en;
   const fallback = translations.en[key] ?? key;

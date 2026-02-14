@@ -304,7 +304,7 @@ export default function HomeScreen() {
 
   const nextPrayerLabel = useMemo(() => {
     if (nextPrayerTomorrow) {
-      return t("home.tomorrow_fajr");
+      return t("home.tomorrow_prayer", { prayer: prayerName("Fajr") });
     }
     return prayerName(nextPrayerName);
   }, [nextPrayerName, nextPrayerTomorrow, prayerName, t]);

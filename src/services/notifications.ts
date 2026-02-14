@@ -1,5 +1,6 @@
 import * as Notifications from "expo-notifications";
-import { getSystemLanguage, translate, translatePrayerName } from "@/i18n/I18nProvider";
+import { AppLanguage } from "@/i18n/translations";
+import { getPreferredLanguage, translate, translatePrayerName } from "@/i18n/I18nProvider";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
 import { getDateKey, getTomorrow, parsePrayerTimeForDate } from "@/utils/time";
 import { PRAYER_NAMES, PrayerNotificationSetting, Settings, Timings } from "@/types/prayer";
@@ -84,6 +85,7 @@ async function scheduleOne(params: {
   minutesBefore: number;
   playSound: boolean;
   tone: PrayerNotificationSetting["tone"];
+  language: AppLanguage;
   dedupeSet: Set<string>;
 }): Promise<void> {
   const now = Date.now();
@@ -104,19 +106,18 @@ async function scheduleOne(params: {
   }
   params.dedupeSet.add(dedupeKey);
 
-  const language = getSystemLanguage();
-  const prayerLabel = translatePrayerName(language, params.prayer);
+  const prayerLabel = translatePrayerName(params.language, params.prayer);
   const body =
     params.intent === "offset"
-      ? translate(language, "notifications.body_offset", {
+      ? translate(params.language, "notifications.body_offset", {
           prayer: prayerLabel,
           mins: params.minutesBefore
         })
-      : translate(language, "notifications.body_at_time", { prayer: prayerLabel });
+      : translate(params.language, "notifications.body_at_time", { prayer: prayerLabel });
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: translate(language, "notifications.title"),
+      title: translate(params.language, "notifications.title"),
       body,
       data: {
         prayer: params.prayer,
@@ -142,6 +143,7 @@ export async function schedulePrayerNotificationsForDay(
   settings: Settings,
   dedupeSet: Set<string>
 ): Promise<void> {
+  const language = await getPreferredLanguage();
   for (const prayer of PRAYER_NAMES) {
     const prayerSetting = settings.prayerNotifications[prayer];
     if (!prayerSetting?.enabled) {
@@ -160,6 +162,7 @@ export async function schedulePrayerNotificationsForDay(
         minutesBefore: prayerSetting.minutesBefore,
         playSound: prayerSetting.playSound,
         tone: prayerSetting.tone,
+        language,
         dedupeSet
       });
     }
@@ -172,6 +175,7 @@ export async function schedulePrayerNotificationsForDay(
       minutesBefore: prayerSetting.minutesBefore,
       playSound: prayerSetting.playSound,
       tone: prayerSetting.tone,
+      language,
       dedupeSet
     });
   }
@@ -218,6 +222,7 @@ async function replanAllOnce(params: {
   }
 
   const dedupeSet = new Set<string>();
+  const language = await getPreferredLanguage();
   const scheduleWithStats = async (date: Date, timings: Timings) => {
     for (const prayer of PRAYER_NAMES) {
       const prayerSetting = params.settings.prayerNotifications[prayer];
@@ -238,6 +243,7 @@ async function replanAllOnce(params: {
           minutesBefore: prayerSetting.minutesBefore,
           playSound: prayerSetting.playSound,
           tone: prayerSetting.tone,
+          language,
           dedupeSet
         });
         if (dedupeSet.size > beforeCount) {
@@ -255,6 +261,7 @@ async function replanAllOnce(params: {
         minutesBefore: prayerSetting.minutesBefore,
         playSound: prayerSetting.playSound,
         tone: prayerSetting.tone,
+        language,
         dedupeSet
       });
       if (dedupeSet.size > beforeAtTimeCount) {
