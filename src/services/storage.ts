@@ -9,9 +9,9 @@ const LATEST_LOCATION_CACHE_KEY = "location:latest:v1";
 
 function createDefaultSettings(): Settings {
   return {
-    timingsProvider: "aladhan",
+    timingsProvider: "diyanet",
     methodId: 3,
-    methodName: "Muslim World League",
+    methodName: "Diyanet Official API",
     hanafiOnly: true,
     locationMode: "gps",
     prayerNotifications: PRAYER_NAMES.reduce((acc, prayer) => {
@@ -37,12 +37,12 @@ export async function getSettings(): Promise<Settings> {
   try {
     const parsed = JSON.parse(raw) as Partial<Settings>;
     const defaults = createDefaultSettings();
+    const parsedProvider = (parsed as any).timingsProvider ?? (parsed as any).provider;
+    const resolvedProvider =
+      parsedProvider === "diyanet" || parsedProvider === "aladhan" ? parsedProvider : defaults.timingsProvider;
 
     return {
-      timingsProvider:
-        (parsed as any).timingsProvider === "diyanet" || (parsed as any).provider === "diyanet"
-          ? "diyanet"
-          : "aladhan",
+      timingsProvider: resolvedProvider,
       methodId:
         typeof (parsed as any).methodId === "number"
           ? (parsed as any).methodId
@@ -52,6 +52,8 @@ export async function getSettings(): Promise<Settings> {
       methodName:
         typeof (parsed as any).methodName === "string"
           ? (parsed as any).methodName
+          : resolvedProvider === "diyanet"
+            ? "Diyanet Official API"
           : defaults.methodName,
       hanafiOnly:
         typeof (parsed as any).hanafiOnly === "boolean"

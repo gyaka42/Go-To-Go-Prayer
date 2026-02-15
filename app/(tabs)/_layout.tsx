@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { BlurView } from "expo-blur";
@@ -65,7 +65,14 @@ export default function TabsLayout() {
         tabBarIcon: ({ color, size, focused }) => {
           let iconName: keyof typeof Ionicons.glyphMap = "home-outline";
           if (route.name === "qibla") {
-            iconName = focused ? "compass" : "compass-outline";
+            return (
+              <FontAwesome5
+                name="kaaba"
+                size={Math.max(size - 1, 14)}
+                color={color}
+                solid={focused}
+              />
+            );
           } else if (route.name === "alerts") {
             iconName = focused ? "notifications" : "notifications-outline";
           } else if (route.name === "settings") {

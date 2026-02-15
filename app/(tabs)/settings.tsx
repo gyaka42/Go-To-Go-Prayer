@@ -1,4 +1,4 @@
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
@@ -531,7 +531,7 @@ export default function SettingsScreen() {
             <View style={[styles.settingRowWithBorder, { borderBottomColor: colors.cardBorder }]}>
               <View style={styles.settingLeft}>
                 <View style={[styles.iconBox, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-                  <Ionicons name="book" size={20} color="#2B8CEE" />
+                  <MaterialCommunityIcons name="abjad-arabic" size={24} color="#2B8CEE" />
                 </View>
                 <View>
                   <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>
