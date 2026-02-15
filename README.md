@@ -1,6 +1,6 @@
 # Go-To-Go-Prayer
 
-## Diyanet Official API
+## Diyanet Official API.
 
 The app now uses a server-side proxy (Cloudflare Worker) for Diyanet.
 Do not put Diyanet username/password in the mobile app.
