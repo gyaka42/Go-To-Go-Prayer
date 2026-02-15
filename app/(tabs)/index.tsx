@@ -1,4 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -56,6 +57,7 @@ export default function HomeScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t, prayerName, localeTag } = useI18n();
   const { width } = useWindowDimensions();
+  const tabBarHeight = useBottomTabBarHeight();
   const isCompact = width <= 390;
   const [timings, setTimings] = useState<Timings | null>(null);
   const [tomorrowTimings, setTomorrowTimings] = useState<Timings | null>(null);
@@ -435,7 +437,10 @@ export default function HomeScreen() {
             keyExtractor={(item) => item}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2B8CEE" />}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: tabBarHeight + 64 }
+            ]}
             getItemLayout={(_, index) => ({
               length: 100,
               offset: 100 * index,
