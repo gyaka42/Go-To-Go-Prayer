@@ -1,5 +1,6 @@
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -69,6 +70,9 @@ export default function SettingsScreen() {
   const [countriesLoadError, setCountriesLoadError] = useState<string | null>(null);
   const [pickerType, setPickerType] = useState<PickerType>(null);
   const [pickerQuery, setPickerQuery] = useState("");
+  const [showAppInfo, setShowAppInfo] = useState(false);
+  const appVersion = Constants.nativeAppVersion ?? Constants.expoConfig?.version ?? "Onbekend";
+  const appBuild = Constants.nativeBuildVersion ?? Constants.expoConfig?.ios?.buildNumber ?? "-";
 
   const loadSettings = useCallback(async () => {
     const saved = await getSettings();
@@ -439,7 +443,9 @@ export default function SettingsScreen() {
         <AppBackground />
         <View style={styles.headerRow}>
           <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>{t("settings.title")}</Text>
-          <Ionicons name="help-circle-outline" size={22} color={isLight ? "#617990" : "#B7C7DD"} />
+          <Pressable onPress={() => setShowAppInfo(true)} hitSlop={8}>
+            <Ionicons name="help-circle-outline" size={22} color={isLight ? "#617990" : "#B7C7DD"} />
+          </Pressable>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -750,6 +756,26 @@ export default function SettingsScreen() {
             </View>
           </View>
         </Modal>
+
+        <Modal transparent visible={showAppInfo} animationType="fade" onRequestClose={() => setShowAppInfo(false)}>
+          <Pressable style={styles.infoOverlay} onPress={() => setShowAppInfo(false)}>
+            <Pressable
+              style={[
+                styles.infoBubble,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.cardBorder
+                }
+              ]}
+              onPress={() => {}}
+            >
+              <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>Go-To-Go Prayer</Text>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>Versie: {appVersion}</Text>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>Build: {appBuild}</Text>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>Developer: Gokhan Yaka</Text>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -972,6 +998,35 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(2, 8, 16, 0.7)",
     justifyContent: "center",
     paddingHorizontal: 20
+  },
+  infoOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(2, 8, 16, 0.18)",
+    alignItems: "flex-end",
+    justifyContent: "flex-start",
+    paddingTop: 86,
+    paddingRight: 20
+  },
+  infoBubble: {
+    width: 228,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 }
+  },
+  infoTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: 6
+  },
+  infoText: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginBottom: 2
   },
   modalCard: {
     borderRadius: 16,
