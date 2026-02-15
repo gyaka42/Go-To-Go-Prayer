@@ -772,7 +772,7 @@ export default function SettingsScreen() {
               <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>Go-To-Go Prayer</Text>
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>Versie: {appVersion}</Text>
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>Build: {appBuild}</Text>
-              <Text style={[styles.infoText, { color: colors.textSecondary }]}>Developer: Gokhan Yaka</Text>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>Developer: Gökhan Yaka</Text>
             </Pressable>
           </Pressable>
         </Modal>
