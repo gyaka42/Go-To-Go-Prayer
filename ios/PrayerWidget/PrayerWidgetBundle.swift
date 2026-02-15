@@ -12,5 +12,8 @@ import SwiftUI
 struct PrayerWidgetBundle: WidgetBundle {
     var body: some Widget {
         PrayerWidget()
+        PrayerHijriNextLockWidget()
+        PrayerCountdownLockWidget()
+        PrayerTodayFocusLockWidget()
     }
 }

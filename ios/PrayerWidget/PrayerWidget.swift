@@ -388,6 +388,182 @@ struct PrayerWidget: Widget {
   }
 }
 
+struct PrayerHijriNextLockWidget: Widget {
+  let kind: String = "PrayerHijriNextLockWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: PrayerProvider()) { entry in
+      if #available(iOS 17.0, *) {
+        HijriNextLockEntryView(entry: entry)
+          .containerBackground(for: .widget) {
+            Color.clear
+          }
+      } else {
+        HijriNextLockEntryView(entry: entry)
+      }
+    }
+    .configurationDisplayName("Hijri + Next Prayer")
+    .description("Hijri date with your next prayer on Lock Screen.")
+    .supportedFamilies(lockFamilies)
+  }
+}
+
+struct PrayerCountdownLockWidget: Widget {
+  let kind: String = "PrayerCountdownLockWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: PrayerProvider()) { entry in
+      if #available(iOS 17.0, *) {
+        CountdownLockEntryView(entry: entry)
+          .containerBackground(for: .widget) {
+            Color.clear
+          }
+      } else {
+        CountdownLockEntryView(entry: entry)
+      }
+    }
+    .configurationDisplayName("Prayer Countdown")
+    .description("Time remaining until the next prayer on Lock Screen.")
+    .supportedFamilies(lockFamilies)
+  }
+}
+
+struct PrayerTodayFocusLockWidget: Widget {
+  let kind: String = "PrayerTodayFocusLockWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: PrayerProvider()) { entry in
+      if #available(iOS 17.0, *) {
+        TodayFocusLockEntryView(entry: entry)
+          .containerBackground(for: .widget) {
+            Color.clear
+          }
+      } else {
+        TodayFocusLockEntryView(entry: entry)
+      }
+    }
+    .configurationDisplayName("Today Focus")
+    .description("Current and next prayer focus for Lock Screen.")
+    .supportedFamilies(lockFamilies)
+  }
+}
+
+private struct HijriNextLockEntryView: View {
+  @Environment(\.widgetFamily) private var family
+  let entry: PrayerWidgetEntry
+
+  var body: some View {
+    switch family {
+    case .accessoryInline:
+      Text("\(hijriDateText(from: entry.date)) · \(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag)) \(entry.nextTime)")
+    case .accessoryCircular:
+      VStack(spacing: 1) {
+        Text(hijriDayText(from: entry.date))
+          .font(.system(size: 10, weight: .bold))
+        Text(shortPrayer(entry.nextPrayer, localeTag: entry.localeTag))
+          .font(.system(size: 9, weight: .semibold))
+      }
+    case .accessoryRectangular:
+      VStack(alignment: .leading, spacing: 2) {
+        Text(hijriDateText(from: entry.date))
+          .font(.system(size: 11, weight: .medium))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+        HStack(spacing: 6) {
+          Text(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag))
+            .font(.system(size: 14, weight: .bold))
+            .lineLimit(1)
+          Spacer(minLength: 6)
+          Text(entry.nextTime)
+            .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+        }
+      }
+    default:
+      EmptyView()
+    }
+  }
+}
+
+private struct CountdownLockEntryView: View {
+  @Environment(\.widgetFamily) private var family
+  let entry: PrayerWidgetEntry
+
+  var body: some View {
+    let countdown = countdownText(entry: entry)
+    switch family {
+    case .accessoryInline:
+      Text("\(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag)) \(localized("In", localeTag: entry.localeTag)) \(countdown)")
+    case .accessoryCircular:
+      VStack(spacing: 1) {
+        Text(shortPrayer(entry.nextPrayer, localeTag: entry.localeTag))
+          .font(.system(size: 9, weight: .semibold))
+        Text(shortCountdownText(entry: entry))
+          .font(.system(size: 10, weight: .bold, design: .rounded).monospacedDigit())
+      }
+    case .accessoryRectangular:
+      HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(localized("Countdown", localeTag: entry.localeTag))
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(.secondary)
+          Text(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag))
+            .font(.system(size: 13, weight: .semibold))
+            .lineLimit(1)
+        }
+        Spacer(minLength: 6)
+        Text(countdown)
+          .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
+      }
+    default:
+      EmptyView()
+    }
+  }
+}
+
+private struct TodayFocusLockEntryView: View {
+  @Environment(\.widgetFamily) private var family
+  let entry: PrayerWidgetEntry
+
+  var body: some View {
+    switch family {
+    case .accessoryInline:
+      Text("\(localized("Current", localeTag: entry.localeTag)): \(localizedPrayer(entry.currentPrayer, localeTag: entry.localeTag))")
+    case .accessoryCircular:
+      VStack(spacing: 1) {
+        Text(shortPrayer(entry.currentPrayer, localeTag: entry.localeTag))
+          .font(.system(size: 10, weight: .bold))
+        Text(shortPrayer(entry.nextPrayer, localeTag: entry.localeTag))
+          .font(.system(size: 9, weight: .semibold))
+          .foregroundStyle(.secondary)
+      }
+    case .accessoryRectangular:
+      VStack(alignment: .leading, spacing: 2) {
+        Text("\(localized("Current", localeTag: entry.localeTag)): \(localizedPrayer(entry.currentPrayer, localeTag: entry.localeTag))")
+          .font(.system(size: 11, weight: .medium))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+        HStack(spacing: 6) {
+          Text("\(localized("Next", localeTag: entry.localeTag)): \(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag))")
+            .font(.system(size: 13, weight: .bold))
+            .lineLimit(1)
+          Spacer(minLength: 6)
+          Text(entry.nextTime)
+            .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+        }
+      }
+    default:
+      EmptyView()
+    }
+  }
+}
+
+private var lockFamilies: [WidgetFamily] {
+  if #available(iOS 16.0, *) {
+    return [.accessoryInline, .accessoryCircular, .accessoryRectangular]
+  }
+  return []
+}
+
 private func localized(_ key: String, localeTag: String) -> String {
   let lang = normalizedLanguage(localeTag: localeTag)
   switch lang {
@@ -395,14 +571,20 @@ private func localized(_ key: String, localeTag: String) -> String {
     if key == "Current" { return "Huidig" }
     if key == "Next" { return "Volgende" }
     if key == "Upcoming" { return "Volgend" }
+    if key == "In" { return "over" }
+    if key == "Countdown" { return "Aftellen" }
     return key
   case "tr":
     if key == "Current" { return "Şu An" }
     if key == "Next" { return "Sonraki" }
     if key == "Upcoming" { return "Sıradaki" }
+    if key == "In" { return "kala" }
+    if key == "Countdown" { return "Geri Sayım" }
     return key
   default:
     if key == "Upcoming" { return "Upcoming" }
+    if key == "In" { return "in" }
+    if key == "Countdown" { return "Countdown" }
     return key
   }
 }
@@ -448,4 +630,64 @@ private func normalizedLanguage(localeTag: String) -> String {
     return String(localeTag.prefix(2)).lowercased()
   }
   return String(Locale.current.identifier.prefix(2)).lowercased()
+}
+
+private func hijriDateText(from date: Date) -> String {
+  var calendar = Calendar(identifier: .islamicUmmAlQura)
+  calendar.locale = Locale(identifier: "en_US_POSIX")
+  let day = calendar.component(.day, from: date)
+  let month = calendar.component(.month, from: date)
+  let year = calendar.component(.year, from: date)
+  return "Hijri \(day)-\(month)-\(year)"
+}
+
+private func hijriDayText(from date: Date) -> String {
+  var calendar = Calendar(identifier: .islamicUmmAlQura)
+  calendar.locale = Locale(identifier: "en_US_POSIX")
+  return String(calendar.component(.day, from: date))
+}
+
+private func countdownText(entry: PrayerWidgetEntry) -> String {
+  guard let nextDate = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) else {
+    return "--:--"
+  }
+  let seconds = max(0, Int(nextDate.timeIntervalSince(entry.date)))
+  let hours = seconds / 3600
+  let minutes = (seconds % 3600) / 60
+  return String(format: "%02d:%02d", hours, minutes)
+}
+
+private func shortCountdownText(entry: PrayerWidgetEntry) -> String {
+  guard let nextDate = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) else {
+    return "--"
+  }
+  let totalMinutes = max(0, Int(nextDate.timeIntervalSince(entry.date)) / 60)
+  if totalMinutes >= 60 {
+    let hours = totalMinutes / 60
+    return "\(hours)h"
+  }
+  return "\(totalMinutes)m"
+}
+
+private func nextPrayerDate(nextTime: String, now: Date) -> Date? {
+  let components = nextTime.split(separator: ":")
+  guard components.count == 2,
+        let hour = Int(components[0]),
+        let minute = Int(components[1]) else {
+    return nil
+  }
+
+  var calendar = Calendar.current
+  var dateComponents = calendar.dateComponents([.year, .month, .day], from: now)
+  dateComponents.hour = hour
+  dateComponents.minute = minute
+  dateComponents.second = 0
+
+  guard let todayCandidate = calendar.date(from: dateComponents) else {
+    return nil
+  }
+  if todayCandidate >= now {
+    return todayCandidate
+  }
+  return calendar.date(byAdding: .day, value: 1, to: todayCandidate)
 }
