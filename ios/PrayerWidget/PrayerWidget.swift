@@ -75,6 +75,12 @@ struct PrayerWidgetEntryView: View {
       smallLayout
     case .systemMedium, .systemLarge:
       fullLayout
+    case .accessoryInline:
+      lockInlineLayout
+    case .accessoryCircular:
+      lockCircularLayout
+    case .accessoryRectangular:
+      lockRectangularLayout
     default:
       smallLayout
     }
@@ -258,6 +264,50 @@ struct PrayerWidgetEntryView: View {
     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
   }
 
+  private var lockInlineLayout: some View {
+    HStack(spacing: 4) {
+      Text(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag))
+      Text(entry.nextTime)
+    }
+    .font(.system(size: 12, weight: .semibold, design: .rounded))
+  }
+
+  private var lockCircularLayout: some View {
+    ZStack {
+      Circle()
+        .fill(accent.opacity(0.22))
+      VStack(spacing: 1) {
+        Text(shortPrayer(entry.nextPrayer, localeTag: entry.localeTag))
+          .font(.system(size: 10, weight: .bold))
+          .lineLimit(1)
+          .minimumScaleFactor(0.7)
+        Text(entry.nextTime)
+          .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit())
+          .lineLimit(1)
+          .minimumScaleFactor(0.7)
+      }
+      .foregroundStyle(.white)
+    }
+  }
+
+  private var lockRectangularLayout: some View {
+    HStack(spacing: 8) {
+      Image(systemName: iconName(for: entry.nextPrayer))
+        .foregroundStyle(accent)
+      VStack(alignment: .leading, spacing: 1) {
+        Text(localized("Next", localeTag: entry.localeTag))
+          .font(.system(size: 10, weight: .semibold))
+          .foregroundStyle(.secondary)
+        Text(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag))
+          .font(.system(size: 14, weight: .bold))
+          .lineLimit(1)
+      }
+      Spacer(minLength: 6)
+      Text(entry.nextTime)
+        .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+    }
+  }
+
   private func rowBackground(isCurrent: Bool) -> some View {
     if isCurrent {
       return AnyView(
@@ -320,7 +370,21 @@ struct PrayerWidget: Widget {
     .contentMarginsDisabled()
     .configurationDisplayName("Prayer Times")
     .description("Current and next prayer, plus daily times.")
-    .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+    .supportedFamilies(supportedFamilies)
+  }
+
+  private var supportedFamilies: [WidgetFamily] {
+    if #available(iOS 16.0, *) {
+      return [
+        .systemSmall,
+        .systemMedium,
+        .systemLarge,
+        .accessoryInline,
+        .accessoryCircular,
+        .accessoryRectangular
+      ]
+    }
+    return [.systemSmall, .systemMedium, .systemLarge]
   }
 }
 
@@ -370,23 +434,18 @@ private func localizedPrayer(_ prayer: String, localeTag: String) -> String {
   return prayer
 }
 
+private func shortPrayer(_ prayer: String, localeTag: String) -> String {
+  let localized = localizedPrayer(prayer, localeTag: localeTag)
+  let trimmed = localized.trimmingCharacters(in: .whitespacesAndNewlines)
+  if trimmed.count <= 4 {
+    return trimmed.uppercased()
+  }
+  return String(trimmed.prefix(3)).uppercased()
+}
+
 private func normalizedLanguage(localeTag: String) -> String {
   if !localeTag.isEmpty {
     return String(localeTag.prefix(2)).lowercased()
   }
   return String(Locale.current.identifier.prefix(2)).lowercased()
-}
-
-#Preview(as: .systemSmall) {
-  PrayerWidget()
-} timeline: {
-  PrayerWidgetEntry(
-    date: .now,
-    localeTag: "en",
-    location: "Amsterdam, NL",
-    currentPrayer: "Dhuhr",
-    nextPrayer: "Asr",
-    nextTime: "15:21",
-    times: [("Fajr", "06:06"), ("Sunrise", "07:45"), ("Dhuhr", "13:00"), ("Asr", "15:21"), ("Maghrib", "17:53"), ("Isha", "19:29")]
-  )
 }

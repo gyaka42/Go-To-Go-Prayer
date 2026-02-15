@@ -3,6 +3,7 @@ import { PrayerName, Timings } from "@/types/prayer";
 import { getNextPrayer } from "@/utils/time";
 
 type WidgetBridgeModule = {
+  saveWidgetStateJSON?: (payloadJSON: string) => void;
   saveWidgetState: (payload: Record<string, string>) => void;
   saveWidgetData: (nextPrayer: string, time: string, location: string) => void;
 };
@@ -62,7 +63,9 @@ export function syncWidgetWithTimings(params: {
   };
 
   try {
-    if (typeof bridge.saveWidgetState === "function") {
+    if (typeof bridge.saveWidgetStateJSON === "function") {
+      bridge.saveWidgetStateJSON(JSON.stringify(payload));
+    } else if (typeof bridge.saveWidgetState === "function") {
       bridge.saveWidgetState(payload);
     } else {
       bridge.saveWidgetData(prayer, time, params.locationLabel);

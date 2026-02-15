@@ -12,7 +12,5 @@ import SwiftUI
 struct PrayerWidgetBundle: WidgetBundle {
     var body: some Widget {
         PrayerWidget()
-        PrayerWidgetControl()
-        PrayerWidgetLiveActivity()
     }
 }
