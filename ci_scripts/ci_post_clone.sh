@@ -52,6 +52,20 @@ fi
 
 echo "==> Installing CocoaPods dependencies"
 cd ios
+
+# React Native from source requires cmake (hermes-engine podspec checks it).
+if grep -q '"ios.buildReactNativeFromSource": "true"' Podfile.properties.json 2>/dev/null; then
+  if ! command -v cmake >/dev/null 2>&1; then
+    echo "==> cmake not found; installing via Homebrew"
+    brew install cmake
+  fi
+  if ! command -v ninja >/dev/null 2>&1; then
+    echo "==> ninja not found; installing via Homebrew"
+    brew install ninja
+  fi
+  echo "==> CMake: $(cmake --version | head -n 1 || true)"
+fi
+
 echo "==> Scanning pbxproj objectVersion values"
 find . -name "*.pbxproj" -print0 | while IFS= read -r -d '' f; do
   if grep -q "objectVersion = 70;" "$f"; then
