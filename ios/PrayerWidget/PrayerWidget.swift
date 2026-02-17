@@ -10,6 +10,7 @@ struct PrayerWidgetEntry: TimelineEntry {
   let currentPrayer: String
   let nextPrayer: String
   let nextTime: String
+  let tomorrowFajr: String
   let times: [(key: String, value: String)]
 }
 
@@ -22,6 +23,7 @@ struct PrayerProvider: TimelineProvider {
       currentPrayer: "Dhuhr",
       nextPrayer: "Asr",
       nextTime: "15:21",
+      tomorrowFajr: "06:07",
       times: sampleTimes()
     )
   }
@@ -32,9 +34,12 @@ struct PrayerProvider: TimelineProvider {
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<PrayerWidgetEntry>) -> Void) {
     let now = Date()
-    let entry = loadEntry(for: now)
-    let nextRefresh = Calendar.current.date(byAdding: .minute, value: 15, to: now) ?? now.addingTimeInterval(900)
-    completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
+    let base = loadEntry(for: now)
+    let entries = timelineEntries(from: base, now: now)
+    let nextRefresh =
+      Calendar.current.date(byAdding: .minute, value: 15, to: entries.last?.date ?? now) ??
+      now.addingTimeInterval(900)
+    completion(Timeline(entries: entries, policy: .after(nextRefresh)))
   }
 
   private func loadEntry(for date: Date) -> PrayerWidgetEntry {
@@ -47,6 +52,7 @@ struct PrayerProvider: TimelineProvider {
       currentPrayer: shared?.string(forKey: "widget_current_prayer") ?? "Fajr",
       nextPrayer: shared?.string(forKey: "widget_next_prayer") ?? "Dhuhr",
       nextTime: shared?.string(forKey: "widget_next_time") ?? "--:--",
+      tomorrowFajr: shared?.string(forKey: "widget_time_tomorrow_fajr") ?? "--:--",
       times: [
         ("Fajr", shared?.string(forKey: "widget_time_fajr") ?? "--:--"),
         ("Sunrise", shared?.string(forKey: "widget_time_sunrise") ?? "--:--"),
@@ -60,6 +66,80 @@ struct PrayerProvider: TimelineProvider {
 
   private func sampleTimes() -> [(key: String, value: String)] {
     [("Fajr", "06:06"), ("Sunrise", "07:45"), ("Dhuhr", "13:00"), ("Asr", "15:21"), ("Maghrib", "17:53"), ("Isha", "19:29")]
+  }
+
+  private func timelineEntries(from base: PrayerWidgetEntry, now: Date) -> [PrayerWidgetEntry] {
+    var moments: [Date] = [now]
+    let allTimes = base.times + [("TomorrowFajr", base.tomorrowFajr)]
+    for item in allTimes {
+      guard let at = parseTime(item.value, relativeTo: now) else { continue }
+      let scheduled = item.key == "TomorrowFajr" && at <= now
+        ? Calendar.current.date(byAdding: .day, value: 1, to: at) ?? at
+        : at
+      if scheduled > now {
+        moments.append(scheduled)
+      }
+    }
+
+    moments = Array(Set(moments.map { $0.timeIntervalSince1970 })).sorted().map { Date(timeIntervalSince1970: $0) }
+
+    return moments.map { moment in
+      let state = resolveState(for: base, at: moment)
+      return PrayerWidgetEntry(
+        date: moment,
+        localeTag: base.localeTag,
+        location: base.location,
+        currentPrayer: state.currentPrayer,
+        nextPrayer: state.nextPrayer,
+        nextTime: state.nextTime,
+        tomorrowFajr: base.tomorrowFajr,
+        times: base.times
+      )
+    }
+  }
+
+  private func resolveState(for entry: PrayerWidgetEntry, at date: Date) -> (currentPrayer: String, nextPrayer: String, nextTime: String) {
+    let schedule = entry.times.compactMap { item -> (key: String, at: Date)? in
+      guard let at = parseTime(item.value, relativeTo: date) else { return nil }
+      return (item.key, at)
+    }
+    .sorted { $0.at < $1.at }
+
+    let prayerStarts = schedule.filter { ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"].contains($0.key) }
+
+    let current = prayerStarts.last(where: { $0.at <= date })?.key ?? "Isha"
+    if let next = schedule.first(where: { $0.at > date }) {
+      return (current, next.key, timeText(from: next.at))
+    }
+
+    if let tomorrowFajrDate = parseTime(entry.tomorrowFajr, relativeTo: date) {
+      let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: tomorrowFajrDate) ?? tomorrowFajrDate
+      return (current, "Fajr", timeText(from: tomorrow))
+    }
+
+    return (current, entry.nextPrayer, entry.nextTime)
+  }
+
+  private func parseTime(_ value: String, relativeTo date: Date) -> Date? {
+    let parts = value.split(separator: ":")
+    guard parts.count >= 2,
+          let hour = Int(parts[0]),
+          let minute = Int(parts[1]) else {
+      return nil
+    }
+
+    var components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+    components.hour = hour
+    components.minute = minute
+    components.second = 0
+    return Calendar.current.date(from: components)
+  }
+
+  private func timeText(from date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "HH:mm"
+    return formatter.string(from: date)
   }
 }
 
