@@ -1,5 +1,6 @@
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
@@ -71,8 +72,8 @@ export default function SettingsScreen() {
   const [pickerType, setPickerType] = useState<PickerType>(null);
   const [pickerQuery, setPickerQuery] = useState("");
   const [showAppInfo, setShowAppInfo] = useState(false);
-  const appVersion = Constants.nativeAppVersion ?? Constants.expoConfig?.version ?? "Onbekend";
-  const appBuild = Constants.nativeBuildVersion ?? Constants.expoConfig?.ios?.buildNumber ?? "-";
+  const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? "Onbekend";
+  const appBuild = Application.nativeBuildVersion ?? Constants.expoConfig?.ios?.buildNumber ?? "-";
 
   const loadSettings = useCallback(async () => {
     const saved = await getSettings();
