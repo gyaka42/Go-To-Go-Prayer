@@ -168,48 +168,124 @@ async function handleRequest(req, res) {
     return;
   }
 
-  const token = await login(username, password);
-  const candidates = [];
-  const seen = new Set();
-  const addCandidate = (id, source) => {
-    const n = Number(id);
-    if (Number.isFinite(n) && n > 0 && !seen.has(n)) {
-      seen.add(n);
-      candidates.push({ cityId: n, source });
+  let resolvedCity = cityQuery || "";
+  let resolvedCountryCode = countryCodeQuery || "";
+  let resolvedCountryName = countryQuery || "";
+
+  try {
+    const token = await login(username, password);
+    const candidates = [];
+    const seen = new Set();
+    const addCandidate = (id, source) => {
+      const n = Number(id);
+      if (Number.isFinite(n) && n > 0 && !seen.has(n)) {
+        seen.add(n);
+        candidates.push({ cityId: n, source });
+      }
+    };
+
+    if (Number.isFinite(cityIdParam) && cityIdParam > 0) {
+      addCandidate(cityIdParam, "query-cityId");
     }
-  };
 
-  if (Number.isFinite(cityIdParam) && cityIdParam > 0) {
-    addCandidate(cityIdParam, "query-cityId");
-  }
+    const byGeo = await resolveCityIdByGeo(token, lat, lon);
+    if (byGeo) {
+      addCandidate(byGeo, "diyanet-geocode");
+    }
 
-  const byGeo = await resolveCityIdByGeo(token, lat, lon);
-  if (byGeo) {
-    addCandidate(byGeo, "diyanet-geocode");
-  }
+    const reverse = await reverseGeocode(lat, lon);
+    resolvedCity = cityQuery || reverse.city || "";
+    resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
+    resolvedCountryName = countryQuery || reverse.country || "";
 
-  const reverse = await reverseGeocode(lat, lon);
-  const resolvedCity = cityQuery || reverse.city || "";
-  const resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
-  const resolvedCountryName = countryQuery || reverse.country || "";
+    const cities = await getCities(token);
+    const matched = matchCities(cities, {
+      lat,
+      lon,
+      city: resolvedCity,
+      countryCode: resolvedCountryCode,
+      countryName: resolvedCountryName
+    });
+    for (const id of matched) {
+      addCandidate(id, "cities-match");
+    }
 
-  const cities = await getCities(token);
-  const matched = matchCities(cities, {
-    lat,
-    lon,
-    city: resolvedCity,
-    countryCode: resolvedCountryCode,
-    countryName: resolvedCountryName
-  });
-  for (const id of matched) {
-    addCandidate(id, "cities-match");
-  }
+    for (const item of nearestCities(cities, lat, lon, 30)) {
+      addCandidate(item.id, "nearest");
+    }
 
-  for (const item of nearestCities(cities, lat, lon, 30)) {
-    addCandidate(item.id, "nearest");
-  }
+    if (candidates.length === 0) {
+      const fallback = await tryImsakiyemFallback({
+        lat,
+        lon,
+        dateKey,
+        city: resolvedCity,
+        countryCode: resolvedCountryCode,
+        countryName: resolvedCountryName
+      });
 
-  if (candidates.length === 0) {
+      if (fallback?.times) {
+        const payload = {
+          dateKey,
+          cityId: fallback.districtId,
+          citySource: "imsakiyem-fallback",
+          source: "diyanet-proxy",
+          times: fallback.times
+        };
+        cacheTimingsResponse(requestCacheKey, payload);
+        sendJson(res, 200, payload);
+        return;
+      }
+
+      sendJson(res, 502, {
+        error: "Could not resolve cityId",
+        details: {
+          lat,
+          lon,
+          date: dateKey,
+          resolvedCity,
+          resolvedCountryCode,
+          resolvedCountryName,
+          citiesLoaded: cities.length,
+          fallback: fallback?.debug ?? null
+        }
+      });
+      return;
+    }
+
+    const attempts = [];
+    for (const c of candidates) {
+      const daily = await fetchDailyRows(token, c.cityId, dateKey);
+      attempts.push({
+        cityId: c.cityId,
+        source: c.source,
+        endpoint: daily.endpoint,
+        status: daily.status,
+        rows: daily.rows.length
+      });
+
+      if (daily.rows.length === 0) {
+        continue;
+      }
+
+      const row = findByDate(daily.rows, dateKey) || daily.rows[0];
+      const times = mapTimings(row);
+      if (!times) {
+        continue;
+      }
+
+      const payload = {
+        dateKey,
+        cityId: c.cityId,
+        citySource: c.source,
+        source: "diyanet-proxy",
+        times
+      };
+      cacheTimingsResponse(requestCacheKey, payload);
+      sendJson(res, 200, payload);
+      return;
+    }
+
     const fallback = await tryImsakiyemFallback({
       lat,
       lon,
@@ -233,7 +309,7 @@ async function handleRequest(req, res) {
     }
 
     sendJson(res, 502, {
-      error: "Could not resolve cityId",
+      error: "No timing rows returned",
       details: {
         lat,
         lon,
@@ -241,81 +317,41 @@ async function handleRequest(req, res) {
         resolvedCity,
         resolvedCountryCode,
         resolvedCountryName,
-        citiesLoaded: cities.length,
+        attempts: attempts.slice(0, 12),
         fallback: fallback?.debug ?? null
       }
     });
     return;
-  }
-
-  const attempts = [];
-  for (const c of candidates) {
-    const daily = await fetchDailyRows(token, c.cityId, dateKey);
-    attempts.push({
-      cityId: c.cityId,
-      source: c.source,
-      endpoint: daily.endpoint,
-      status: daily.status,
-      rows: daily.rows.length
-    });
-
-    if (daily.rows.length === 0) {
-      continue;
-    }
-
-    const row = findByDate(daily.rows, dateKey) || daily.rows[0];
-    const times = mapTimings(row);
-    if (!times) {
-      continue;
-    }
-
-    const payload = {
-      dateKey,
-      cityId: c.cityId,
-      citySource: c.source,
-      source: "diyanet-proxy",
-      times
-    };
-    cacheTimingsResponse(requestCacheKey, payload);
-    sendJson(res, 200, payload);
-    return;
-  }
-
-  const fallback = await tryImsakiyemFallback({
-    lat,
-    lon,
-    dateKey,
-    city: resolvedCity,
-    countryCode: resolvedCountryCode,
-    countryName: resolvedCountryName
-  });
-
-  if (fallback?.times) {
-    const payload = {
-      dateKey,
-      cityId: fallback.districtId,
-      citySource: "imsakiyem-fallback",
-      source: "diyanet-proxy",
-      times: fallback.times
-    };
-    cacheTimingsResponse(requestCacheKey, payload);
-    sendJson(res, 200, payload);
-    return;
-  }
-
-  sendJson(res, 502, {
-    error: "No timing rows returned",
-    details: {
+  } catch (error) {
+    const reverse = await reverseGeocode(lat, lon);
+    const fallback = await tryImsakiyemFallback({
       lat,
       lon,
-      date: dateKey,
-      resolvedCity,
-      resolvedCountryCode,
-      resolvedCountryName,
-      attempts: attempts.slice(0, 12),
-      fallback: fallback?.debug ?? null
+      dateKey,
+      city: resolvedCity || reverse.city || "",
+      countryCode: resolvedCountryCode || reverse.countryCode || "",
+      countryName: resolvedCountryName || reverse.country || ""
+    });
+
+    if (fallback?.times) {
+      const payload = {
+        dateKey,
+        cityId: fallback.districtId,
+        citySource: "imsakiyem-fallback",
+        source: "diyanet-proxy",
+        times: fallback.times
+      };
+      cacheTimingsResponse(requestCacheKey, payload);
+      sendJson(res, 200, payload);
+      return;
     }
-  });
+
+    sendJson(res, 502, {
+      error: "Diyanet upstream unavailable",
+      details: String(error)
+    });
+    return;
+  }
 }
 
 async function login(username, password) {
