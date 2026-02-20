@@ -213,17 +213,18 @@ struct PrayerWidgetEntryView: View {
   private var fullLayout: some View {
     GeometryReader { geo in
       let isLarge = family == .systemLarge
-      let leftWidth = geo.size.width * (isLarge ? 0.44 : 0.42)
+      let leftWidth = geo.size.width * (isLarge ? 0.40 : 0.42)
       let leftTitleSize: CGFloat = isLarge ? 11 : 10
       let leftPrayerSize: CGFloat = isLarge ? 50 : 42
       let leftTimeSize: CGFloat = isLarge ? 34 : 28
-      let rowFontSize: CGFloat = isLarge ? 15 : 13
-      let rowIconSize: CGFloat = isLarge ? 13 : 11
-      let rowHorizontalPadding: CGFloat = isLarge ? 10 : 6
+      let rowFontSize: CGFloat = isLarge ? 14 : 13
+      let rowIconSize: CGFloat = isLarge ? 12 : 11
+      let rowHorizontalPadding: CGFloat = isLarge ? 8 : 6
       let rowVerticalPadding: CGFloat = isLarge ? 5 : 2
       let rowSpacing: CGFloat = isLarge ? 6 : 2
       let listVerticalPadding: CGFloat = isLarge ? 12 : 8
-      let timeColumnWidth: CGFloat = isLarge ? 62 : 52
+      let timeColumnWidth: CGFloat = isLarge ? 58 : 52
+      let rowLabelMinScale: CGFloat = isLarge ? 0.58 : 0.72
 
       ZStack {
         cardBackground
@@ -277,6 +278,7 @@ struct PrayerWidgetEntryView: View {
                 rowIconSize: rowIconSize,
                 isLarge: isLarge,
                 timeColumnWidth: timeColumnWidth,
+                rowLabelMinScale: rowLabelMinScale,
                 rowHorizontalPadding: rowHorizontalPadding,
                 rowVerticalPadding: rowVerticalPadding
               )
@@ -284,7 +286,7 @@ struct PrayerWidgetEntryView: View {
             Spacer(minLength: 0)
           }
           .padding(.vertical, listVerticalPadding)
-          .padding(.horizontal, isLarge ? 12 : 10)
+          .padding(.horizontal, isLarge ? 8 : 10)
           .frame(width: geo.size.width - leftWidth - 1, height: geo.size.height, alignment: .top)
         }
       }
@@ -315,6 +317,7 @@ struct PrayerWidgetEntryView: View {
     rowIconSize: CGFloat,
     isLarge: Bool,
     timeColumnWidth: CGFloat,
+    rowLabelMinScale: CGFloat,
     rowHorizontalPadding: CGFloat,
     rowVerticalPadding: CGFloat
   ) -> some View {
@@ -326,7 +329,7 @@ struct PrayerWidgetEntryView: View {
       Text(localizedPrayer(item.key, localeTag: entry.localeTag))
         .font(.system(size: rowFontSize, weight: isCurrent ? .bold : .medium))
         .lineLimit(1)
-        .minimumScaleFactor(0.72)
+        .minimumScaleFactor(rowLabelMinScale)
         .foregroundStyle(isCurrent ? .white : .white.opacity(0.72))
         .layoutPriority(1)
 
