@@ -1,14 +1,9 @@
 import http from "node:http";
 import dns from "node:dns";
-import { Agent } from "undici";
 
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
 const PORT = Number(process.env.PORT || 3000);
 const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 * 60 * 1000);
-
-const IPV4_AGENT = new Agent({
-  connect: { family: 4 }
-});
 
 let tokenState = null; // { token: string, expMs: number }
 let citiesState = null; // { items: Array<City>, atMs: number }
@@ -1143,8 +1138,7 @@ async function networkFetch(url, options = {}) {
   try {
     return await fetch(url, {
       ...options,
-      signal,
-      dispatcher: IPV4_AGENT
+      signal
     });
   } catch (ipv4Error) {
     // eslint-disable-next-line no-console
