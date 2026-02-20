@@ -4,13 +4,22 @@ import dns from "node:dns";
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
 const PORT = Number(process.env.PORT || 3000);
 const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 * 60 * 1000);
+const DIYANET_MIN_INTERVAL_MS = Number(process.env.DIYANET_MIN_INTERVAL_MS || 250);
+const DIYANET_MAX_RETRIES = Number(process.env.DIYANET_MAX_RETRIES || 2);
+const DIYANET_CIRCUIT_FAILS = Number(process.env.DIYANET_CIRCUIT_FAILS || 3);
+const DIYANET_CIRCUIT_MS = Number(process.env.DIYANET_CIRCUIT_MS || 45_000);
 
 let tokenState = null; // { token: string, expMs: number }
+let loginInFlight = null;
 let citiesState = null; // { items: Array<City>, atMs: number }
 const timingsCache = new Map(); // key -> { payload, expMs }
 const countriesCache = new Map(); // lang -> { atMs, items }
 const statesCache = new Map(); // countryId -> { atMs, items }
 const districtsCache = new Map(); // stateId -> { atMs, items }
+let diyanetQueue = Promise.resolve();
+let diyanetNextAtMs = 0;
+let diyanetConsecutiveFailures = 0;
+let diyanetCircuitOpenUntilMs = 0;
 
 // Prefer IPv4 for outbound lookups. Some upstreams intermittently fail on IPv6
 // in hosted environments, which surfaces as `TypeError: fetch failed`.
@@ -379,38 +388,49 @@ async function login(username, password) {
   if (tokenState && Date.now() < tokenState.expMs - 60_000) {
     return tokenState.token;
   }
-
-  const paths = ["/api/Auth/Login", "/Auth/Login"];
-  const bodies = [
-    { email: username, password },
-    { Email: username, Password: password },
-    { username, password },
-    { Username: username, Password: password }
-  ];
-
-  let lastStatus = null;
-  let lastBody = null;
-  for (const path of paths) {
-    for (const body of bodies) {
-      const response = await networkFetch(`${DIYANET_BASE}${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(body)
-      });
-      const payload = await safeJson(response);
-      const token = payload?.data?.accessToken || payload?.accessToken || payload?.token || "";
-      const expiresInRaw = Number(payload?.data?.expiresIn || payload?.expiresIn || 3600);
-      const expiresIn = Number.isFinite(expiresInRaw) ? expiresInRaw : 3600;
-      if (token) {
-        tokenState = { token, expMs: Date.now() + expiresIn * 1000 };
-        return token;
-      }
-      lastStatus = response.status;
-      lastBody = payload;
-    }
+  if (loginInFlight) {
+    return loginInFlight;
   }
 
-  throw new Error(`Diyanet login failed: ${lastStatus} body=${JSON.stringify(lastBody)}`);
+  loginInFlight = (async () => {
+    const paths = ["/api/Auth/Login", "/Auth/Login"];
+    const bodies = [
+      { email: username, password },
+      { Email: username, Password: password },
+      { username, password },
+      { Username: username, Password: password }
+    ];
+
+    let lastStatus = null;
+    let lastBody = null;
+    for (const path of paths) {
+      for (const body of bodies) {
+        const response = await networkFetch(`${DIYANET_BASE}${path}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(body)
+        });
+        const payload = await safeJson(response);
+        const token = payload?.data?.accessToken || payload?.accessToken || payload?.token || "";
+        const expiresInRaw = Number(payload?.data?.expiresIn || payload?.expiresIn || 3600);
+        const expiresIn = Number.isFinite(expiresInRaw) ? expiresInRaw : 3600;
+        if (token) {
+          tokenState = { token, expMs: Date.now() + expiresIn * 1000 };
+          return token;
+        }
+        lastStatus = response.status;
+        lastBody = payload;
+      }
+    }
+
+    throw new Error(`Diyanet login failed: ${lastStatus} body=${JSON.stringify(lastBody)}`);
+  })();
+
+  try {
+    return await loginInFlight;
+  } finally {
+    loginInFlight = null;
+  }
 }
 
 async function resolveCityIdByGeo(token, lat, lon) {
@@ -1159,25 +1179,84 @@ async function safeJson(response) {
 
 async function networkFetch(url, options = {}) {
   const timeoutMs = Number(process.env.NETWORK_TIMEOUT_MS || 15000);
-  const signal = AbortSignal.timeout(timeoutMs);
-  try {
-    return await fetch(url, {
-      ...options,
-      signal
-    });
-  } catch (ipv4Error) {
-    // eslint-disable-next-line no-console
-    console.error("[diyanet-proxy] ipv4 fetch failed, retrying default", {
-      url: String(url),
-      message: String(ipv4Error),
-      cause: ipv4Error?.cause ? String(ipv4Error.cause) : null
-    });
+  const target = String(url);
+  const isDiyanetRequest = target.startsWith(DIYANET_BASE);
 
-    return await fetch(url, {
-      ...options,
-      signal
-    });
+  if (!isDiyanetRequest) {
+    return fetchWithTimeout(target, options, timeoutMs);
   }
+
+  return enqueueDiyanetRequest(async () => {
+    if (Date.now() < diyanetCircuitOpenUntilMs) {
+      throw new Error("Diyanet circuit open");
+    }
+
+    let attempt = 0;
+    while (attempt <= DIYANET_MAX_RETRIES) {
+      try {
+        const response = await fetchWithTimeout(target, options, timeoutMs);
+        diyanetConsecutiveFailures = 0;
+        return response;
+      } catch (error) {
+        const retriable = isRetriableNetworkError(error);
+        if (!retriable || attempt >= DIYANET_MAX_RETRIES) {
+          diyanetConsecutiveFailures += 1;
+          if (diyanetConsecutiveFailures >= DIYANET_CIRCUIT_FAILS) {
+            diyanetCircuitOpenUntilMs = Date.now() + DIYANET_CIRCUIT_MS;
+          }
+          throw error;
+        }
+        const delayMs = 300 * (attempt + 1);
+        // eslint-disable-next-line no-console
+        console.error("[diyanet-proxy] retrying diyanet request", {
+          url: target,
+          attempt: attempt + 1,
+          delayMs,
+          message: String(error),
+          cause: error?.cause ? String(error.cause) : null
+        });
+        await sleep(delayMs);
+      }
+      attempt += 1;
+    }
+
+    throw new Error("Diyanet fetch failed after retries");
+  });
+}
+
+function enqueueDiyanetRequest(task) {
+  const scheduled = diyanetQueue.then(async () => {
+    const waitMs = Math.max(0, diyanetNextAtMs - Date.now());
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
+    diyanetNextAtMs = Date.now() + DIYANET_MIN_INTERVAL_MS;
+    return task();
+  });
+  diyanetQueue = scheduled.then(() => undefined, () => undefined);
+  return scheduled;
+}
+
+function fetchWithTimeout(url, options, timeoutMs) {
+  return fetch(url, {
+    ...options,
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+}
+
+function isRetriableNetworkError(error) {
+  const text = `${String(error)} ${error?.cause ? String(error.cause) : ""}`.toUpperCase();
+  return (
+    text.includes("ECONNRESET") ||
+    text.includes("ETIMEDOUT") ||
+    text.includes("EHOSTUNREACH") ||
+    text.includes("ENETUNREACH") ||
+    text.includes("FETCH FAILED")
+  );
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function sendJson(res, status, payload) {
