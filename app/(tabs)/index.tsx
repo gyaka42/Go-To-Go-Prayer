@@ -21,9 +21,11 @@ import { replanAll } from "@/services/notifications";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
 import { syncWidgetWithTimings } from "@/services/widgetBridge";
 import {
+  getHomeDateMode,
   getLatestCachedLocation,
   getLatestCachedTimings,
   getSettings,
+  saveHomeDateMode,
   saveLatestCachedLocation
 } from "@/services/storage";
 import { PRAYER_NAMES, PrayerName, Settings, Timings } from "@/types/prayer";
@@ -72,6 +74,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationName, setLocationName] = useState(t("common.current_location"));
+  const [homeDateMode, setHomeDateMode] = useState<"gregorian" | "hijri">("gregorian");
   const lastReplanSignatureRef = useRef<string>("");
   const latestLoadRequestRef = useRef(0);
   const scheduleListRef = useRef<FlatList<PrayerName> | null>(null);
@@ -241,6 +244,13 @@ export default function HomeScreen() {
     void loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    void (async () => {
+      const stored = await getHomeDateMode();
+      setHomeDateMode(stored);
+    })();
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void loadData();
@@ -287,12 +297,32 @@ export default function HomeScreen() {
   }, [locationLabel, t]);
 
   const todaysDateLabel = useMemo(() => {
-    return new Date().toLocaleDateString(localeTag, {
+    const options: Intl.DateTimeFormatOptions = {
       weekday: "long",
       day: "numeric",
       month: "short"
-    });
-  }, [localeTag]);
+    };
+
+    if (homeDateMode === "hijri") {
+      try {
+        return new Intl.DateTimeFormat(`${localeTag}-u-ca-islamic`, options).format(new Date());
+      } catch {
+        return new Intl.DateTimeFormat("en-u-ca-islamic", options).format(new Date());
+      }
+    }
+
+    return new Date().toLocaleDateString(localeTag, options);
+  }, [homeDateMode, localeTag]);
+
+  const toggleHomeDateMode = useCallback(async () => {
+    const nextMode = homeDateMode === "gregorian" ? "hijri" : "gregorian";
+    setHomeDateMode(nextMode);
+    try {
+      await saveHomeDateMode(nextMode);
+    } catch {
+      // Keep UX responsive even if persisting preference fails.
+    }
+  }, [homeDateMode]);
 
   const nextPrayerTime = useMemo(() => {
     if (!timings) {
@@ -377,7 +407,9 @@ export default function HomeScreen() {
                 ) : null}
               </View>
             </View>
-            <Text style={[styles.dateText, { color: colors.textSecondary }]}>{todaysDateLabel}</Text>
+            <Pressable onPress={() => void toggleHomeDateMode()}>
+              <Text style={[styles.dateText, { color: colors.textSecondary }]}>{todaysDateLabel}</Text>
+            </Pressable>
           </View>
           <Pressable style={styles.refreshCircle} onPress={() => void onRefresh()}>
             <Ionicons name="refresh" size={24} color="#A7B7CC" />

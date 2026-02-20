@@ -97,7 +97,7 @@ export default function ToneSelectionScreen() {
     );
   }
 
-  const currentTone = settings?.prayerNotifications[prayer].tone ?? "Adhan";
+  const currentTone = settings?.prayerNotifications[prayer].tone ?? "Beep";
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>

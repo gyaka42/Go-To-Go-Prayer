@@ -6,6 +6,9 @@ const LATEST_CACHE_KEY = "timings:latest:v1";
 const QIBLA_CACHE_PREFIX = "qibla";
 const LATEST_QIBLA_CACHE_KEY = "qibla:latest:v1";
 const LATEST_LOCATION_CACHE_KEY = "location:latest:v1";
+const HOME_DATE_MODE_KEY = "home:date_mode:v1";
+
+export type HomeDateMode = "gregorian" | "hijri";
 
 function createDefaultSettings(): Settings {
   return {
@@ -19,7 +22,7 @@ function createDefaultSettings(): Settings {
         enabled: prayer !== "Sunrise",
         minutesBefore: 0,
         playSound: true,
-        tone: "Adhan",
+        tone: "Beep",
         volume: 75,
         vibration: true
       };
@@ -215,4 +218,16 @@ export async function getLatestCachedLocation(): Promise<CachedLocation | null> 
   } catch {
     return null;
   }
+}
+
+export async function getHomeDateMode(): Promise<HomeDateMode> {
+  const value = await AsyncStorage.getItem(HOME_DATE_MODE_KEY);
+  if (value === "hijri") {
+    return "hijri";
+  }
+  return "gregorian";
+}
+
+export async function saveHomeDateMode(mode: HomeDateMode): Promise<void> {
+  await AsyncStorage.setItem(HOME_DATE_MODE_KEY, mode);
 }

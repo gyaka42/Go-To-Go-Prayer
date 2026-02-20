@@ -200,7 +200,7 @@ export default function PrayerAlertPreferencesScreen() {
       enabled: true,
       minutesBefore: 0,
       playSound: true,
-      tone: "Adhan",
+      tone: "Beep",
       volume: 75,
       vibration: true
     });
