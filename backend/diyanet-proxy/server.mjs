@@ -532,13 +532,38 @@ function nearestCities(cities, lat, lon, limit = 20) {
 async function reverseGeocode(lat, lon) {
   try {
     const url = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en&count=1`;
-    const response = await fetch(url, { headers: { Accept: "application/json" } });
+    const response = await networkFetch(url, { headers: { Accept: "application/json" } });
     const payload = await safeJson(response);
     const first = Array.isArray(payload?.results) ? payload.results[0] : null;
-    return {
+    const primary = {
       city: String(first?.city || first?.name || first?.admin2 || "").trim(),
       country: String(first?.country || "").trim(),
       countryCode: String(first?.country_code || "").trim().toUpperCase()
+    };
+    if (primary.city || primary.country || primary.countryCode) {
+      return primary;
+    }
+  } catch {
+    // continue to nominatim fallback
+  }
+
+  // Open-Meteo occasionally returns no city/country for valid coordinates.
+  // Try OSM Nominatim as a secondary reverse-geocoding source.
+  try {
+    const nominatimUrl =
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=en`;
+    const response = await networkFetch(nominatimUrl, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "go-to-go-prayer-diyanet-proxy/1.0"
+      }
+    });
+    const payload = await safeJson(response);
+    const address = payload?.address && typeof payload.address === "object" ? payload.address : {};
+    return {
+      city: String(address.city || address.town || address.village || address.county || "").trim(),
+      country: String(address.country || "").trim(),
+      countryCode: String(address.country_code || "").trim().toUpperCase()
     };
   } catch {
     return { city: "", country: "", countryCode: "" };
