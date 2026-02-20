@@ -1,8 +1,14 @@
 import http from "node:http";
+import dns from "node:dns";
+import { Agent } from "undici";
 
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
 const PORT = Number(process.env.PORT || 3000);
 const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 * 60 * 1000);
+
+const IPV4_AGENT = new Agent({
+  connect: { family: 4 }
+});
 
 let tokenState = null; // { token: string, expMs: number }
 let citiesState = null; // { items: Array<City>, atMs: number }
@@ -10,6 +16,14 @@ const timingsCache = new Map(); // key -> { payload, expMs }
 const countriesCache = new Map(); // lang -> { atMs, items }
 const statesCache = new Map(); // countryId -> { atMs, items }
 const districtsCache = new Map(); // stateId -> { atMs, items }
+
+// Prefer IPv4 for outbound lookups. Some upstreams intermittently fail on IPv6
+// in hosted environments, which surfaces as `TypeError: fetch failed`.
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch {
+  // Non-fatal; continue with platform defaults.
+}
 
 const countryAliases = {
   DE: ["germany", "deutschland", "almanya"],
@@ -23,6 +37,12 @@ const server = http.createServer(async (req, res) => {
   try {
     await handleRequest(req, res);
   } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("[diyanet-proxy] unhandled request error", {
+      message: String(error),
+      stack: error?.stack || null,
+      cause: error?.cause ? String(error.cause) : null
+    });
     sendJson(res, 500, { error: "Internal error", details: String(error) });
   }
 });
@@ -323,6 +343,12 @@ async function handleRequest(req, res) {
     });
     return;
   } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("[diyanet-proxy] /timings upstream error", {
+      message: String(error),
+      stack: error?.stack || null,
+      cause: error?.cause ? String(error.cause) : null
+    });
     const reverse = await reverseGeocode(lat, lon);
     const fallback = await tryImsakiyemFallback({
       lat,
@@ -348,7 +374,7 @@ async function handleRequest(req, res) {
 
     sendJson(res, 502, {
       error: "Diyanet upstream unavailable",
-      details: String(error)
+      details: error?.cause ? `${String(error)} | cause=${String(error.cause)}` : String(error)
     });
     return;
   }
@@ -371,7 +397,7 @@ async function login(username, password) {
   let lastBody = null;
   for (const path of paths) {
     for (const body of bodies) {
-      const response = await fetch(`${DIYANET_BASE}${path}`, {
+      const response = await networkFetch(`${DIYANET_BASE}${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(body)
@@ -399,7 +425,7 @@ async function resolveCityIdByGeo(token, lat, lon) {
     `${DIYANET_BASE}/api/AwqatSalah/CityIdByGeoCode?latitude=${lat}&longitude=${lon}`
   ];
   for (const url of urls) {
-    const response = await fetch(url, {
+    const response = await networkFetch(url, {
       headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
     });
     const payload = await safeJson(response);
@@ -417,7 +443,7 @@ async function getCities(token) {
     return citiesState.items;
   }
 
-  const response = await fetch(`${DIYANET_BASE}/api/Place/Cities`, {
+  const response = await networkFetch(`${DIYANET_BASE}/api/Place/Cities`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
   });
   const payload = await safeJson(response);
@@ -552,7 +578,7 @@ async function fetchDailyRows(token, cityId, dateKey) {
   ];
 
   for (const endpoint of endpoints) {
-    const response = await fetch(endpoint, {
+    const response = await networkFetch(endpoint, {
       headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
     });
     const payload = await safeJson(response);
@@ -789,17 +815,29 @@ async function getImsakiyemDistricts(stateId, lang = "en") {
 
 async function imsakiyemGet(path, lang = "en") {
   try {
-    const response = await fetch(`https://ezanvakti.imsakiyem.com${path}`, {
+    const response = await networkFetch(`https://ezanvakti.imsakiyem.com${path}`, {
       headers: {
         Accept: "application/json",
         "Accept-Language": `${lang};q=0.9,en;q=0.8,tr;q=0.7`
       }
     });
     if (!response.ok) {
+      // eslint-disable-next-line no-console
+      console.error("[diyanet-proxy] imsakiyem non-OK", {
+        path,
+        status: response.status,
+        statusText: response.statusText
+      });
       return null;
     }
     return await safeJson(response);
-  } catch {
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("[diyanet-proxy] imsakiyem fetch failed", {
+      path,
+      message: String(error),
+      cause: error?.cause ? String(error.cause) : null
+    });
     return null;
   }
 }
@@ -887,7 +925,7 @@ async function geocodeOpenMeteo(query, countryCode, lang = "en") {
     if (countryCode && countryCode.length === 2) {
       url.searchParams.set("countryCode", countryCode.toUpperCase());
     }
-    const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+    const response = await networkFetch(url.toString(), { headers: { Accept: "application/json" } });
     const payload = await safeJson(response);
     const first = Array.isArray(payload?.results) ? payload.results[0] : null;
     const lat = Number(first?.latitude);
@@ -1096,6 +1134,30 @@ async function safeJson(response) {
     return await response.json();
   } catch {
     return null;
+  }
+}
+
+async function networkFetch(url, options = {}) {
+  const timeoutMs = Number(process.env.NETWORK_TIMEOUT_MS || 15000);
+  const signal = AbortSignal.timeout(timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal,
+      dispatcher: IPV4_AGENT
+    });
+  } catch (ipv4Error) {
+    // eslint-disable-next-line no-console
+    console.error("[diyanet-proxy] ipv4 fetch failed, retrying default", {
+      url: String(url),
+      message: String(ipv4Error),
+      cause: ipv4Error?.cause ? String(ipv4Error.cause) : null
+    });
+
+    return await fetch(url, {
+      ...options,
+      signal
+    });
   }
 }
 
