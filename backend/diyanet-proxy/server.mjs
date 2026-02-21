@@ -1,33 +1,15 @@
 import http from "node:http";
-import dns from "node:dns";
 
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
 const PORT = Number(process.env.PORT || 3000);
 const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 * 60 * 1000);
-const DIYANET_MIN_INTERVAL_MS = Number(process.env.DIYANET_MIN_INTERVAL_MS || 250);
-const DIYANET_MAX_RETRIES = Number(process.env.DIYANET_MAX_RETRIES || 2);
-const DIYANET_CIRCUIT_FAILS = Number(process.env.DIYANET_CIRCUIT_FAILS || 3);
-const DIYANET_CIRCUIT_MS = Number(process.env.DIYANET_CIRCUIT_MS || 45_000);
 
 let tokenState = null; // { token: string, expMs: number }
-let loginInFlight = null;
 let citiesState = null; // { items: Array<City>, atMs: number }
 const timingsCache = new Map(); // key -> { payload, expMs }
 const countriesCache = new Map(); // lang -> { atMs, items }
 const statesCache = new Map(); // countryId -> { atMs, items }
 const districtsCache = new Map(); // stateId -> { atMs, items }
-let diyanetQueue = Promise.resolve();
-let diyanetNextAtMs = 0;
-let diyanetConsecutiveFailures = 0;
-let diyanetCircuitOpenUntilMs = 0;
-
-// Prefer IPv4 for outbound lookups. Some upstreams intermittently fail on IPv6
-// in hosted environments, which surfaces as `TypeError: fetch failed`.
-try {
-  dns.setDefaultResultOrder("ipv4first");
-} catch {
-  // Non-fatal; continue with platform defaults.
-}
 
 const countryAliases = {
   DE: ["germany", "deutschland", "almanya"],
@@ -41,12 +23,6 @@ const server = http.createServer(async (req, res) => {
   try {
     await handleRequest(req, res);
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("[diyanet-proxy] unhandled request error", {
-      message: String(error),
-      stack: error?.stack || null,
-      cause: error?.cause ? String(error.cause) : null
-    });
     sendJson(res, 500, { error: "Internal error", details: String(error) });
   }
 });
@@ -192,124 +168,48 @@ async function handleRequest(req, res) {
     return;
   }
 
-  let resolvedCity = cityQuery || "";
-  let resolvedCountryCode = countryCodeQuery || "";
-  let resolvedCountryName = countryQuery || "";
-
-  try {
-    const token = await login(username, password);
-    const candidates = [];
-    const seen = new Set();
-    const addCandidate = (id, source) => {
-      const n = Number(id);
-      if (Number.isFinite(n) && n > 0 && !seen.has(n)) {
-        seen.add(n);
-        candidates.push({ cityId: n, source });
-      }
-    };
-
-    if (Number.isFinite(cityIdParam) && cityIdParam > 0) {
-      addCandidate(cityIdParam, "query-cityId");
+  const token = await login(username, password);
+  const candidates = [];
+  const seen = new Set();
+  const addCandidate = (id, source) => {
+    const n = Number(id);
+    if (Number.isFinite(n) && n > 0 && !seen.has(n)) {
+      seen.add(n);
+      candidates.push({ cityId: n, source });
     }
+  };
 
-    const byGeo = await resolveCityIdByGeo(token, lat, lon);
-    if (byGeo) {
-      addCandidate(byGeo, "diyanet-geocode");
-    }
+  if (Number.isFinite(cityIdParam) && cityIdParam > 0) {
+    addCandidate(cityIdParam, "query-cityId");
+  }
 
-    const reverse = await reverseGeocode(lat, lon);
-    resolvedCity = cityQuery || reverse.city || "";
-    resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
-    resolvedCountryName = countryQuery || reverse.country || "";
+  const byGeo = await resolveCityIdByGeo(token, lat, lon);
+  if (byGeo) {
+    addCandidate(byGeo, "diyanet-geocode");
+  }
 
-    const cities = await getCities(token);
-    const matched = matchCities(cities, {
-      lat,
-      lon,
-      city: resolvedCity,
-      countryCode: resolvedCountryCode,
-      countryName: resolvedCountryName
-    });
-    for (const id of matched) {
-      addCandidate(id, "cities-match");
-    }
+  const reverse = await reverseGeocode(lat, lon);
+  const resolvedCity = cityQuery || reverse.city || "";
+  const resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
+  const resolvedCountryName = countryQuery || reverse.country || "";
 
-    for (const item of nearestCities(cities, lat, lon, 30)) {
-      addCandidate(item.id, "nearest");
-    }
+  const cities = await getCities(token);
+  const matched = matchCities(cities, {
+    lat,
+    lon,
+    city: resolvedCity,
+    countryCode: resolvedCountryCode,
+    countryName: resolvedCountryName
+  });
+  for (const id of matched) {
+    addCandidate(id, "cities-match");
+  }
 
-    if (candidates.length === 0) {
-      const fallback = await tryImsakiyemFallback({
-        lat,
-        lon,
-        dateKey,
-        city: resolvedCity,
-        countryCode: resolvedCountryCode,
-        countryName: resolvedCountryName
-      });
+  for (const item of nearestCities(cities, lat, lon, 30)) {
+    addCandidate(item.id, "nearest");
+  }
 
-      if (fallback?.times) {
-        const payload = {
-          dateKey,
-          cityId: fallback.districtId,
-          citySource: "imsakiyem-fallback",
-          source: "diyanet-proxy",
-          times: fallback.times
-        };
-        cacheTimingsResponse(requestCacheKey, payload);
-        sendJson(res, 200, payload);
-        return;
-      }
-
-      sendJson(res, 502, {
-        error: "Could not resolve cityId",
-        details: {
-          lat,
-          lon,
-          date: dateKey,
-          resolvedCity,
-          resolvedCountryCode,
-          resolvedCountryName,
-          citiesLoaded: cities.length,
-          fallback: fallback?.debug ?? null
-        }
-      });
-      return;
-    }
-
-    const attempts = [];
-    for (const c of candidates) {
-      const daily = await fetchDailyRows(token, c.cityId, dateKey);
-      attempts.push({
-        cityId: c.cityId,
-        source: c.source,
-        endpoint: daily.endpoint,
-        status: daily.status,
-        rows: daily.rows.length
-      });
-
-      if (daily.rows.length === 0) {
-        continue;
-      }
-
-      const row = findByDate(daily.rows, dateKey) || daily.rows[0];
-      const times = mapTimings(row);
-      if (!times) {
-        continue;
-      }
-
-      const payload = {
-        dateKey,
-        cityId: c.cityId,
-        citySource: c.source,
-        source: "diyanet-proxy",
-        times
-      };
-      cacheTimingsResponse(requestCacheKey, payload);
-      sendJson(res, 200, payload);
-      return;
-    }
-
+  if (candidates.length === 0) {
     const fallback = await tryImsakiyemFallback({
       lat,
       lon,
@@ -333,7 +233,7 @@ async function handleRequest(req, res) {
     }
 
     sendJson(res, 502, {
-      error: "No timing rows returned",
+      error: "Could not resolve cityId",
       details: {
         lat,
         lon,
@@ -341,96 +241,119 @@ async function handleRequest(req, res) {
         resolvedCity,
         resolvedCountryCode,
         resolvedCountryName,
-        attempts: attempts.slice(0, 12),
+        citiesLoaded: cities.length,
         fallback: fallback?.debug ?? null
       }
     });
     return;
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("[diyanet-proxy] /timings upstream error", {
-      message: String(error),
-      stack: error?.stack || null,
-      cause: error?.cause ? String(error.cause) : null
-    });
-    const reverse = await reverseGeocode(lat, lon);
-    const fallback = await tryImsakiyemFallback({
-      lat,
-      lon,
-      dateKey,
-      city: resolvedCity || reverse.city || "",
-      countryCode: resolvedCountryCode || reverse.countryCode || "",
-      countryName: resolvedCountryName || reverse.country || ""
+  }
+
+  const attempts = [];
+  for (const c of candidates) {
+    const daily = await fetchDailyRows(token, c.cityId, dateKey);
+    attempts.push({
+      cityId: c.cityId,
+      source: c.source,
+      endpoint: daily.endpoint,
+      status: daily.status,
+      rows: daily.rows.length
     });
 
-    if (fallback?.times) {
-      const payload = {
-        dateKey,
-        cityId: fallback.districtId,
-        citySource: "imsakiyem-fallback",
-        source: "diyanet-proxy",
-        times: fallback.times
-      };
-      cacheTimingsResponse(requestCacheKey, payload);
-      sendJson(res, 200, payload);
-      return;
+    if (daily.rows.length === 0) {
+      continue;
     }
 
-    sendJson(res, 502, {
-      error: "Diyanet upstream unavailable",
-      details: error?.cause ? `${String(error)} | cause=${String(error.cause)}` : String(error)
-    });
+    const row = findByDate(daily.rows, dateKey) || daily.rows[0];
+    const times = mapTimings(row);
+    if (!times) {
+      continue;
+    }
+
+    const payload = {
+      dateKey,
+      cityId: c.cityId,
+      citySource: c.source,
+      source: "diyanet-proxy",
+      times
+    };
+    cacheTimingsResponse(requestCacheKey, payload);
+    sendJson(res, 200, payload);
     return;
   }
+
+  const fallback = await tryImsakiyemFallback({
+    lat,
+    lon,
+    dateKey,
+    city: resolvedCity,
+    countryCode: resolvedCountryCode,
+    countryName: resolvedCountryName
+  });
+
+  if (fallback?.times) {
+    const payload = {
+      dateKey,
+      cityId: fallback.districtId,
+      citySource: "imsakiyem-fallback",
+      source: "diyanet-proxy",
+      times: fallback.times
+    };
+    cacheTimingsResponse(requestCacheKey, payload);
+    sendJson(res, 200, payload);
+    return;
+  }
+
+  sendJson(res, 502, {
+    error: "No timing rows returned",
+    details: {
+      lat,
+      lon,
+      date: dateKey,
+      resolvedCity,
+      resolvedCountryCode,
+      resolvedCountryName,
+      attempts: attempts.slice(0, 12),
+      fallback: fallback?.debug ?? null
+    }
+  });
 }
 
 async function login(username, password) {
   if (tokenState && Date.now() < tokenState.expMs - 60_000) {
     return tokenState.token;
   }
-  if (loginInFlight) {
-    return loginInFlight;
-  }
 
-  loginInFlight = (async () => {
-    const paths = ["/api/Auth/Login", "/Auth/Login"];
-    const bodies = [
-      { email: username, password },
-      { Email: username, Password: password },
-      { username, password },
-      { Username: username, Password: password }
-    ];
+  const paths = ["/api/Auth/Login", "/Auth/Login"];
+  const bodies = [
+    { email: username, password },
+    { Email: username, Password: password },
+    { username, password },
+    { Username: username, Password: password }
+  ];
 
-    let lastStatus = null;
-    let lastBody = null;
-    for (const path of paths) {
-      for (const body of bodies) {
-        const response = await networkFetch(`${DIYANET_BASE}${path}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify(body)
-        });
-        const payload = await safeJson(response);
-        const token = payload?.data?.accessToken || payload?.accessToken || payload?.token || "";
-        const expiresInRaw = Number(payload?.data?.expiresIn || payload?.expiresIn || 3600);
-        const expiresIn = Number.isFinite(expiresInRaw) ? expiresInRaw : 3600;
-        if (token) {
-          tokenState = { token, expMs: Date.now() + expiresIn * 1000 };
-          return token;
-        }
-        lastStatus = response.status;
-        lastBody = payload;
+  let lastStatus = null;
+  let lastBody = null;
+  for (const path of paths) {
+    for (const body of bodies) {
+      const response = await fetch(`${DIYANET_BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(body)
+      });
+      const payload = await safeJson(response);
+      const token = payload?.data?.accessToken || payload?.accessToken || payload?.token || "";
+      const expiresInRaw = Number(payload?.data?.expiresIn || payload?.expiresIn || 3600);
+      const expiresIn = Number.isFinite(expiresInRaw) ? expiresInRaw : 3600;
+      if (token) {
+        tokenState = { token, expMs: Date.now() + expiresIn * 1000 };
+        return token;
       }
+      lastStatus = response.status;
+      lastBody = payload;
     }
-
-    throw new Error(`Diyanet login failed: ${lastStatus} body=${JSON.stringify(lastBody)}`);
-  })();
-
-  try {
-    return await loginInFlight;
-  } finally {
-    loginInFlight = null;
   }
+
+  throw new Error(`Diyanet login failed: ${lastStatus} body=${JSON.stringify(lastBody)}`);
 }
 
 async function resolveCityIdByGeo(token, lat, lon) {
@@ -440,7 +363,7 @@ async function resolveCityIdByGeo(token, lat, lon) {
     `${DIYANET_BASE}/api/AwqatSalah/CityIdByGeoCode?latitude=${lat}&longitude=${lon}`
   ];
   for (const url of urls) {
-    const response = await networkFetch(url, {
+    const response = await fetch(url, {
       headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
     });
     const payload = await safeJson(response);
@@ -458,7 +381,7 @@ async function getCities(token) {
     return citiesState.items;
   }
 
-  const response = await networkFetch(`${DIYANET_BASE}/api/Place/Cities`, {
+  const response = await fetch(`${DIYANET_BASE}/api/Place/Cities`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
   });
   const payload = await safeJson(response);
@@ -552,38 +475,13 @@ function nearestCities(cities, lat, lon, limit = 20) {
 async function reverseGeocode(lat, lon) {
   try {
     const url = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en&count=1`;
-    const response = await networkFetch(url, { headers: { Accept: "application/json" } });
+    const response = await fetch(url, { headers: { Accept: "application/json" } });
     const payload = await safeJson(response);
     const first = Array.isArray(payload?.results) ? payload.results[0] : null;
-    const primary = {
+    return {
       city: String(first?.city || first?.name || first?.admin2 || "").trim(),
       country: String(first?.country || "").trim(),
       countryCode: String(first?.country_code || "").trim().toUpperCase()
-    };
-    if (primary.city || primary.country || primary.countryCode) {
-      return primary;
-    }
-  } catch {
-    // continue to nominatim fallback
-  }
-
-  // Open-Meteo occasionally returns no city/country for valid coordinates.
-  // Try OSM Nominatim as a secondary reverse-geocoding source.
-  try {
-    const nominatimUrl =
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=en`;
-    const response = await networkFetch(nominatimUrl, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "go-to-go-prayer-diyanet-proxy/1.0"
-      }
-    });
-    const payload = await safeJson(response);
-    const address = payload?.address && typeof payload.address === "object" ? payload.address : {};
-    return {
-      city: String(address.city || address.town || address.village || address.county || "").trim(),
-      country: String(address.country || "").trim(),
-      countryCode: String(address.country_code || "").trim().toUpperCase()
     };
   } catch {
     return { city: "", country: "", countryCode: "" };
@@ -618,7 +516,7 @@ async function fetchDailyRows(token, cityId, dateKey) {
   ];
 
   for (const endpoint of endpoints) {
-    const response = await networkFetch(endpoint, {
+    const response = await fetch(endpoint, {
       headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
     });
     const payload = await safeJson(response);
@@ -855,29 +753,17 @@ async function getImsakiyemDistricts(stateId, lang = "en") {
 
 async function imsakiyemGet(path, lang = "en") {
   try {
-    const response = await networkFetch(`https://ezanvakti.imsakiyem.com${path}`, {
+    const response = await fetch(`https://ezanvakti.imsakiyem.com${path}`, {
       headers: {
         Accept: "application/json",
         "Accept-Language": `${lang};q=0.9,en;q=0.8,tr;q=0.7`
       }
     });
     if (!response.ok) {
-      // eslint-disable-next-line no-console
-      console.error("[diyanet-proxy] imsakiyem non-OK", {
-        path,
-        status: response.status,
-        statusText: response.statusText
-      });
       return null;
     }
     return await safeJson(response);
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("[diyanet-proxy] imsakiyem fetch failed", {
-      path,
-      message: String(error),
-      cause: error?.cause ? String(error.cause) : null
-    });
+  } catch {
     return null;
   }
 }
@@ -965,7 +851,7 @@ async function geocodeOpenMeteo(query, countryCode, lang = "en") {
     if (countryCode && countryCode.length === 2) {
       url.searchParams.set("countryCode", countryCode.toUpperCase());
     }
-    const response = await networkFetch(url.toString(), { headers: { Accept: "application/json" } });
+    const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
     const payload = await safeJson(response);
     const first = Array.isArray(payload?.results) ? payload.results[0] : null;
     const lat = Number(first?.latitude);
@@ -1175,88 +1061,6 @@ async function safeJson(response) {
   } catch {
     return null;
   }
-}
-
-async function networkFetch(url, options = {}) {
-  const timeoutMs = Number(process.env.NETWORK_TIMEOUT_MS || 15000);
-  const target = String(url);
-  const isDiyanetRequest = target.startsWith(DIYANET_BASE);
-
-  if (!isDiyanetRequest) {
-    return fetchWithTimeout(target, options, timeoutMs);
-  }
-
-  return enqueueDiyanetRequest(async () => {
-    if (Date.now() < diyanetCircuitOpenUntilMs) {
-      throw new Error("Diyanet circuit open");
-    }
-
-    let attempt = 0;
-    while (attempt <= DIYANET_MAX_RETRIES) {
-      try {
-        const response = await fetchWithTimeout(target, options, timeoutMs);
-        diyanetConsecutiveFailures = 0;
-        return response;
-      } catch (error) {
-        const retriable = isRetriableNetworkError(error);
-        if (!retriable || attempt >= DIYANET_MAX_RETRIES) {
-          diyanetConsecutiveFailures += 1;
-          if (diyanetConsecutiveFailures >= DIYANET_CIRCUIT_FAILS) {
-            diyanetCircuitOpenUntilMs = Date.now() + DIYANET_CIRCUIT_MS;
-          }
-          throw error;
-        }
-        const delayMs = 300 * (attempt + 1);
-        // eslint-disable-next-line no-console
-        console.error("[diyanet-proxy] retrying diyanet request", {
-          url: target,
-          attempt: attempt + 1,
-          delayMs,
-          message: String(error),
-          cause: error?.cause ? String(error.cause) : null
-        });
-        await sleep(delayMs);
-      }
-      attempt += 1;
-    }
-
-    throw new Error("Diyanet fetch failed after retries");
-  });
-}
-
-function enqueueDiyanetRequest(task) {
-  const scheduled = diyanetQueue.then(async () => {
-    const waitMs = Math.max(0, diyanetNextAtMs - Date.now());
-    if (waitMs > 0) {
-      await sleep(waitMs);
-    }
-    diyanetNextAtMs = Date.now() + DIYANET_MIN_INTERVAL_MS;
-    return task();
-  });
-  diyanetQueue = scheduled.then(() => undefined, () => undefined);
-  return scheduled;
-}
-
-function fetchWithTimeout(url, options, timeoutMs) {
-  return fetch(url, {
-    ...options,
-    signal: AbortSignal.timeout(timeoutMs)
-  });
-}
-
-function isRetriableNetworkError(error) {
-  const text = `${String(error)} ${error?.cause ? String(error.cause) : ""}`.toUpperCase();
-  return (
-    text.includes("ECONNRESET") ||
-    text.includes("ETIMEDOUT") ||
-    text.includes("EHOSTUNREACH") ||
-    text.includes("ENETUNREACH") ||
-    text.includes("FETCH FAILED")
-  );
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function sendJson(res, status, payload) {

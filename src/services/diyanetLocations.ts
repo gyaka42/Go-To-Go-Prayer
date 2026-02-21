@@ -128,37 +128,33 @@ export async function resolveDiyanetDistrictCoordinates(params: {
   countryName?: string;
   locale?: string;
 }): Promise<ResolvedCoordinates | null> {
-  try {
-    const lang = (params.locale || "en").split("-")[0].toLowerCase();
-    const url = new URL(`${getProxyBaseUrl()}/locations/resolve-coordinates`);
-    url.searchParams.set("districtId", String(params.districtId));
-    url.searchParams.set("district", params.districtName);
-    url.searchParams.set("stateId", String(params.stateId));
-    url.searchParams.set("state", params.stateName);
-    if (params.countryCode) {
-      url.searchParams.set("countryCode", params.countryCode);
-    }
-    if (params.countryName) {
-      url.searchParams.set("country", params.countryName);
-    }
-    url.searchParams.set("lang", lang);
+  const lang = (params.locale || "en").split("-")[0].toLowerCase();
+  const url = new URL(`${getProxyBaseUrl()}/locations/resolve-coordinates`);
+  url.searchParams.set("districtId", String(params.districtId));
+  url.searchParams.set("district", params.districtName);
+  url.searchParams.set("stateId", String(params.stateId));
+  url.searchParams.set("state", params.stateName);
+  if (params.countryCode) {
+    url.searchParams.set("countryCode", params.countryCode);
+  }
+  if (params.countryName) {
+    url.searchParams.set("country", params.countryName);
+  }
+  url.searchParams.set("lang", lang);
 
-    const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
-    const payload = (await safeJson(response)) as { lat?: unknown; lon?: unknown; error?: unknown } | null;
-    if (!response.ok) {
-      return null;
-    }
-
-    const lat = Number(payload?.lat);
-    const lon = Number(payload?.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      return null;
-    }
-
-    return { lat, lon };
-  } catch {
+  const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+  const payload = (await safeJson(response)) as { lat?: unknown; lon?: unknown; error?: unknown } | null;
+  if (!response.ok) {
     return null;
   }
+
+  const lat = Number(payload?.lat);
+  const lon = Number(payload?.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return null;
+  }
+
+  return { lat, lon };
 }
 
 // Keep old name compatibility for current imports if any call site lags.
