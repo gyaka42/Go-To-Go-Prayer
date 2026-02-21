@@ -104,6 +104,92 @@ export interface CitySuggestion {
   lon: number;
 }
 
+function normalizeQuery(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function buildSuggestionLabel(city: string | null, state: string | null, country: string | null, fallback: string): string {
+  const parts = [city, state, country].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(", ") : fallback;
+}
+
+function makeSuggestionKey(label: string, lat: number, lon: number): string {
+  return `${normalizeQuery(label)}|${lat.toFixed(3)}|${lon.toFixed(3)}`;
+}
+
+async function fetchOpenMeteoSuggestions(trimmed: string): Promise<CitySuggestion[]> {
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(trimmed)}&count=12&language=en&format=json`;
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) {
+    return [];
+  }
+
+  const payload = (await response.json()) as { results?: Array<any> };
+  const rows = Array.isArray(payload?.results) ? payload.results : [];
+  return rows
+    .map((item) => {
+      const lat = Number(item?.latitude);
+      const lon = Number(item?.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return null;
+      }
+
+      const city = firstNonEmpty([item?.name, item?.admin3, item?.admin2, item?.admin1]);
+      const state = firstNonEmpty([item?.admin1, item?.admin2]);
+      const country = firstNonEmpty([item?.country, item?.country_code]);
+      return {
+        query: trimmed,
+        label: buildSuggestionLabel(city, state, country, String(item?.name || trimmed)),
+        lat,
+        lon
+      } as CitySuggestion;
+    })
+    .filter((item): item is CitySuggestion => item !== null);
+}
+
+async function fetchNominatimSuggestions(trimmed: string): Promise<CitySuggestion[]> {
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=12&q=${encodeURIComponent(trimmed)}`;
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json"
+    }
+  });
+  if (!response.ok) {
+    return [];
+  }
+
+  const payload = (await response.json()) as Array<any>;
+  return payload
+    .map((item) => {
+      const lat = Number(item?.lat);
+      const lon = Number(item?.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return null;
+      }
+
+      const city = firstNonEmpty([
+        item?.address?.city,
+        item?.address?.town,
+        item?.address?.village,
+        item?.address?.municipality,
+        item?.address?.state
+      ]);
+      const state = firstNonEmpty([item?.address?.state, item?.address?.county]);
+      const country = firstNonEmpty([item?.address?.country]);
+      return {
+        query: trimmed,
+        label: buildSuggestionLabel(city, state, country, String(item?.display_name || trimmed)),
+        lat,
+        lon
+      } as CitySuggestion;
+    })
+    .filter((item): item is CitySuggestion => item !== null);
+}
+
 export async function searchCitySuggestions(query: string): Promise<CitySuggestion[]> {
   const trimmed = query.trim();
   if (trimmed.length < 2) {
@@ -111,37 +197,43 @@ export async function searchCitySuggestions(query: string): Promise<CitySuggesti
   }
 
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&q=${encodeURIComponent(trimmed)}`;
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json"
+    const [openMeteo, nominatim] = await Promise.allSettled([
+      fetchOpenMeteoSuggestions(trimmed),
+      fetchNominatimSuggestions(trimmed)
+    ]);
+
+    const merged = [
+      ...(openMeteo.status === "fulfilled" ? openMeteo.value : []),
+      ...(nominatim.status === "fulfilled" ? nominatim.value : [])
+    ];
+
+    const normalizedQuery = normalizeQuery(trimmed);
+    const ranked = merged.sort((a, b) => {
+      const aLabel = normalizeQuery(a.label);
+      const bLabel = normalizeQuery(b.label);
+      const aStarts = aLabel.startsWith(normalizedQuery) ? 0 : 1;
+      const bStarts = bLabel.startsWith(normalizedQuery) ? 0 : 1;
+      if (aStarts !== bStarts) {
+        return aStarts - bStarts;
       }
+      return aLabel.localeCompare(bLabel);
     });
-    if (!response.ok) {
-      throw new Error(`Suggestions error ${response.status}`);
+
+    const deduped: CitySuggestion[] = [];
+    const seen = new Set<string>();
+    for (const item of ranked) {
+      const key = makeSuggestionKey(item.label, item.lat, item.lon);
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      deduped.push(item);
+      if (deduped.length >= 10) {
+        break;
+      }
     }
 
-    const payload = (await response.json()) as Array<any>;
-    return payload
-      .map((item) => {
-        const city = firstNonEmpty([
-          item?.address?.city,
-          item?.address?.town,
-          item?.address?.village,
-          item?.address?.state
-        ]);
-        const country = firstNonEmpty([item?.address?.country]);
-        const label = city && country ? `${city}, ${country}` : item?.display_name || trimmed;
-
-        return {
-          query: trimmed,
-          label,
-          lat: Number(item?.lat),
-          lon: Number(item?.lon)
-        } as CitySuggestion;
-      })
-      .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lon))
-      .slice(0, 6);
+    return deduped;
   } catch {
     return [];
   }

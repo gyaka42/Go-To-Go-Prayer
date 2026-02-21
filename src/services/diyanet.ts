@@ -1,6 +1,7 @@
 import { PrayerName, Timings } from "@/types/prayer";
 
 const REQUIRED_PRAYERS: PrayerName[] = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
+const DEFAULT_DIYANET_PROXY_URL = "https://go-to-go-prayer-production.up.railway.app";
 
 type ProxyTimingsResponse = {
   dateKey?: unknown;
@@ -75,10 +76,7 @@ export async function getTimingsByCoordinates(
   lon: number,
   cityHint?: string
 ): Promise<Timings> {
-  const baseUrlRaw = process.env.EXPO_PUBLIC_DIYANET_PROXY_URL?.trim();
-  if (!baseUrlRaw) {
-    throw new Error("Diyanet proxy missing. Set EXPO_PUBLIC_DIYANET_PROXY_URL.");
-  }
+  const baseUrlRaw = process.env.EXPO_PUBLIC_DIYANET_PROXY_URL?.trim() || DEFAULT_DIYANET_PROXY_URL;
 
   const dateKey = toDateKey(date);
   const baseUrl = normalizeProxyBaseUrl(baseUrlRaw);

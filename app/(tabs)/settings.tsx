@@ -7,8 +7,9 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
-  FlatList,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,25 +18,17 @@ import {
   TextInput,
   View
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   geocodeCityQuery,
   getCurrentLocationDetails,
-  resolveLocationForSettings
+  resolveLocationForSettings,
+  searchCitySuggestions
 } from "@/services/location";
 import { AppBackground } from "@/components/AppBackground";
 import { LanguageMode, useI18n } from "@/i18n/I18nProvider";
 import { replanAll } from "@/services/notifications";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
-import {
-  DiyanetCountryOption,
-  DiyanetDistrictOption,
-  DiyanetStateOption,
-  fetchDiyanetCountries,
-  fetchDiyanetDistricts,
-  fetchDiyanetStates,
-  resolveDiyanetDistrictCoordinates
-} from "@/services/diyanetLocations";
 import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { ThemeMode } from "@/theme/theme";
@@ -49,28 +42,47 @@ function nextMinutes(current: 0 | 5 | 10 | 15 | 30): 0 | 5 | 10 | 15 | 30 {
   return MINUTES_OPTIONS[nextIndex];
 }
 
-type PickerType = "country" | "state" | "district" | null;
+const PRESET_CITY_QUERIES = [
+  "Makkah, Saudi Arabia",
+  "Madinah, Saudi Arabia",
+  "Riyadh, Saudi Arabia",
+  "Jeddah, Saudi Arabia",
+  "Dubai, United Arab Emirates",
+  "Kuwait City, Kuwait",
+  "Doha, Qatar",
+  "Amman, Jordan",
+  "Cairo, Egypt",
+  "Istanbul, Turkiye",
+  "Islamabad, Pakistan",
+  "Karachi, Pakistan",
+  "Lahore, Pakistan",
+  "Dhaka, Bangladesh",
+  "Mumbai, India",
+  "Jakarta, Indonesia",
+  "Kuala Lumpur, Malaysia",
+  "Casablanca, Morocco",
+  "London, United Kingdom",
+  "Paris, France",
+  "Amsterdam, Netherlands"
+] as const;
+
+function isMissingProxyError(error: unknown): boolean {
+  return String(error).toLowerCase().includes("diyanet proxy missing");
+}
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { colors, mode: themeMode, setMode: setThemeMode, resolvedTheme } = useAppTheme();
   const { t, prayerName, mode: languageMode, setMode: setLanguageMode, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [locationStatus, setLocationStatus] = useState(t("common.current_location"));
-  const [countries, setCountries] = useState<DiyanetCountryOption[]>([]);
-  const [states, setStates] = useState<DiyanetStateOption[]>([]);
-  const [districts, setDistricts] = useState<DiyanetDistrictOption[]>([]);
-  const [selectedCountryId, setSelectedCountryId] = useState<number | null>(null);
-  const [selectedStateId, setSelectedStateId] = useState<number | null>(null);
-  const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
-  const [loadingCountries, setLoadingCountries] = useState(false);
-  const [loadingStates, setLoadingStates] = useState(false);
-  const [loadingDistricts, setLoadingDistricts] = useState(false);
-  const [countriesLoadError, setCountriesLoadError] = useState<string | null>(null);
-  const [pickerType, setPickerType] = useState<PickerType>(null);
-  const [pickerQuery, setPickerQuery] = useState("");
+  const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const [cityQuery, setCityQuery] = useState("");
+  const [citySearchLoading, setCitySearchLoading] = useState(false);
+  const [citySuggestions, setCitySuggestions] = useState<Array<{ label: string; lat: number; lon: number; query: string }>>([]);
   const [showAppInfo, setShowAppInfo] = useState(false);
   const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? "Onbekend";
   const appBuild = Application.nativeBuildVersion ?? Constants.expoConfig?.ios?.buildNumber ?? "-";
@@ -94,22 +106,6 @@ export default function SettingsScreen() {
     void loadSettings();
   }, [loadSettings]);
 
-  useEffect(() => {
-    void (async () => {
-      setLoadingCountries(true);
-      setCountriesLoadError(null);
-      try {
-        const result = await fetchDiyanetCountries(localeTag);
-        setCountries(result);
-      } catch (error) {
-        setCountries([]);
-        setCountriesLoadError(String(error));
-      } finally {
-        setLoadingCountries(false);
-      }
-    })();
-  }, [localeTag]);
-
   useFocusEffect(
     useCallback(() => {
       void loadSettings();
@@ -118,46 +114,78 @@ export default function SettingsScreen() {
   );
 
   useEffect(() => {
-    if (!selectedCountryId) {
-      setStates([]);
-      setDistricts([]);
-      setSelectedStateId(null);
-      setSelectedDistrictId(null);
+    const query = cityQuery.trim();
+    if (query.length < 2) {
+      setCitySuggestions([]);
+      setCitySearchLoading(false);
       return;
     }
 
-    void (async () => {
-      setLoadingStates(true);
-      try {
-        const result = await fetchDiyanetStates(selectedCountryId, localeTag);
-        setStates(result);
-      } catch {
-        setStates([]);
-      } finally {
-        setLoadingStates(false);
-      }
-    })();
-  }, [localeTag, selectedCountryId]);
+    const timer = setTimeout(() => {
+      void (async () => {
+        setCitySearchLoading(true);
+        try {
+          const suggestions = await searchCitySuggestions(query);
+          setCitySuggestions(suggestions);
+        } catch {
+          setCitySuggestions([]);
+        } finally {
+          setCitySearchLoading(false);
+        }
+      })();
+    }, 220);
 
-  useEffect(() => {
-    if (!selectedStateId) {
-      setDistricts([]);
-      setSelectedDistrictId(null);
-      return;
-    }
+    return () => clearTimeout(timer);
+  }, [cityQuery, localeTag]);
 
-    void (async () => {
-      setLoadingDistricts(true);
-      try {
-        const result = await fetchDiyanetDistricts(selectedStateId, localeTag);
-        setDistricts(result);
-      } catch {
-        setDistricts([]);
-      } finally {
-        setLoadingDistricts(false);
+  const applyManualLocation = useCallback(
+    async (location: { lat: number; lon: number; label: string; query?: string }) => {
+      if (!settings) {
+        return;
       }
-    })();
-  }, [localeTag, selectedStateId]);
+
+      setSaving(true);
+      try {
+        const updated: Settings = {
+          ...settings,
+          locationMode: "manual",
+          manualLocation: {
+            query: location.query ?? location.label,
+            label: location.label,
+            lat: location.lat,
+            lon: location.lon
+          }
+        };
+        setSettings(updated);
+        setLocationStatus(location.label);
+        await saveSettings(updated);
+        setLocationModalVisible(false);
+        setCityQuery("");
+        setCitySuggestions([]);
+
+        await replanAll({
+          lat: location.lat,
+          lon: location.lon,
+          methodId: updated.methodId,
+          settings: updated
+        }).catch((error) => {
+          if (!isMissingProxyError(error)) {
+            throw error;
+          }
+        });
+
+        Alert.alert(
+          t("settings.manual_set_title"),
+          t("settings.manual_set_body", { label: location.label })
+        );
+      } catch (error) {
+        Alert.alert(t("settings.manual_city_title"), String(error));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [settings, t]
+  );
 
   const togglePrayer = useCallback((prayer: PrayerName, enabled: boolean) => {
     setSettings((prev) => {
@@ -207,6 +235,7 @@ export default function SettingsScreen() {
     try {
       const loc = await getCurrentLocationDetails();
       setLocationStatus(loc.label);
+      setLocationModalVisible(false);
       const updated: Settings = {
         ...settings,
         locationMode: "gps"
@@ -230,6 +259,10 @@ export default function SettingsScreen() {
         lon: loc.lon,
         methodId: updated.methodId,
         settings: updated
+      }).catch((error) => {
+        if (!isMissingProxyError(error)) {
+          throw error;
+        }
       });
 
       Alert.alert(
@@ -243,157 +276,33 @@ export default function SettingsScreen() {
     }
   }, [settings, t]);
 
-  const applyManualCity = useCallback(async () => {
-    if (!settings) {
-      return;
-    }
-
-    const selectedCountry = countries.find((item) => item.id === selectedCountryId);
-    const selectedState = states.find((item) => item.id === selectedStateId);
-    const selectedDistrict = districts.find((item) => item.id === selectedDistrictId);
-
-    if (!selectedCountry || !selectedState || !selectedDistrict) {
-      Alert.alert(t("settings.manual_city_title"), t("settings.select_all_location_levels"));
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const label = `${selectedDistrict.name}, ${selectedState.name}, ${selectedCountry.name}`;
-      let lat = selectedDistrict.lat;
-      let lon = selectedDistrict.lon;
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        const resolved = await resolveDiyanetDistrictCoordinates({
-          districtId: selectedDistrict.id,
-          districtName: selectedDistrict.name,
-          stateId: selectedState.id,
-          stateName: selectedState.name,
-          countryCode: selectedCountry.code,
-          countryName: selectedCountry.name,
-          locale: localeTag
+  const selectPresetCity = useCallback(
+    async (query: string) => {
+      try {
+        const result = await geocodeCityQuery(query);
+        await applyManualLocation({
+          lat: result.lat,
+          lon: result.lon,
+          label: result.label,
+          query
         });
-        if (resolved) {
-          lat = resolved.lat;
-          lon = resolved.lon;
-        } else {
-          // Client-side fallback chain for districts without usable backend coordinates.
-          const fallbackQueries = [
-            `${selectedDistrict.name}, ${selectedState.name}, ${selectedCountry.name}`,
-            `${selectedDistrict.name}, ${selectedCountry.name}`,
-            selectedDistrict.name
-          ];
-          let resolvedFallback: { lat: number; lon: number } | null = null;
-          for (const query of fallbackQueries) {
-            try {
-              const geocoded = await geocodeCityQuery(query);
-              resolvedFallback = { lat: geocoded.lat, lon: geocoded.lon };
-              break;
-            } catch {
-              // Continue fallback chain.
-            }
-          }
-          if (!resolvedFallback) {
-            throw new Error(t("settings.coordinates_not_found"));
-          }
-          lat = resolvedFallback.lat;
-          lon = resolvedFallback.lon;
-        }
+      } catch (error) {
+        Alert.alert(t("settings.manual_city_title"), String(error));
       }
-
-      const updated: Settings = {
-        ...settings,
-        locationMode: "manual",
-        manualLocation: {
-          query: label,
-          label,
-          lat: lat as number,
-          lon: lon as number
-        }
-      };
-      setSettings(updated);
-      setLocationStatus(label);
-      await saveSettings(updated);
-
-      Alert.alert(
-        t("settings.manual_set_title"),
-        t("settings.manual_set_body", { label })
-      );
-      setSelectedCountryId(null);
-      setSelectedStateId(null);
-      setSelectedDistrictId(null);
-      setStates([]);
-      setDistricts([]);
-
-      void replanAll({
-        lat: lat as number,
-        lon: lon as number,
-        methodId: updated.methodId,
-        settings: updated
-      }).catch((error) => {
-        Alert.alert(
-          t("common.warning"),
-          t("settings.replan_failed", { error: String(error) })
-        );
-      });
-    } catch (error) {
-      Alert.alert(t("settings.manual_city_title"), String(error));
-    } finally {
-      setSaving(false);
-    }
-  }, [countries, districts, localeTag, selectedCountryId, selectedDistrictId, selectedStateId, settings, states, t]);
-
-  const selectedCountry = countries.find((item) => item.id === selectedCountryId) || null;
-  const selectedState = states.find((item) => item.id === selectedStateId) || null;
-  const selectedDistrict = districts.find((item) => item.id === selectedDistrictId) || null;
-
-  const countryDisplayNames = (() => {
-    try {
-      return new Intl.DisplayNames([localeTag], { type: "region" });
-    } catch {
-      return null;
-    }
-  })();
-
-  const pickerItems =
-    pickerType === "country"
-      ? countries.map((item) => ({
-          id: item.id,
-          label: item.code && countryDisplayNames ? countryDisplayNames.of(item.code) || item.name : item.name
-        }))
-      : pickerType === "state"
-        ? states.map((item) => ({ id: item.id, label: item.name }))
-        : pickerType === "district"
-          ? districts.map((item) => ({ id: item.id, label: item.name }))
-          : [];
-
-  const filteredPickerItems =
-    pickerQuery.trim().length === 0
-      ? pickerItems
-      : pickerItems.filter((item) => item.label.toLowerCase().includes(pickerQuery.trim().toLowerCase()));
-
-  const pickerTitle =
-    pickerType === "country"
-      ? t("settings.country_label")
-      : pickerType === "state"
-        ? t("settings.state_label")
-        : t("settings.district_label");
-
-  const onSelectPickerItem = useCallback(
-    (id: number) => {
-      if (pickerType === "country") {
-        setSelectedCountryId(id);
-        setSelectedStateId(null);
-        setSelectedDistrictId(null);
-      } else if (pickerType === "state") {
-        setSelectedStateId(id);
-        setSelectedDistrictId(null);
-      } else if (pickerType === "district") {
-        setSelectedDistrictId(id);
-      }
-      setPickerType(null);
-      setPickerQuery("");
     },
-    [pickerType]
+    [applyManualLocation, t]
+  );
+
+  const onSuggestionPress = useCallback(
+    async (suggestion: { label: string; lat: number; lon: number; query: string }) => {
+      await applyManualLocation({
+        label: suggestion.label,
+        lat: suggestion.lat,
+        lon: suggestion.lon,
+        query: suggestion.query
+      });
+    },
+    [applyManualLocation]
   );
 
   const persistAndReplan = useCallback(async () => {
@@ -417,6 +326,10 @@ export default function SettingsScreen() {
 
       Alert.alert(t("common.saved"), t("settings.saved_body"));
     } catch (error) {
+      if (isMissingProxyError(error)) {
+        Alert.alert(t("common.saved"), t("settings.saved_body"));
+        return;
+      }
       Alert.alert(
         t("common.warning"),
         t("settings.replan_failed", { error: String(error) })
@@ -573,22 +486,24 @@ export default function SettingsScreen() {
 
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t("settings.location_region")}</Text>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <View style={styles.locationRow}>
+            <Pressable style={styles.locationRow} onPress={() => setLocationModalVisible(true)}>
               <View style={[styles.locationIconWrap, isLight ? { backgroundColor: "#DFF5EA" } : null]}>
                 <Ionicons name="locate" size={22} color="#23D18B" />
               </View>
 
               <View style={styles.locationCenter}>
                 <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>
-                  {t("settings.gps_connected")}
+                  {t("settings.location_title")}
                 </Text>
                 <Text style={[styles.settingSub, isLight ? { color: "#4E647C" } : null]}>{locationStatus}</Text>
-                <Text style={[styles.locationModeText, isLight ? { color: "#607890" } : null]}>
-                  {t("settings.mode")}:{" "}
-                  {settings.locationMode === "manual" ? t("settings.mode_manual") : t("settings.mode_gps")}
-                </Text>
               </View>
-
+              <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
+            </Pressable>
+            <View style={[styles.locationFooter, { borderTopColor: colors.cardBorder }]}>
+              <Text style={[styles.locationModeText, isLight ? { color: "#607890" } : null]}>
+                {t("settings.mode")}:{" "}
+                {settings.locationMode === "manual" ? t("settings.mode_manual") : t("settings.mode_gps")}
+              </Text>
               <Pressable
                 style={[styles.refreshChip, isLight ? { backgroundColor: "#E4EFFB" } : null]}
                 onPress={() => void refreshLocationAndReplan()}
@@ -596,83 +511,6 @@ export default function SettingsScreen() {
                 <Text style={styles.refreshChipText}>{t("common.refresh").toUpperCase()}</Text>
               </Pressable>
             </View>
-            <View style={[styles.manualWrap, { borderTopColor: colors.cardBorder }]}>
-              <Pressable
-                style={[
-                  styles.selectorButton,
-                  isLight ? { backgroundColor: "#F2F7FD", borderColor: "#C8DBEE" } : null
-                ]}
-                onPress={() => {
-                  if (countries.length === 0) {
-                    Alert.alert(
-                      t("settings.location_title"),
-                      countriesLoadError || t("settings.no_location_options")
-                    );
-                    return;
-                  }
-                  setPickerType("country");
-                }}
-              >
-                <Text style={[styles.selectorLabel, isLight ? { color: "#607890" } : null]}>
-                  {t("settings.country_label")}
-                </Text>
-                <Text style={[styles.selectorValue, isLight ? { color: "#1A2E45" } : null]}>
-                  {selectedCountry
-                    ? selectedCountry.code && countryDisplayNames
-                      ? countryDisplayNames.of(selectedCountry.code) || selectedCountry.name
-                      : selectedCountry.name
-                    : t("settings.select_country")}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.selectorButton,
-                  isLight ? { backgroundColor: "#F2F7FD", borderColor: "#C8DBEE" } : null,
-                  !selectedCountryId ? { opacity: 0.6 } : null
-                ]}
-                onPress={() => setPickerType("state")}
-                disabled={!selectedCountryId}
-              >
-                <Text style={[styles.selectorLabel, isLight ? { color: "#607890" } : null]}>
-                  {t("settings.state_label")}
-                </Text>
-                <Text style={[styles.selectorValue, isLight ? { color: "#1A2E45" } : null]}>
-                  {selectedState?.name || t("settings.select_state")}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.selectorButton,
-                  isLight ? { backgroundColor: "#F2F7FD", borderColor: "#C8DBEE" } : null,
-                  !selectedStateId ? { opacity: 0.6 } : null
-                ]}
-                onPress={() => setPickerType("district")}
-                disabled={!selectedStateId}
-              >
-                <Text style={[styles.selectorLabel, isLight ? { color: "#607890" } : null]}>
-                  {t("settings.district_label")}
-                </Text>
-                <Text style={[styles.selectorValue, isLight ? { color: "#1A2E45" } : null]}>
-                  {selectedDistrict?.name || t("settings.select_district")}
-                </Text>
-              </Pressable>
-
-              <Pressable style={styles.manualButton} onPress={() => void applyManualCity()} disabled={saving}>
-                <Text style={styles.manualButtonText}>{t("settings.use_city")}</Text>
-              </Pressable>
-            </View>
-            {loadingCountries || loadingStates || loadingDistricts ? (
-              <View style={styles.suggestionsLoadingWrap}>
-                <ActivityIndicator size="small" color="#2B8CEE" />
-              </View>
-            ) : null}
-            {countriesLoadError ? (
-              <Text style={[styles.loadErrorText, { color: isLight ? "#A33D3D" : "#FF8A8A" }]}>
-                {t("settings.location_options_failed")}
-              </Text>
-            ) : null}
           </View>
 
           <View style={styles.notificationHeader}>
@@ -716,46 +554,144 @@ export default function SettingsScreen() {
           </Pressable>
         </ScrollView>
 
-        <Modal transparent visible={pickerType !== null} animationType="fade" onRequestClose={() => setPickerType(null)}>
-          <View style={styles.modalBackdrop}>
-            <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>{pickerTitle}</Text>
-              <TextInput
-                style={[
-                  styles.modalSearchInput,
-                  isLight ? { backgroundColor: "#F2F7FD", borderColor: "#C8DBEE", color: "#1A2E45" } : null
-                ]}
-                value={pickerQuery}
-                onChangeText={setPickerQuery}
-                placeholder={t("methods.search_placeholder")}
-                placeholderTextColor={isLight ? "#607890" : "#6F849D"}
-              />
-              <FlatList
-                data={filteredPickerItems}
-                keyExtractor={(item) => `${pickerType}-${item.id}`}
-                style={[styles.modalList, { borderTopColor: colors.cardBorder }]}
-                renderItem={({ item }) => (
-                  <Pressable
-                    style={[styles.suggestionRow, { borderBottomColor: colors.cardBorder }]}
-                    onPress={() => onSelectPickerItem(item.id)}
-                  >
-                    <Ionicons name="location-outline" size={14} color="#7EA0C3" />
-                    <Text style={[styles.suggestionText, isLight ? { color: "#344E68" } : null]}>{item.label}</Text>
-                  </Pressable>
-                )}
-                ListEmptyComponent={
-                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                    {loadingCountries || loadingStates || loadingDistricts
-                      ? t("common.loading")
-                      : t("settings.no_location_options")}
+        <Modal
+          visible={locationModalVisible}
+          animationType="slide"
+          onRequestClose={() => setLocationModalVisible(false)}
+        >
+          <KeyboardAvoidingView
+            style={[styles.locationModalScreen, { backgroundColor: colors.background }]}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+          >
+            <AppBackground />
+            <SafeAreaView style={[styles.locationModalSafe, { paddingTop: insets.top + 12 }]} edges={[]}>
+              <View style={styles.locationModalHeader}>
+                <View>
+                  <Text style={[styles.locationModalTitle, { color: colors.textPrimary }]}>
+                    {t("settings.location_title")}
                   </Text>
-                }
-              />
-              <Pressable style={[styles.cancelButton, { borderColor: colors.cardBorder }]} onPress={() => setPickerType(null)}>
-                <Text style={[styles.cancelButtonText, { color: colors.textPrimary }]}>{t("common.close")}</Text>
-              </Pressable>
-            </View>
-          </View>
+                  <Text style={[styles.locationModalSubtitle, { color: colors.textSecondary }]}>
+                    {locationStatus}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setLocationModalVisible(false)}
+                  style={[
+                    styles.locationCloseButton,
+                    isLight
+                      ? {
+                          backgroundColor: "#D3E3F4",
+                          borderWidth: 1,
+                          borderColor: "#B3C8DE",
+                          shadowColor: "#1B334D",
+                          shadowOpacity: 0.12,
+                          shadowRadius: 8,
+                          shadowOffset: { width: 0, height: 3 }
+                        }
+                      : null
+                  ]}
+                >
+                  <Ionicons name="close" size={22} color={isLight ? "#55708C" : "#A7BDD7"} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[styles.locationModalContent, { paddingBottom: insets.bottom + 28 }]}
+              >
+                <Pressable
+                  style={[styles.gpsActionButton, saving ? { opacity: 0.7 } : null]}
+                  onPress={() => void refreshLocationAndReplan()}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <ActivityIndicator color="#F2F8FF" />
+                  ) : (
+                    <>
+                      <Ionicons name="navigate" size={20} color="#F2F8FF" />
+                      <Text style={styles.gpsActionText}>{t("settings.use_my_location")}</Text>
+                    </>
+                  )}
+                </Pressable>
+
+                <Text style={[styles.manualCityLabel, { color: colors.textSecondary }]}>
+                  {t("settings.mode_manual")}
+                </Text>
+                <View
+                  style={[
+                    styles.citySearchField,
+                    isLight ? { backgroundColor: "#EEF4FB", borderColor: "#C4D6EA" } : null
+                  ]}
+                >
+                  <Ionicons name="search" size={28} color={isLight ? "#5E7894" : "#8AA1BC"} />
+                  <TextInput
+                    value={cityQuery}
+                    onChangeText={setCityQuery}
+                    style={[styles.citySearchInput, { color: colors.textPrimary }]}
+                    placeholder={t("settings.search_city_placeholder")}
+                    placeholderTextColor={isLight ? "#7A8EA5" : "#7D93AE"}
+                  />
+                  {cityQuery.trim().length > 0 ? (
+                    <Pressable onPress={() => setCityQuery("")} style={styles.clearQueryButton}>
+                      <Ionicons name="close-circle" size={22} color={isLight ? "#768CA5" : "#8EA5C1"} />
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                {cityQuery.trim().length >= 2 ? (
+                  <View style={styles.searchResultList}>
+                    {citySearchLoading ? (
+                      <View style={styles.suggestionsLoadingWrap}>
+                        <ActivityIndicator size="small" color="#2B8CEE" />
+                      </View>
+                    ) : citySuggestions.length === 0 ? (
+                      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                        {t("settings.no_location_options")}
+                      </Text>
+                    ) : (
+                      citySuggestions.map((suggestion, idx) => (
+                        <Pressable
+                          key={`${suggestion.label}-${suggestion.lat}-${suggestion.lon}-${idx}`}
+                          style={[
+                            styles.searchResultRow,
+                            { borderColor: colors.cardBorder, backgroundColor: colors.card }
+                          ]}
+                          onPress={() => void onSuggestionPress(suggestion)}
+                        >
+                          <View>
+                            <Text style={[styles.searchResultTitle, { color: colors.textPrimary }]}>
+                              {suggestion.label.split(",")[0] || suggestion.label}
+                            </Text>
+                            <Text style={[styles.searchResultSub, { color: colors.textSecondary }]}>
+                              {suggestion.label}
+                            </Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={16} color={isLight ? "#6A819D" : "#8AA1BC"} />
+                        </Pressable>
+                      ))
+                    )}
+                  </View>
+                ) : (
+                  <View style={styles.presetGrid}>
+                    {PRESET_CITY_QUERIES.map((query) => (
+                      <Pressable
+                        key={query}
+                        style={[
+                          styles.presetChip,
+                          { borderColor: colors.cardBorder, backgroundColor: colors.card }
+                        ]}
+                        onPress={() => void selectPresetCity(query)}
+                      >
+                        <Text style={[styles.presetChipText, { color: colors.textPrimary }]}>
+                          {query.split(",")[0]}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </ScrollView>
+            </SafeAreaView>
+          </KeyboardAvoidingView>
         </Modal>
 
         <Modal transparent visible={showAppInfo} animationType="fade" onRequestClose={() => setShowAppInfo(false)}>
@@ -893,7 +829,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    gap: 12
+    gap: 12,
+    justifyContent: "space-between"
   },
   locationIconWrap: {
     width: 48,
@@ -904,7 +841,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#11372D"
   },
   locationCenter: {
-    flex: 1
+    flex: 1,
+    paddingRight: 10
+  },
+  locationFooter: {
+    borderTopWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
   },
   locationModeText: {
     marginTop: 2,
@@ -924,81 +870,131 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 13
   },
-  manualWrap: {
-    borderTopWidth: 1,
-    borderTopColor: "#1D3349",
-    padding: 12,
-    flexDirection: "column",
-    alignItems: "stretch",
-    gap: 8
+  suggestionsLoadingWrap: {
+    paddingVertical: 16,
+    alignItems: "center"
   },
-  selectorButton: {
-    minHeight: 52,
-    borderRadius: 10,
-    backgroundColor: "#102131",
-    borderWidth: 1,
-    borderColor: "#23405B",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    justifyContent: "center"
+  locationModalScreen: {
+    flex: 1
   },
-  selectorLabel: {
-    fontSize: 11,
-    color: "#6F849D",
-    fontWeight: "700",
-    letterSpacing: 0.4
+  locationModalSafe: {
+    flex: 1,
+    paddingHorizontal: 20
   },
-  selectorValue: {
-    fontSize: 14,
-    color: "#EAF2FF",
+  locationModalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 16
+  },
+  locationModalTitle: {
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "800"
+  },
+  locationModalSubtitle: {
     marginTop: 2,
-    fontWeight: "600"
+    fontSize: 14,
+    fontWeight: "500"
   },
-  manualButton: {
-    height: 42,
-    borderRadius: 10,
-    paddingHorizontal: 14,
+  locationCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#20384F"
+  },
+  locationModalContent: {
+    paddingTop: 8,
+    flexGrow: 1
+  },
+  gpsActionButton: {
+    height: 72,
+    borderRadius: 16,
     backgroundColor: "#2B8CEE",
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 10,
+    shadowColor: "#2B8CEE",
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 }
   },
-  manualButtonText: {
+  gpsActionText: {
     color: "#F2F8FF",
+    fontSize: 16,
+    fontWeight: "800"
+  },
+  manualCityLabel: {
+    marginTop: 20,
+    marginBottom: 8,
+    textAlign: "center",
+    fontSize: 14,
     fontWeight: "700",
-    fontSize: 13
+    letterSpacing: 0.9
   },
-  suggestionsLoadingWrap: {
-    paddingHorizontal: 12,
-    paddingBottom: 8
-  },
-  suggestionsList: {
-    borderTopWidth: 1,
-    borderTopColor: "#1D3349"
-  },
-  suggestionRow: {
-    minHeight: 42,
-    paddingHorizontal: 12,
+  citySearchField: {
+    minHeight: 66,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#24415E",
+    backgroundColor: "#102131",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1D3349"
+    paddingHorizontal: 14,
+    gap: 8
   },
-  suggestionText: {
+  citySearchInput: {
     flex: 1,
-    color: "#CFE0F4",
-    fontSize: 13
+    fontSize: 18,
+    fontWeight: "600",
+    minHeight: 52
   },
-  loadErrorText: {
-    fontSize: 12,
-    paddingHorizontal: 12,
-    paddingBottom: 10
+  clearQueryButton: {
+    padding: 4
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(2, 8, 16, 0.7)",
+  searchResultList: {
+    marginTop: 12,
+    gap: 8
+  },
+  searchResultRow: {
+    minHeight: 66,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  searchResultTitle: {
+    fontSize: 22,
+    fontWeight: "700"
+  },
+  searchResultSub: {
+    marginTop: 2,
+    fontSize: 16
+  },
+  presetGrid: {
+    marginTop: 12,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10
+  },
+  presetChip: {
+    width: "31%",
+    minHeight: 58,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 20
+    paddingHorizontal: 8
+  },
+  presetChipText: {
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center"
   },
   infoOverlay: {
     flex: 1,
@@ -1029,45 +1025,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginBottom: 2
   },
-  modalCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    maxHeight: "72%",
-    padding: 12
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 8
-  },
-  modalSearchInput: {
-    minHeight: 42,
-    borderRadius: 10,
-    backgroundColor: "#102131",
-    borderWidth: 1,
-    borderColor: "#23405B",
-    color: "#EAF2FF",
-    paddingHorizontal: 12,
-    fontSize: 14,
-    marginBottom: 8
-  },
-  modalList: {
-    borderTopWidth: 1
-  },
-  cancelButton: {
-    marginTop: 10,
-    borderWidth: 1,
-    borderRadius: 10,
-    minHeight: 40,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: "700"
-  },
   emptyText: {
-    padding: 12,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
     fontSize: 13
   },
   notificationHeader: {
