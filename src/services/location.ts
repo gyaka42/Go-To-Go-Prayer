@@ -104,6 +104,15 @@ export interface CitySuggestion {
   lon: number;
 }
 
+function normalizeLocaleTag(localeTag?: string): string {
+  const raw = (localeTag || "en").trim();
+  return raw.length > 0 ? raw : "en";
+}
+
+function localeLanguage(localeTag?: string): string {
+  return normalizeLocaleTag(localeTag).split("-")[0].toLowerCase();
+}
+
 function normalizeQuery(input: string): string {
   return input
     .toLowerCase()
@@ -121,8 +130,22 @@ function makeSuggestionKey(label: string, lat: number, lon: number): string {
   return `${normalizeQuery(label)}|${lat.toFixed(3)}|${lon.toFixed(3)}`;
 }
 
-async function fetchOpenMeteoSuggestions(trimmed: string): Promise<CitySuggestion[]> {
-  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(trimmed)}&count=12&language=en&format=json`;
+function localizedCountryName(countryName: string | null, countryCode: string | null, localeTag?: string): string | null {
+  if (!countryCode || countryCode.length !== 2) {
+    return countryName;
+  }
+
+  try {
+    const displayNames = new Intl.DisplayNames([normalizeLocaleTag(localeTag)], { type: "region" });
+    return displayNames.of(countryCode.toUpperCase()) || countryName;
+  } catch {
+    return countryName;
+  }
+}
+
+async function fetchOpenMeteoSuggestions(trimmed: string, localeTag?: string): Promise<CitySuggestion[]> {
+  const lang = localeLanguage(localeTag);
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(trimmed)}&count=12&language=${encodeURIComponent(lang)}&format=json`;
   const response = await fetch(url, { headers: { Accept: "application/json" } });
   if (!response.ok) {
     return [];
@@ -140,7 +163,9 @@ async function fetchOpenMeteoSuggestions(trimmed: string): Promise<CitySuggestio
 
       const city = firstNonEmpty([item?.name, item?.admin3, item?.admin2, item?.admin1]);
       const state = firstNonEmpty([item?.admin1, item?.admin2]);
-      const country = firstNonEmpty([item?.country, item?.country_code]);
+      const rawCountry = firstNonEmpty([item?.country]);
+      const rawCountryCode = firstNonEmpty([item?.country_code]);
+      const country = localizedCountryName(rawCountry, rawCountryCode, localeTag);
       return {
         query: trimmed,
         label: buildSuggestionLabel(city, state, country, String(item?.name || trimmed)),
@@ -151,11 +176,13 @@ async function fetchOpenMeteoSuggestions(trimmed: string): Promise<CitySuggestio
     .filter((item): item is CitySuggestion => item !== null);
 }
 
-async function fetchNominatimSuggestions(trimmed: string): Promise<CitySuggestion[]> {
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=12&q=${encodeURIComponent(trimmed)}`;
+async function fetchNominatimSuggestions(trimmed: string, localeTag?: string): Promise<CitySuggestion[]> {
+  const acceptLanguage = normalizeLocaleTag(localeTag);
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=12&accept-language=${encodeURIComponent(acceptLanguage)}&q=${encodeURIComponent(trimmed)}`;
   const response = await fetch(url, {
     headers: {
-      Accept: "application/json"
+      Accept: "application/json",
+      "Accept-Language": acceptLanguage
     }
   });
   if (!response.ok) {
@@ -179,7 +206,9 @@ async function fetchNominatimSuggestions(trimmed: string): Promise<CitySuggestio
         item?.address?.state
       ]);
       const state = firstNonEmpty([item?.address?.state, item?.address?.county]);
-      const country = firstNonEmpty([item?.address?.country]);
+      const rawCountry = firstNonEmpty([item?.address?.country]);
+      const rawCountryCode = firstNonEmpty([item?.address?.country_code]);
+      const country = localizedCountryName(rawCountry, rawCountryCode, localeTag);
       return {
         query: trimmed,
         label: buildSuggestionLabel(city, state, country, String(item?.display_name || trimmed)),
@@ -190,7 +219,7 @@ async function fetchNominatimSuggestions(trimmed: string): Promise<CitySuggestio
     .filter((item): item is CitySuggestion => item !== null);
 }
 
-export async function searchCitySuggestions(query: string): Promise<CitySuggestion[]> {
+export async function searchCitySuggestions(query: string, localeTag?: string): Promise<CitySuggestion[]> {
   const trimmed = query.trim();
   if (trimmed.length < 2) {
     return [];
@@ -198,8 +227,8 @@ export async function searchCitySuggestions(query: string): Promise<CitySuggesti
 
   try {
     const [openMeteo, nominatim] = await Promise.allSettled([
-      fetchOpenMeteoSuggestions(trimmed),
-      fetchNominatimSuggestions(trimmed)
+      fetchOpenMeteoSuggestions(trimmed, localeTag),
+      fetchNominatimSuggestions(trimmed, localeTag)
     ]);
 
     const merged = [
@@ -216,7 +245,7 @@ export async function searchCitySuggestions(query: string): Promise<CitySuggesti
       if (aStarts !== bStarts) {
         return aStarts - bStarts;
       }
-      return aLabel.localeCompare(bLabel);
+      return aLabel.localeCompare(bLabel, normalizeLocaleTag(localeTag));
     });
 
     const deduped: CitySuggestion[] = [];

@@ -125,7 +125,7 @@ export default function SettingsScreen() {
       void (async () => {
         setCitySearchLoading(true);
         try {
-          const suggestions = await searchCitySuggestions(query);
+          const suggestions = await searchCitySuggestions(query, localeTag);
           setCitySuggestions(suggestions);
         } catch {
           setCitySuggestions([]);
