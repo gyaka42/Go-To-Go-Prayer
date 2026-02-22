@@ -34,6 +34,7 @@ import { formatCountdown, getDateKey, getNextPrayer, getTomorrow, parsePrayerTim
 import { useAppTheme } from "@/theme/ThemeProvider";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
+const SCHEDULE_ITEM_HEIGHT = 80;
 
 function prayerIcon(prayer: PrayerName): keyof typeof MaterialCommunityIcons.glyphMap {
   if (prayer === "Fajr") {
@@ -471,11 +472,11 @@ export default function HomeScreen() {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2B8CEE" />}
             contentContainerStyle={[
               styles.listContent,
-              { paddingBottom: tabBarHeight + 64 }
+              { paddingBottom: tabBarHeight + 28 }
             ]}
             getItemLayout={(_, index) => ({
-              length: 100,
-              offset: 100 * index,
+              length: SCHEDULE_ITEM_HEIGHT,
+              offset: SCHEDULE_ITEM_HEIGHT * index,
               index
             })}
             onScrollToIndexFailed={(info) => {
@@ -516,7 +517,7 @@ export default function HomeScreen() {
                     >
                       <MaterialCommunityIcons
                         name={prayerIcon(item)}
-                        size={20}
+                        size={18}
                         color={isNext ? "#F1F6FD" : rowIconColor}
                       />
                     </View>
@@ -720,13 +721,13 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 40,
-    gap: 12
+    gap: 8
   },
   row: {
-    minHeight: 88,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    minHeight: 72,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: "#162638",
     flexDirection: "row",
     alignItems: "center",
@@ -741,12 +742,12 @@ const styles = StyleSheet.create({
   rowLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12
+    gap: 10
   },
   iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: "#1A3047",
     alignItems: "center",
     justifyContent: "center"
@@ -755,7 +756,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#2B8CEE"
   },
   rowPrayer: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
     color: "#E3EBF7"
   },
@@ -763,8 +764,8 @@ const styles = StyleSheet.create({
     color: "#44A4FF"
   },
   comingUpText: {
-    marginTop: 4,
-    fontSize: 12,
+    marginTop: 1,
+    fontSize: 11,
     fontWeight: "700",
     color: "#44A4FF",
     letterSpacing: 0.8
@@ -772,15 +773,16 @@ const styles = StyleSheet.create({
   rowRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14
+    gap: 10
   },
   rowTime: {
-    fontSize: 17,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
     color: "#C8D6EA"
   },
   rowTimeNext: {
-    color: "#2B8CEE"
+    color: "#2B8CEE",
+    fontSize: 17
   },
   loaderWrap: {
     flex: 1,
