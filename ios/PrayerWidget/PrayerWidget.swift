@@ -189,7 +189,7 @@ struct PrayerWidgetEntryView: View {
             .foregroundStyle(accent)
             .lineLimit(1)
 
-          countdownLabel(fontSize: 11, turkishSpacing: 1)
+          countdownLabel(fontSize: 11, compactTurkish: true)
 
           Spacer(minLength: 0)
 
@@ -251,7 +251,7 @@ struct PrayerWidgetEntryView: View {
               .foregroundStyle(accent)
               .lineLimit(1)
 
-            countdownLabel(fontSize: leftCountdownSize, turkishSpacing: isLarge ? 4 : 1)
+            countdownLabel(fontSize: leftCountdownSize, compactTurkish: !isLarge)
 
             Spacer(minLength: 0)
 
@@ -410,10 +410,35 @@ struct PrayerWidgetEntryView: View {
     return AnyView(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.clear))
   }
 
-  private func countdownLabel(fontSize: CGFloat, turkishSpacing: CGFloat = 4) -> some View {
+  @ViewBuilder
+  private func countdownLabel(fontSize: CGFloat, compactTurkish: Bool = false) -> some View {
     let isTurkish = normalizedLanguage(localeTag: entry.localeTag) == "tr"
-    let spacing = isTurkish ? turkishSpacing : 4
-    return HStack(spacing: spacing) {
+    if isTurkish && compactTurkish {
+      if let target = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) {
+        (
+          Text(target, style: .timer)
+            .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.78))
+          + Text(" \(localized("In", localeTag: entry.localeTag))")
+            .font(.system(size: fontSize, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.62))
+        )
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+      } else {
+        (
+          Text("--:--:--")
+            .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.78))
+          + Text(" \(localized("In", localeTag: entry.localeTag))")
+            .font(.system(size: fontSize, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.62))
+        )
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+      }
+    } else {
+      HStack(spacing: 4) {
       if isTurkish {
         if let target = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) {
           Text(target, style: .timer)
@@ -441,9 +466,10 @@ struct PrayerWidgetEntryView: View {
             .foregroundStyle(.white.opacity(0.78))
         }
       }
+      }
+      .lineLimit(1)
+      .minimumScaleFactor(0.8)
     }
-    .lineLimit(1)
-    .minimumScaleFactor(0.8)
   }
 
   private func iconName(for prayer: String) -> String {
