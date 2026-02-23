@@ -412,7 +412,7 @@ struct PrayerWidgetEntryView: View {
 
   private func countdownLabel(fontSize: CGFloat) -> some View {
     let isTurkish = normalizedLanguage(localeTag: entry.localeTag) == "tr"
-    HStack(spacing: 4) {
+    return HStack(spacing: 4) {
       if isTurkish {
         if let target = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) {
           Text(target, style: .timer)
@@ -800,7 +800,7 @@ private func nextPrayerDate(nextTime: String, now: Date) -> Date? {
     return nil
   }
 
-  var calendar = Calendar.current
+  let calendar = Calendar.current
   var dateComponents = calendar.dateComponents([.year, .month, .day], from: now)
   dateComponents.hour = hour
   dateComponents.minute = minute
