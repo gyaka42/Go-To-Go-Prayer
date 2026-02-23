@@ -653,7 +653,7 @@ private struct CountdownLockEntryView: View {
     case .accessoryRectangular:
       HStack(spacing: 8) {
         VStack(alignment: .leading, spacing: 2) {
-          Text(localized("Countdown", localeTag: entry.localeTag))
+          Text(localized("Upcoming", localeTag: entry.localeTag))
             .font(.system(size: 10, weight: .medium))
             .foregroundStyle(.secondary)
           Text(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag))
@@ -661,8 +661,28 @@ private struct CountdownLockEntryView: View {
             .lineLimit(1)
         }
         Spacer(minLength: 6)
-        Text(countdown)
-          .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
+        if let target = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) {
+          HStack(spacing: 3) {
+            if normalizedLanguage(localeTag: entry.localeTag) == "tr" {
+              Text(target, style: .timer)
+                .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
+              Text(localized("In", localeTag: entry.localeTag))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+            } else {
+              Text(localized("In", localeTag: entry.localeTag))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+              Text(target, style: .timer)
+                .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
+            }
+          }
+          .lineLimit(1)
+          .minimumScaleFactor(0.8)
+        } else {
+          Text(countdown)
+            .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
+        }
       }
     default:
       EmptyView()
