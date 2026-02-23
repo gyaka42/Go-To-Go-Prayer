@@ -933,8 +933,12 @@ function findByDate(rows, target) {
 
 function normalizeDate(raw) {
   if (!raw || typeof raw !== "string") return null;
-  const ddmmyyyy = raw.match(/^(\d{2})[./-](\d{2})[./-](\d{4})$/);
-  if (ddmmyyyy) return `${ddmmyyyy[1]}-${ddmmyyyy[2]}-${ddmmyyyy[3]}`;
+  const ddmmyyyy = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (ddmmyyyy) {
+    const day = String(Number(ddmmyyyy[1])).padStart(2, "0");
+    const month = String(Number(ddmmyyyy[2])).padStart(2, "0");
+    return `${day}-${month}-${ddmmyyyy[3]}`;
+  }
   const yyyymmdd = raw.match(/^(\d{4})[./-](\d{2})[./-](\d{2})/);
   if (yyyymmdd) return `${yyyymmdd[3]}-${yyyymmdd[2]}-${yyyymmdd[1]}`;
   return null;
