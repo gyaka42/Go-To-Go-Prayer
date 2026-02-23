@@ -411,18 +411,34 @@ struct PrayerWidgetEntryView: View {
   }
 
   private func countdownLabel(fontSize: CGFloat) -> some View {
+    let isTurkish = normalizedLanguage(localeTag: entry.localeTag) == "tr"
     HStack(spacing: 4) {
-      Text(localized("In", localeTag: entry.localeTag))
-        .font(.system(size: fontSize, weight: .semibold))
-        .foregroundStyle(.white.opacity(0.62))
-      if let target = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) {
-        Text(target, style: .timer)
-          .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
-          .foregroundStyle(.white.opacity(0.78))
+      if isTurkish {
+        if let target = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) {
+          Text(target, style: .timer)
+            .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.78))
+        } else {
+          Text("--:--:--")
+            .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.78))
+        }
+        Text(localized("In", localeTag: entry.localeTag))
+          .font(.system(size: fontSize, weight: .semibold))
+          .foregroundStyle(.white.opacity(0.62))
       } else {
-        Text("--:--:--")
-          .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
-          .foregroundStyle(.white.opacity(0.78))
+        Text(localized("In", localeTag: entry.localeTag))
+          .font(.system(size: fontSize, weight: .semibold))
+          .foregroundStyle(.white.opacity(0.62))
+        if let target = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) {
+          Text(target, style: .timer)
+            .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.78))
+        } else {
+          Text("--:--:--")
+            .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.78))
+        }
       }
     }
     .lineLimit(1)
@@ -685,7 +701,7 @@ private func localized(_ key: String, localeTag: String) -> String {
     if key == "Current" { return "Şu An" }
     if key == "Next" { return "Sonraki" }
     if key == "Upcoming" { return "Sıradaki" }
-    if key == "In" { return "kala" }
+    if key == "In" { return "Sonra" }
     if key == "Countdown" { return "Geri Sayım" }
     return key
   default:
