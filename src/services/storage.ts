@@ -166,6 +166,57 @@ export async function getLatestCachedTimings(): Promise<CachedTimings | null> {
   }
 }
 
+export async function getCachedTimingsForDate(
+  dateKey: string,
+  provider: "aladhan" | "diyanet",
+  methodId: number
+): Promise<CachedTimings | null> {
+  const prefix = `timings:${dateKey}:`;
+  const suffix = `:p${provider}:m${methodId}`;
+
+  const keys = (await AsyncStorage.getAllKeys()).filter(
+    (key) => key.startsWith(prefix) && key.endsWith(suffix)
+  );
+  if (keys.length === 0) {
+    return null;
+  }
+
+  const rows = await AsyncStorage.multiGet(keys);
+  let newest: CachedTimings | null = null;
+  for (const [, raw] of rows) {
+    if (!raw) {
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(raw) as CachedTimings;
+      if (parsed.timings?.dateKey !== dateKey) {
+        continue;
+      }
+      if (parsed.methodId !== methodId) {
+        continue;
+      }
+      if ((parsed.provider ?? "aladhan") !== provider) {
+        continue;
+      }
+
+      if (!newest) {
+        newest = parsed;
+        continue;
+      }
+
+      const currentTs = new Date(parsed.lastUpdated).getTime();
+      const newestTs = new Date(newest.lastUpdated).getTime();
+      if (Number.isFinite(currentTs) && (!Number.isFinite(newestTs) || currentTs > newestTs)) {
+        newest = parsed;
+      }
+    } catch {
+      // Ignore invalid cache rows.
+    }
+  }
+
+  return newest;
+}
+
 export function buildQiblaCacheKey(lat: number, lon: number): string {
   const latRounded = Number(lat.toFixed(2));
   const lonRounded = Number(lon.toFixed(2));

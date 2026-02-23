@@ -21,6 +21,7 @@ import { replanAll } from "@/services/notifications";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
 import { syncWidgetWithTimings } from "@/services/widgetBridge";
 import {
+  getCachedTimingsForDate,
   getHomeDateMode,
   getLatestCachedLocation,
   getLatestCachedTimings,
@@ -213,6 +214,36 @@ export default function HomeScreen() {
       if (isStale()) {
         return;
       }
+
+      const cachedTodayForDate = await getCachedTimingsForDate(
+        getDateKey(today),
+        savedSettings.timingsProvider,
+        savedSettings.methodId
+      );
+      const cachedTomorrowForDate = await getCachedTimingsForDate(
+        getDateKey(tomorrow),
+        savedSettings.timingsProvider,
+        savedSettings.methodId
+      );
+      if (cachedTodayForDate) {
+        if (isStale()) {
+          return;
+        }
+        setTimings(cachedTodayForDate.timings);
+        setTomorrowTimings(cachedTomorrowForDate?.timings ?? null);
+        setSource("cache");
+        setLastUpdated(cachedTodayForDate.lastUpdated);
+        setStatusMessage(t("home.cache_loaded"));
+        syncWidgetWithTimings({
+          today: cachedTodayForDate.timings,
+          tomorrow: cachedTomorrowForDate?.timings ?? null,
+          locationLabel: widgetLocationLabel,
+          localeTag
+        });
+        setLoadState("ready");
+        return;
+      }
+
       const latestCache = await getLatestCachedTimings();
       if (latestCache) {
         if (isStale()) {
