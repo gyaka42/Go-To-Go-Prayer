@@ -189,6 +189,8 @@ struct PrayerWidgetEntryView: View {
             .foregroundStyle(accent)
             .lineLimit(1)
 
+          countdownLabel(fontSize: 11)
+
           Spacer(minLength: 0)
 
           HStack(spacing: 4) {
@@ -215,8 +217,9 @@ struct PrayerWidgetEntryView: View {
       let isLarge = family == .systemLarge
       let leftWidth = geo.size.width * (isLarge ? 0.40 : 0.42)
       let leftTitleSize: CGFloat = isLarge ? 11 : 10
-      let leftPrayerSize: CGFloat = isLarge ? 50 : 42
-      let leftTimeSize: CGFloat = isLarge ? 34 : 28
+      let leftPrayerSize: CGFloat = isLarge ? 48 : 40
+      let leftTimeSize: CGFloat = isLarge ? 32 : 27
+      let leftCountdownSize: CGFloat = isLarge ? 15 : 13
       let rowFontSize: CGFloat = isLarge ? 14 : 13
       let rowIconSize: CGFloat = isLarge ? 12 : 11
       let rowHorizontalPadding: CGFloat = isLarge ? 8 : 6
@@ -247,6 +250,8 @@ struct PrayerWidgetEntryView: View {
               .font(.system(size: leftTimeSize, weight: .bold, design: .rounded))
               .foregroundStyle(accent)
               .lineLimit(1)
+
+            countdownLabel(fontSize: leftCountdownSize)
 
             Spacer(minLength: 0)
 
@@ -403,6 +408,25 @@ struct PrayerWidgetEntryView: View {
       )
     }
     return AnyView(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.clear))
+  }
+
+  private func countdownLabel(fontSize: CGFloat) -> some View {
+    HStack(spacing: 4) {
+      Text(localized("In", localeTag: entry.localeTag))
+        .font(.system(size: fontSize, weight: .semibold))
+        .foregroundStyle(.white.opacity(0.62))
+      if let target = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) {
+        Text(target, style: .timer)
+          .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
+          .foregroundStyle(.white.opacity(0.78))
+      } else {
+        Text("--:--:--")
+          .font(.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit())
+          .foregroundStyle(.white.opacity(0.78))
+      }
+    }
+    .lineLimit(1)
+    .minimumScaleFactor(0.8)
   }
 
   private func iconName(for prayer: String) -> String {
