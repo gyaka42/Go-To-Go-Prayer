@@ -189,7 +189,7 @@ struct PrayerWidgetEntryView: View {
             .foregroundStyle(accent)
             .lineLimit(1)
 
-          countdownLabel(fontSize: 11)
+          countdownLabel(fontSize: 11, turkishSpacing: 1)
 
           Spacer(minLength: 0)
 
@@ -251,7 +251,7 @@ struct PrayerWidgetEntryView: View {
               .foregroundStyle(accent)
               .lineLimit(1)
 
-            countdownLabel(fontSize: leftCountdownSize)
+            countdownLabel(fontSize: leftCountdownSize, turkishSpacing: isLarge ? 4 : 1)
 
             Spacer(minLength: 0)
 
@@ -410,9 +410,10 @@ struct PrayerWidgetEntryView: View {
     return AnyView(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.clear))
   }
 
-  private func countdownLabel(fontSize: CGFloat) -> some View {
+  private func countdownLabel(fontSize: CGFloat, turkishSpacing: CGFloat = 4) -> some View {
     let isTurkish = normalizedLanguage(localeTag: entry.localeTag) == "tr"
-    return HStack(spacing: 4) {
+    let spacing = isTurkish ? turkishSpacing : 4
+    return HStack(spacing: spacing) {
       if isTurkish {
         if let target = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) {
           Text(target, style: .timer)
