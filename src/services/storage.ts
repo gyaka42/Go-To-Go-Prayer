@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CachedLocation, CachedQibla, CachedTimings, PRAYER_NAMES, Settings } from "@/types/prayer";
+import { MosquesSettings } from "@/types/mosque";
 
 const SETTINGS_KEY = "settings:v1";
 const LATEST_CACHE_KEY = "timings:latest:v1";
@@ -7,6 +8,10 @@ const QIBLA_CACHE_PREFIX = "qibla";
 const LATEST_QIBLA_CACHE_KEY = "qibla:latest:v1";
 const LATEST_LOCATION_CACHE_KEY = "location:latest:v1";
 const HOME_DATE_MODE_KEY = "home:date_mode:v1";
+const MOSQUES_CACHE_PREFIX = "mosques:cache:v1";
+const MOSQUES_SETTINGS_KEY = "mosques:settings:v1";
+const MOSQUES_FAVORITES_KEY = "mosques:favorites:v1";
+const MOSQUES_DEFAULT_KEY = "mosques:default:v1";
 
 export type HomeDateMode = "gregorian" | "hijri";
 
@@ -281,4 +286,112 @@ export async function getHomeDateMode(): Promise<HomeDateMode> {
 
 export async function saveHomeDateMode(mode: HomeDateMode): Promise<void> {
   await AsyncStorage.setItem(HOME_DATE_MODE_KEY, mode);
+}
+
+export function buildMosquesCacheKey(lat: number, lon: number, radiusKm: number): string {
+  const latRounded = Number(lat.toFixed(2));
+  const lonRounded = Number(lon.toFixed(2));
+  const radiusRounded = Number(radiusKm.toFixed(2));
+  return `${MOSQUES_CACHE_PREFIX}:${latRounded}:${lonRounded}:${radiusRounded}`;
+}
+
+export async function getCachedJson<T>(key: string): Promise<T | null> {
+  const raw = await AsyncStorage.getItem(key);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCachedJson<T>(key: string, value: T): Promise<void> {
+  await AsyncStorage.setItem(key, JSON.stringify(value));
+}
+
+function createDefaultMosquesSettings(): MosquesSettings {
+  return {
+    radiusKm: 5,
+    travelMode: "walk"
+  };
+}
+
+export async function getMosquesSettings(): Promise<MosquesSettings> {
+  const raw = await AsyncStorage.getItem(MOSQUES_SETTINGS_KEY);
+  if (!raw) {
+    return createDefaultMosquesSettings();
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<MosquesSettings>;
+    const defaults = createDefaultMosquesSettings();
+    let radiusKm: MosquesSettings["radiusKm"] = defaults.radiusKm;
+    if (parsed.radiusKm === 2 || parsed.radiusKm === 5 || parsed.radiusKm === 10 || parsed.radiusKm === 20) {
+      radiusKm = parsed.radiusKm;
+    }
+
+    let travelMode: MosquesSettings["travelMode"] = defaults.travelMode;
+    if (parsed.travelMode === "walk" || parsed.travelMode === "drive") {
+      travelMode = parsed.travelMode;
+    }
+
+    return {
+      radiusKm,
+      travelMode
+    };
+  } catch {
+    return createDefaultMosquesSettings();
+  }
+}
+
+export async function saveMosquesSettings(value: MosquesSettings): Promise<void> {
+  await AsyncStorage.setItem(MOSQUES_SETTINGS_KEY, JSON.stringify(value));
+}
+
+export async function getMosquesFavorites(): Promise<string[]> {
+  const raw = await AsyncStorage.getItem(MOSQUES_FAVORITES_KEY);
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    return [];
+  }
+}
+
+export async function setMosquesFavorites(ids: string[]): Promise<void> {
+  const unique = Array.from(new Set(ids.filter((id) => typeof id === "string" && id.trim().length > 0)));
+  await AsyncStorage.setItem(MOSQUES_FAVORITES_KEY, JSON.stringify(unique));
+}
+
+export async function getDefaultMosqueId(): Promise<string | null> {
+  const raw = await AsyncStorage.getItem(MOSQUES_DEFAULT_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "string" && parsed.length > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setDefaultMosqueId(id: string | null): Promise<void> {
+  if (!id) {
+    await AsyncStorage.removeItem(MOSQUES_DEFAULT_KEY);
+    return;
+  }
+
+  await AsyncStorage.setItem(MOSQUES_DEFAULT_KEY, JSON.stringify(id));
 }

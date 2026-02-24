@@ -32,6 +32,7 @@ function RootNavigation() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="notifications" options={{ headerShown: false }} />
+        <Stack.Screen name="mosques" options={{ headerShown: false }} />
         <Stack.Screen name="alert/[prayer]" options={{ headerShown: false }} />
         <Stack.Screen name="methods" options={{ headerShown: false }} />
         <Stack.Screen name="tones" options={{ headerShown: false }} />
