@@ -662,19 +662,21 @@ private struct CountdownLockEntryView: View {
         }
         Spacer(minLength: 6)
         if let target = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) {
-          HStack(spacing: 3) {
+          HStack(spacing: 2) {
             if normalizedLanguage(localeTag: entry.localeTag) == "tr" {
               Text(target, style: .timer)
-                .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
+                .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
+                .layoutPriority(1)
               Text(localized("In", localeTag: entry.localeTag))
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
             } else {
               Text(localized("In", localeTag: entry.localeTag))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
               Text(target, style: .timer)
-                .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
+                .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+                .layoutPriority(1)
             }
           }
           .lineLimit(1)
