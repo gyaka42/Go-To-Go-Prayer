@@ -29,12 +29,14 @@ import { AppBackground } from "@/components/AppBackground";
 import { LanguageMode, useI18n } from "@/i18n/I18nProvider";
 import { replanAll } from "@/services/notifications";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
-import { getSettings, saveSettings } from "@/services/storage";
+import { getMosquesSettings, getSettings, saveMosquesSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { ThemeMode } from "@/theme/theme";
 import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
+import { MosquesSettings, TravelMode } from "@/types/mosque";
 
 const MINUTES_OPTIONS: Array<0 | 5 | 10 | 15 | 30> = [0, 5, 10, 15, 30];
+const MOSQUE_RADIUS_OPTIONS: Array<2 | 5 | 10 | 20> = [2, 5, 10, 20];
 
 function nextMinutes(current: 0 | 5 | 10 | 15 | 30): 0 | 5 | 10 | 15 | 30 {
   const index = MINUTES_OPTIONS.indexOf(current);
@@ -83,6 +85,7 @@ export default function SettingsScreen() {
   const [cityQuery, setCityQuery] = useState("");
   const [citySearchLoading, setCitySearchLoading] = useState(false);
   const [citySuggestions, setCitySuggestions] = useState<Array<{ label: string; lat: number; lon: number; query: string }>>([]);
+  const [mosquesSettings, setMosquesSettings] = useState<MosquesSettings>({ radiusKm: 5, travelMode: "walk" });
   const [showAppInfo, setShowAppInfo] = useState(false);
   const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? "Onbekend";
   const appBuild = Application.nativeBuildVersion ?? Constants.expoConfig?.ios?.buildNumber ?? "-";
@@ -90,6 +93,11 @@ export default function SettingsScreen() {
   const loadSettings = useCallback(async () => {
     const saved = await getSettings();
     setSettings(saved);
+  }, []);
+
+  const loadMosquesSettings = useCallback(async () => {
+    const saved = await getMosquesSettings();
+    setMosquesSettings(saved);
   }, []);
 
   const loadLocationLabel = useCallback(async () => {
@@ -104,14 +112,21 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void loadSettings();
-  }, [loadSettings]);
+    void loadMosquesSettings();
+  }, [loadSettings, loadMosquesSettings]);
 
   useFocusEffect(
     useCallback(() => {
       void loadSettings();
+      void loadMosquesSettings();
       void loadLocationLabel();
-    }, [loadLocationLabel, loadSettings])
+    }, [loadLocationLabel, loadMosquesSettings, loadSettings])
   );
+
+  const updateMosquesSettings = useCallback(async (next: MosquesSettings) => {
+    setMosquesSettings(next);
+    await saveMosquesSettings(next);
+  }, []);
 
   useEffect(() => {
     const query = cityQuery.trim();
@@ -513,6 +528,78 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t("settings.mosques_section")}</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={[styles.settingRowWithBorder, { borderBottomColor: colors.cardBorder }]}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconBox, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
+                  <Ionicons name="location-outline" size={20} color="#2B8CEE" />
+                </View>
+                <View>
+                  <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>{t("settings.mosques_title")}</Text>
+                  <Text style={[styles.settingSub, isLight ? { color: "#4E647C" } : null]}>
+                    {t("settings.mosques_subtitle")}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.mosqueSettingsBody}>
+              <Text style={[styles.mosqueFieldLabel, { color: colors.textSecondary }]}>{t("settings.mosques_radius")}</Text>
+              <View style={styles.mosqueOptionRow}>
+                {MOSQUE_RADIUS_OPTIONS.map((option) => {
+                  const selected = mosquesSettings.radiusKm === option;
+                  return (
+                    <Pressable
+                      key={option}
+                      style={[
+                        styles.mosqueOptionChip,
+                        { borderColor: colors.cardBorder },
+                        selected && { backgroundColor: colors.accent, borderColor: colors.accent }
+                      ]}
+                      onPress={() => void updateMosquesSettings({ ...mosquesSettings, radiusKm: option })}
+                    >
+                      <Text style={[styles.mosqueOptionText, { color: selected ? "#F2F8FF" : colors.textPrimary }]}>
+                        {option} km
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={[styles.mosqueFieldLabel, { color: colors.textSecondary }]}>{t("settings.mosques_travel_mode")}</Text>
+              <View style={styles.mosqueOptionRow}>
+                {(["walk", "drive"] as TravelMode[]).map((mode) => {
+                  const selected = mosquesSettings.travelMode === mode;
+                  const label = mode === "walk" ? t("settings.mosques_walk") : t("settings.mosques_drive");
+                  return (
+                    <Pressable
+                      key={mode}
+                      style={[
+                        styles.mosqueOptionChip,
+                        styles.mosqueModeChip,
+                        { borderColor: colors.cardBorder },
+                        selected && { backgroundColor: colors.accent, borderColor: colors.accent }
+                      ]}
+                      onPress={() => void updateMosquesSettings({ ...mosquesSettings, travelMode: mode })}
+                    >
+                      <Text style={[styles.mosqueOptionText, { color: selected ? "#F2F8FF" : colors.textPrimary }]}>
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Pressable
+                style={[styles.mosquesOpenButton, { backgroundColor: colors.accent }]}
+                onPress={() => router.push("/mosques" as never)}
+              >
+                <Text style={styles.mosquesOpenButtonText}>{t("settings.mosques_open")}</Text>
+              </Pressable>
+            </View>
+          </View>
+
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t("settings.notifications")}</Text>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <Pressable style={styles.settingRow} onPress={() => router.push("/notifications" as never)}>
@@ -884,6 +971,47 @@ const styles = StyleSheet.create({
     color: "#2B8CEE",
     fontWeight: "800",
     fontSize: 13
+  },
+  mosqueSettingsBody: {
+    padding: 14,
+    gap: 10
+  },
+  mosqueFieldLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.4
+  },
+  mosqueOptionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  mosqueOptionChip: {
+    minHeight: 38,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  mosqueModeChip: {
+    minWidth: 110
+  },
+  mosqueOptionText: {
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  mosquesOpenButton: {
+    marginTop: 4,
+    minHeight: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  mosquesOpenButtonText: {
+    color: "#F2F8FF",
+    fontSize: 14,
+    fontWeight: "700"
   },
   suggestionsLoadingWrap: {
     paddingVertical: 16,
