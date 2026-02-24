@@ -14,6 +14,7 @@ struct PrayerWidgetBundle: WidgetBundle {
         PrayerWidget()
         PrayerHijriNextLockWidget()
         PrayerCountdownLockWidget()
+        PrayerCityCountdownLockWidget()
         PrayerTodayFocusLockWidget()
     }
 }

@@ -578,6 +578,26 @@ struct PrayerCountdownLockWidget: Widget {
   }
 }
 
+struct PrayerCityCountdownLockWidget: Widget {
+  let kind: String = "PrayerCityCountdownLockWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: PrayerProvider()) { entry in
+      if #available(iOS 17.0, *) {
+        CityCountdownLockEntryView(entry: entry)
+          .containerBackground(for: .widget) {
+            Color.clear
+          }
+      } else {
+        CityCountdownLockEntryView(entry: entry)
+      }
+    }
+    .configurationDisplayName("City Countdown")
+    .description("Location, next prayer and live countdown on Lock Screen.")
+    .supportedFamilies(lockRectangularFamily)
+  }
+}
+
 struct PrayerTodayFocusLockWidget: Widget {
   let kind: String = "PrayerTodayFocusLockWidget"
 
@@ -729,9 +749,70 @@ private struct TodayFocusLockEntryView: View {
   }
 }
 
+private struct CityCountdownLockEntryView: View {
+  @Environment(\.widgetFamily) private var family
+  let entry: PrayerWidgetEntry
+
+  var body: some View {
+    switch family {
+    case .accessoryRectangular:
+      VStack(alignment: .leading, spacing: 2) {
+        Text(lockCityText(entry.location))
+          .font(.system(size: 10, weight: .medium))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+          Text(localizedPrayer(entry.nextPrayer, localeTag: entry.localeTag))
+            .font(.system(size: 17, weight: .bold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+          Text(entry.nextTime)
+            .font(.system(size: 17, weight: .regular, design: .rounded).monospacedDigit())
+            .lineLimit(1)
+        }
+
+        if let target = nextPrayerDate(nextTime: entry.nextTime, now: entry.date) {
+          HStack(spacing: 3) {
+            if normalizedLanguage(localeTag: entry.localeTag) == "tr" {
+              Text(target, style: .timer)
+                .font(.system(size: 14, weight: .semibold, design: .rounded).monospacedDigit())
+              Text(localized("In", localeTag: entry.localeTag))
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(.secondary)
+            } else {
+              Text(localized("In", localeTag: entry.localeTag))
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(.secondary)
+              Text(target, style: .timer)
+                .font(.system(size: 14, weight: .semibold, design: .rounded).monospacedDigit())
+            }
+          }
+          .lineLimit(1)
+          .minimumScaleFactor(0.75)
+        } else {
+          Text("\(countdownText(entry: entry)) \(localized("In", localeTag: entry.localeTag))")
+            .font(.system(size: 13, weight: .regular))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+        }
+      }
+    default:
+      EmptyView()
+    }
+  }
+}
+
 private var lockFamilies: [WidgetFamily] {
   if #available(iOS 16.0, *) {
     return [.accessoryInline, .accessoryCircular, .accessoryRectangular]
+  }
+  return []
+}
+
+private var lockRectangularFamily: [WidgetFamily] {
+  if #available(iOS 16.0, *) {
+    return [.accessoryRectangular]
   }
   return []
 }
@@ -802,6 +883,14 @@ private func normalizedLanguage(localeTag: String) -> String {
     return String(localeTag.prefix(2)).lowercased()
   }
   return String(Locale.current.identifier.prefix(2)).lowercased()
+}
+
+private func lockCityText(_ location: String) -> String {
+  let city = location
+    .split(separator: ",", maxSplits: 1, omittingEmptySubsequences: true)
+    .first
+    .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) } ?? location
+  return city.uppercased()
 }
 
 private func hijriDateText(from date: Date) -> String {
