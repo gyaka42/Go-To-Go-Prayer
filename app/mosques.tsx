@@ -14,7 +14,7 @@ import {
   TextInput,
   View
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getCurrentLocationDetails } from "@/services/location";
@@ -43,6 +43,24 @@ type MosqueListItem = Mosque & {
   isDefault: boolean;
 };
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const raw = hex.replace("#", "");
+  const normalized =
+    raw.length === 3
+      ? raw
+          .split("")
+          .map((part) => `${part}${part}`)
+          .join("")
+      : raw;
+
+  const int = Number.parseInt(normalized, 16);
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255
+  };
+}
+
 const FEASIBILITY_BUFFER_MIN = 10;
 const TRAVEL_SPEEDS_KMH: Record<MosquesSettings["travelMode"], number> = {
   walk: 5,
@@ -54,6 +72,7 @@ export default function MosquesScreen() {
   const params = useLocalSearchParams<{ filter?: string }>();
   const { localeTag, t } = useI18n();
   const { colors, resolvedTheme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const isLight = resolvedTheme === "light";
 
   const [state, setState] = useState<LoadState>("idle");
@@ -88,6 +107,42 @@ export default function MosquesScreen() {
 
   const speedKmH = TRAVEL_SPEEDS_KMH[mosquesSettings.travelMode];
   const modeLabel = mosquesSettings.travelMode === "walk" ? t("mosques.mode_walk") : t("mosques.mode_drive");
+  const listBottomPadding = insets.bottom + 96;
+  const bgRgb = useMemo(() => hexToRgb(colors.background), [colors.background]);
+  const topFadeLayers = useMemo(
+    () =>
+      [0.14, 0.1, 0.07, 0.05, 0.03, 0.02].map((alpha, index) => (
+        <View
+          key={`top-${index}`}
+          pointerEvents="none"
+          style={[
+            styles.edgeFadeStrip,
+            {
+              top: index * 3,
+              backgroundColor: `rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, ${alpha})`
+            }
+          ]}
+        />
+      )),
+    [bgRgb.b, bgRgb.g, bgRgb.r]
+  );
+  const bottomFadeLayers = useMemo(
+    () =>
+      [0.03, 0.05, 0.07, 0.1, 0.12, 0.15].map((alpha, index) => (
+        <View
+          key={`bottom-${index}`}
+          pointerEvents="none"
+          style={[
+            styles.edgeFadeStrip,
+            {
+              bottom: index * 3,
+              backgroundColor: `rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, ${alpha})`
+            }
+          ]}
+        />
+      )),
+    [bgRgb.b, bgRgb.g, bgRgb.r]
+  );
 
   const formatDistance = useCallback(
     (distanceKm: number) => {
@@ -311,25 +366,42 @@ export default function MosquesScreen() {
 
   const openInMaps = useCallback(async (mosque: Mosque) => {
     const label = encodeURIComponent(mosque.name);
-    const url = `http://maps.apple.com/?ll=${mosque.lat},${mosque.lon}&q=${label}`;
-    const supported = await Linking.canOpenURL(url);
-    if (!supported) {
+    const googleUrl = `comgooglemaps://?center=${mosque.lat},${mosque.lon}&q=${label}`;
+    const appleUrl = `http://maps.apple.com/?ll=${mosque.lat},${mosque.lon}&q=${label}`;
+
+    const googleSupported = await Linking.canOpenURL(googleUrl);
+    if (googleSupported) {
+      await Linking.openURL(googleUrl);
+      return;
+    }
+
+    const appleSupported = await Linking.canOpenURL(appleUrl);
+    if (!appleSupported) {
       Alert.alert(t("mosques.maps_alert_title"), t("mosques.maps_alert_body"));
       return;
     }
-    await Linking.openURL(url);
+    await Linking.openURL(appleUrl);
   }, [t]);
 
   const openRoute = useCallback(
     async (mosque: Mosque) => {
       const dirflg = mosquesSettings.travelMode === "walk" ? "w" : "d";
-      const url = `http://maps.apple.com/?daddr=${mosque.lat},${mosque.lon}&dirflg=${dirflg}`;
-      const supported = await Linking.canOpenURL(url);
-      if (!supported) {
+      const googleMode = mosquesSettings.travelMode === "walk" ? "walking" : "driving";
+      const googleUrl = `comgooglemaps://?daddr=${mosque.lat},${mosque.lon}&directionsmode=${googleMode}`;
+      const appleUrl = `http://maps.apple.com/?daddr=${mosque.lat},${mosque.lon}&dirflg=${dirflg}`;
+
+      const googleSupported = await Linking.canOpenURL(googleUrl);
+      if (googleSupported) {
+        await Linking.openURL(googleUrl);
+        return;
+      }
+
+      const appleSupported = await Linking.canOpenURL(appleUrl);
+      if (!appleSupported) {
         Alert.alert(t("mosques.route_alert_title"), t("mosques.route_alert_body"));
         return;
       }
-      await Linking.openURL(url);
+      await Linking.openURL(appleUrl);
     },
     [mosquesSettings.travelMode, t]
   );
@@ -499,64 +571,73 @@ export default function MosquesScreen() {
         ) : null}
 
         {state === "ready" ? (
-          <FlatList
-            data={mosqueItems}
-            keyExtractor={(item) => item.id}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContent}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadMosques(true)} tintColor="#2B8CEE" />}
-            ListHeaderComponent={
-              <View style={styles.listHeader}>
-                <View style={[styles.searchWrap, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
-                  <Ionicons name="search" size={18} color={isLight ? "#5E7894" : "#8AA1BC"} />
-                  <TextInput
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholder={t("mosques.search_placeholder")}
-                    placeholderTextColor={isLight ? "#7A8EA5" : "#7D93AE"}
-                    style={[styles.searchInput, { color: colors.textPrimary }]}
-                  />
-                  {searchQuery.length > 0 ? (
-                    <Pressable onPress={() => setSearchQuery("")}>
-                      <Ionicons name="close-circle" size={20} color={isLight ? "#768CA5" : "#8EA5C1"} />
-                    </Pressable>
-                  ) : null}
-                </View>
-                <View style={styles.filterRow}>
-                  <Pressable
-                    style={[
-                      styles.filterChip,
-                      { borderColor: colors.cardBorder, backgroundColor: colors.card },
-                      activeFilter === "all" ? { backgroundColor: colors.accent, borderColor: colors.accent } : null
-                    ]}
-                    onPress={() => setActiveFilter("all")}
-                  >
-                    <Text style={[styles.filterText, { color: activeFilter === "all" ? "#F2F8FF" : colors.textPrimary }]}>
-                      {t("mosques.filter_all")}
-                    </Text>
+          <>
+            <View style={styles.stickyControls}>
+              <View style={[styles.searchWrap, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+                <Ionicons name="search" size={18} color={isLight ? "#5E7894" : "#8AA1BC"} />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder={t("mosques.search_placeholder")}
+                  placeholderTextColor={isLight ? "#7A8EA5" : "#7D93AE"}
+                  style={[styles.searchInput, { color: colors.textPrimary }]}
+                />
+                {searchQuery.length > 0 ? (
+                  <Pressable onPress={() => setSearchQuery("")}>
+                    <Ionicons name="close-circle" size={20} color={isLight ? "#768CA5" : "#8EA5C1"} />
                   </Pressable>
-                  <Pressable
-                    style={[
-                      styles.filterChip,
-                      { borderColor: colors.cardBorder, backgroundColor: colors.card },
-                      activeFilter === "favorites" ? { backgroundColor: colors.accent, borderColor: colors.accent } : null
-                    ]}
-                    onPress={() => setActiveFilter("favorites")}
-                  >
-                    <Text style={[styles.filterText, { color: activeFilter === "favorites" ? "#F2F8FF" : colors.textPrimary }]}>
-                      {t("mosques.filter_favorites")}
-                    </Text>
-                  </Pressable>
-                </View>
+                ) : null}
               </View>
-            }
-            ListEmptyComponent={
-              <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                <Text style={[styles.infoBody, { color: colors.textSecondary }]}>{listEmptyText}</Text>
+              <View style={styles.filterRow}>
+                <Pressable
+                  style={[
+                    styles.filterChip,
+                    { borderColor: colors.cardBorder, backgroundColor: colors.card },
+                    activeFilter === "all" ? { backgroundColor: colors.accent, borderColor: colors.accent } : null
+                  ]}
+                  onPress={() => setActiveFilter("all")}
+                >
+                  <Text style={[styles.filterText, { color: activeFilter === "all" ? "#F2F8FF" : colors.textPrimary }]}>
+                    {t("mosques.filter_all")}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.filterChip,
+                    { borderColor: colors.cardBorder, backgroundColor: colors.card },
+                    activeFilter === "favorites" ? { backgroundColor: colors.accent, borderColor: colors.accent } : null
+                  ]}
+                  onPress={() => setActiveFilter("favorites")}
+                >
+                  <Text style={[styles.filterText, { color: activeFilter === "favorites" ? "#F2F8FF" : colors.textPrimary }]}>
+                    {t("mosques.filter_favorites")}
+                  </Text>
+                </Pressable>
               </View>
-            }
-            renderItem={renderCard}
-          />
+            </View>
+
+            <View style={styles.listViewport}>
+              <FlatList
+                data={mosqueItems}
+                keyExtractor={(item) => item.id}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadMosques(true)} tintColor="#2B8CEE" />}
+                ListEmptyComponent={
+                  <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                    <Text style={[styles.infoBody, { color: colors.textSecondary }]}>{listEmptyText}</Text>
+                  </View>
+                }
+                renderItem={renderCard}
+              />
+              <View pointerEvents="none" style={styles.edgeFadeTop}>
+                {topFadeLayers}
+              </View>
+              <View pointerEvents="none" style={styles.edgeFadeBottom}>
+                {bottomFadeLayers}
+              </View>
+            </View>
+          </>
         ) : null}
       </View>
     </SafeAreaView>
@@ -624,9 +705,13 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: 14
   },
-  listHeader: {
+  stickyControls: {
     marginTop: 12,
     marginBottom: 6
+  },
+  listViewport: {
+    flex: 1,
+    position: "relative"
   },
   searchWrap: {
     minHeight: 44,
@@ -702,8 +787,27 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   listContent: {
-    gap: 12,
-    paddingBottom: 30
+    gap: 12
+  },
+  edgeFadeTop: {
+    position: "absolute",
+    top: 0,
+    left: -4,
+    right: -4,
+    height: 18
+  },
+  edgeFadeBottom: {
+    position: "absolute",
+    bottom: 0,
+    left: -4,
+    right: -4,
+    height: 22
+  },
+  edgeFadeStrip: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 3
   },
   mosqueCard: {
     borderRadius: 14,

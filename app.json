@@ -27,6 +27,7 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Je locatie wordt gebruikt om nauwkeurige gebedstijden te berekenen.",
         "NSUserNotificationsUsageDescription": "Meldingen worden gebruikt om je op gebedstijden te attenderen.",
+        "LSApplicationQueriesSchemes": ["comgooglemaps"],
         "ITSAppUsesNonExemptEncryption": false
       }
     },
