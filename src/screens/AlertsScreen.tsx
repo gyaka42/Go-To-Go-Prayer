@@ -10,7 +10,11 @@ import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
 
-export default function AlertsScreen() {
+type AlertsScreenProps = {
+  showBackButton?: boolean;
+};
+
+export default function AlertsScreen({ showBackButton = false }: AlertsScreenProps) {
   const router = useRouter();
   const { colors, resolvedTheme } = useAppTheme();
   const { t, prayerName } = useI18n();
@@ -53,6 +57,17 @@ export default function AlertsScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <AppBackground />
+        {showBackButton ? (
+          <View style={styles.headerRow}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={8}
+              style={[styles.backButton, isLight ? styles.backButtonLight : null]}
+            >
+              <Ionicons name="chevron-back" size={20} color={isLight ? "#5B7490" : "#B7C7DD"} />
+            </Pressable>
+          </View>
+        ) : null}
         <Text style={[styles.title, { color: colors.textPrimary }]}>{t("alerts.title")}</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           {t("alerts.subtitle")}
@@ -114,6 +129,25 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     paddingHorizontal: 20,
     paddingTop: 14
+  },
+  headerRow: {
+    height: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4
+  },
+  backButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(26, 45, 66, 0.9)"
+  },
+  backButtonLight: {
+    backgroundColor: "#E7F0FA",
+    borderWidth: 1,
+    borderColor: "#C2D5E9"
   },
   title: {
     fontSize: 30,

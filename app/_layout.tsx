@@ -31,6 +31,7 @@ function RootNavigation() {
       <StatusBar style={resolvedTheme === "dark" ? "light" : "dark"} />
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="notifications" options={{ headerShown: false }} />
         <Stack.Screen name="alert/[prayer]" options={{ headerShown: false }} />
         <Stack.Screen name="methods" options={{ headerShown: false }} />
         <Stack.Screen name="tones" options={{ headerShown: false }} />

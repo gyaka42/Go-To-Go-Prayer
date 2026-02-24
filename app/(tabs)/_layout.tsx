@@ -1,6 +1,6 @@
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { StyleSheet, View } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme } from "@/theme/ThemeProvider";
@@ -73,8 +73,22 @@ export default function TabsLayout() {
                 solid={focused}
               />
             );
-          } else if (route.name === "alerts") {
-            iconName = focused ? "notifications" : "notifications-outline";
+          } else if (route.name === "menu") {
+            return (
+              <Image
+                source={require("../../assets/images/MenuMore.png")}
+                style={[
+                  styles.menuIcon,
+                  {
+                    width: Math.max(size + 1, 22),
+                    height: Math.max(size + 1, 22),
+                    opacity: focused ? 1 : 0.82,
+                    tintColor: color
+                  }
+                ]}
+                resizeMode="contain"
+              />
+            );
           } else if (route.name === "settings") {
             iconName = focused ? "settings" : "settings-outline";
           } else {
@@ -97,9 +111,9 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="alerts"
+        name="menu"
         options={{
-          title: t("tabs.alerts")
+          title: t("tabs.menu")
         }}
       />
       <Tabs.Screen
@@ -120,5 +134,8 @@ const styles = StyleSheet.create({
   },
   glassOverlay: {
     ...StyleSheet.absoluteFillObject
+  },
+  menuIcon: {
+    tintColor: "#8EA4BF"
   }
 });

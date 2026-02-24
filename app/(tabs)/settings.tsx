@@ -513,8 +513,23 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t("settings.notifications")}</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Pressable style={styles.settingRow} onPress={() => router.push("/notifications" as never)}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconBox, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
+                  <Ionicons name="notifications" size={20} color="#2B8CEE" />
+                </View>
+                <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>
+                  {t("settings.manage_alerts")}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
+            </Pressable>
+          </View>
+
           <View style={styles.notificationHeader}>
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t("settings.notifications")}</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t("settings.prayer_notifications")}</Text>
             <Text style={[styles.minutesBeforeLabel, isLight ? { color: "#607890" } : null]}>
               {t("settings.minutes_before")}
             </Text>

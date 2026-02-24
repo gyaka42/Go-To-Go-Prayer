@@ -472,7 +472,7 @@ export default function HomeScreen() {
 
             <Pressable
               style={[styles.reminderButton, isCompact && styles.reminderButtonCompact]}
-              onPress={() => router.push("/(tabs)/alerts")}
+              onPress={() => router.push("/notifications" as never)}
             >
               <Ionicons name="notifications-outline" size={18} color="#1F7FE1" />
               <Text style={[styles.reminderButtonText, isCompact && styles.reminderButtonTextCompact]} numberOfLines={1}>
