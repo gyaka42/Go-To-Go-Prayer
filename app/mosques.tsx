@@ -367,20 +367,24 @@ export default function MosquesScreen() {
   const openInMaps = useCallback(async (mosque: Mosque) => {
     const label = encodeURIComponent(mosque.name);
     const googleUrl = `comgooglemaps://?center=${mosque.lat},${mosque.lon}&q=${label}`;
-    const appleUrl = `http://maps.apple.com/?ll=${mosque.lat},${mosque.lon}&q=${label}`;
+    const appleUrl = `https://maps.apple.com/?ll=${mosque.lat},${mosque.lon}&q=${label}`;
 
-    const googleSupported = await Linking.canOpenURL(googleUrl);
-    if (googleSupported) {
-      await Linking.openURL(googleUrl);
-      return;
+    try {
+      const googleSupported = await Linking.canOpenURL(googleUrl);
+      if (googleSupported) {
+        await Linking.openURL(googleUrl);
+        return;
+      }
+    } catch {
+      // Ignore and fallback to Apple Maps.
     }
 
-    const appleSupported = await Linking.canOpenURL(appleUrl);
-    if (!appleSupported) {
+    try {
+      await Linking.openURL(appleUrl);
+      return;
+    } catch {
       Alert.alert(t("mosques.maps_alert_title"), t("mosques.maps_alert_body"));
-      return;
     }
-    await Linking.openURL(appleUrl);
   }, [t]);
 
   const openRoute = useCallback(
@@ -388,20 +392,24 @@ export default function MosquesScreen() {
       const dirflg = mosquesSettings.travelMode === "walk" ? "w" : "d";
       const googleMode = mosquesSettings.travelMode === "walk" ? "walking" : "driving";
       const googleUrl = `comgooglemaps://?daddr=${mosque.lat},${mosque.lon}&directionsmode=${googleMode}`;
-      const appleUrl = `http://maps.apple.com/?daddr=${mosque.lat},${mosque.lon}&dirflg=${dirflg}`;
+      const appleUrl = `https://maps.apple.com/?daddr=${mosque.lat},${mosque.lon}&dirflg=${dirflg}`;
 
-      const googleSupported = await Linking.canOpenURL(googleUrl);
-      if (googleSupported) {
-        await Linking.openURL(googleUrl);
-        return;
+      try {
+        const googleSupported = await Linking.canOpenURL(googleUrl);
+        if (googleSupported) {
+          await Linking.openURL(googleUrl);
+          return;
+        }
+      } catch {
+        // Ignore and fallback to Apple Maps.
       }
 
-      const appleSupported = await Linking.canOpenURL(appleUrl);
-      if (!appleSupported) {
+      try {
+        await Linking.openURL(appleUrl);
+        return;
+      } catch {
         Alert.alert(t("mosques.route_alert_title"), t("mosques.route_alert_body"));
-        return;
       }
-      await Linking.openURL(appleUrl);
     },
     [mosquesSettings.travelMode, t]
   );
