@@ -370,11 +370,8 @@ export default function MosquesScreen() {
     const appleUrl = `https://maps.apple.com/?ll=${mosque.lat},${mosque.lon}&q=${label}`;
 
     try {
-      const googleSupported = await Linking.canOpenURL(googleUrl);
-      if (googleSupported) {
-        await Linking.openURL(googleUrl);
-        return;
-      }
+      await Linking.openURL(googleUrl);
+      return;
     } catch {
       // Ignore and fallback to Apple Maps.
     }
@@ -395,11 +392,8 @@ export default function MosquesScreen() {
       const appleUrl = `https://maps.apple.com/?daddr=${mosque.lat},${mosque.lon}&dirflg=${dirflg}`;
 
       try {
-        const googleSupported = await Linking.canOpenURL(googleUrl);
-        if (googleSupported) {
-          await Linking.openURL(googleUrl);
-          return;
-        }
+        await Linking.openURL(googleUrl);
+        return;
       } catch {
         // Ignore and fallback to Apple Maps.
       }
