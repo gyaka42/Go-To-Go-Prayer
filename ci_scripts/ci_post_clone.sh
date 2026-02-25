@@ -58,6 +58,23 @@ ensure_node_in_path() {
   return 1
 }
 
+install_node_with_brew_fallback() {
+  if ! command -v brew >/dev/null 2>&1; then
+    return 1
+  fi
+
+  echo "==> node/npm still missing, installing with Homebrew fallback"
+  if run_with_heartbeat "brew install node@20" brew install node@20; then
+    :
+  elif run_with_heartbeat "brew install node" brew install node; then
+    :
+  else
+    return 1
+  fi
+
+  ensure_node_in_path
+}
+
 echo "==> ci_post_clone: start"
 echo "==> working dir: ${WORKDIR}"
 echo "==> PATH: ${PATH}"
@@ -66,8 +83,8 @@ cd "${WORKDIR}"
 
 if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
   echo "==> node/npm not found in current PATH, probing known locations"
-  if ! ensure_node_in_path; then
-    echo "==> ERROR: node/npm not available on runner; aborting without Homebrew install to avoid CI timeout."
+  if ! ensure_node_in_path && ! install_node_with_brew_fallback; then
+    echo "==> ERROR: node/npm unavailable after Homebrew fallback."
     exit 1
   fi
 fi
