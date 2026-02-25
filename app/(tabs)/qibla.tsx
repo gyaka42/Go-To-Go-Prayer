@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { AppBackground } from "@/components/AppBackground";
 import { QiblaCompass } from "@/components/QiblaCompass";
+import { useCompassConfidence } from "@/hooks/useCompassConfidence";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getLocationName, resolveLocationForSettings } from "@/services/location";
 import { getQiblaCompassImageUrl, getQiblaDirection } from "@/services/qibla";
@@ -42,6 +43,7 @@ function shortestDiff(a: number, b: number): number {
 export default function QiblaScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t } = useI18n();
+  const isFocused = useIsFocused();
   const isLight = resolvedTheme === "light";
   const [bearing, setBearing] = useState<number | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
@@ -205,6 +207,23 @@ export default function QiblaScreen() {
     return "fallback";
   }, [deviceHeading, headingAvailable, headingStable]);
 
+  const confidenceHeading = typeof deviceHeading === "number" ? deviceHeading : null;
+  const confidenceEnabled = isFocused && headingAvailable && confidenceHeading !== null;
+  const confidence = useCompassConfidence({
+    headingDeg: confidenceHeading,
+    enabled: confidenceEnabled
+  });
+
+  const confidenceLabel = useMemo(() => {
+    if (confidence.status === "good") {
+      return t("qibla.confidence.goodLabel");
+    }
+    if (confidence.status === "bad") {
+      return t("qibla.confidence.badLabel");
+    }
+    return t("qibla.confidence.mehLabel");
+  }, [confidence.status, t]);
+
   const fallbackImageUrl = useMemo(() => {
     if (!coords) {
       return null;
@@ -328,6 +347,54 @@ export default function QiblaScreen() {
                 <Text style={[styles.badgeText, isLight ? { color: "#274462" } : null]}>
                   {mode === "live" ? t("qibla.live_on") : t("qibla.live_off")}
                 </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.confidenceCard,
+                  isLight
+                    ? { borderColor: "#C7DAEE", backgroundColor: "#EEF6FF" }
+                    : null
+                ]}
+              >
+                <View style={styles.confidenceHeader}>
+                  <Text style={[styles.confidenceTitle, isLight ? { color: "#173A59" } : null]}>
+                    {t("qibla.confidence.title")}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.confidenceLabel,
+                      confidence.status === "good"
+                        ? isLight
+                          ? { color: "#1D7A48" }
+                          : { color: "#8CE2B1" }
+                        : confidence.status === "bad"
+                          ? isLight
+                            ? { color: "#AD334D" }
+                            : { color: "#FF9AB0" }
+                          : isLight
+                            ? { color: "#8A6A2B" }
+                            : { color: "#FFD89A" }
+                    ]}
+                  >
+                    {confidenceLabel}
+                  </Text>
+                </View>
+                <Text style={[styles.confidenceTip, isLight ? { color: "#355777" } : null]}>
+                  {t(confidence.messageKey)}
+                </Text>
+                {__DEV__ ? (
+                  <Text style={[styles.confidenceDebug, isLight ? { color: "#56708B" } : null]}>
+                    Field:{" "}
+                    {typeof confidence.fieldStrength === "number"
+                      ? `${confidence.fieldStrength.toFixed(1)} uT`
+                      : "--"}{" "}
+                    • Std:{" "}
+                    {typeof confidence.headingStdDev === "number"
+                      ? `${confidence.headingStdDev.toFixed(1)}deg`
+                      : "--"}
+                  </Text>
+                ) : null}
               </View>
 
               {isCached ? (
@@ -490,6 +557,41 @@ const styles = StyleSheet.create({
     color: "#E8F2FF",
     fontSize: 13,
     fontWeight: "700"
+  },
+  confidenceCard: {
+    marginTop: 12,
+    width: "100%",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#244460",
+    backgroundColor: "#13283A",
+    padding: 14
+  },
+  confidenceHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12
+  },
+  confidenceTitle: {
+    color: "#E8F2FF",
+    fontWeight: "800",
+    fontSize: 15
+  },
+  confidenceLabel: {
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  confidenceTip: {
+    marginTop: 8,
+    color: "#B8CCE2",
+    fontSize: 13,
+    lineHeight: 18
+  },
+  confidenceDebug: {
+    marginTop: 8,
+    color: "#8FA9C5",
+    fontSize: 11
   },
   cachedText: {
     marginTop: 8,
