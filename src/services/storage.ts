@@ -12,8 +12,27 @@ const MOSQUES_CACHE_PREFIX = "mosques:cache:v1";
 const MOSQUES_SETTINGS_KEY = "mosques:settings:v1";
 const MOSQUES_FAVORITES_KEY = "mosques:favorites:v1";
 const MOSQUES_DEFAULT_KEY = "mosques:default:v1";
+const ZIKR_STATE_KEY = "zikr:state:v2";
+const ZIKR_STATE_V1_KEY = "zikr:state:v1";
+const ZIKR_SETTINGS_KEY = "zikr:settings:v1";
 
 export type HomeDateMode = "gregorian" | "hijri";
+export type ZikrKey = "subhanallah" | "alhamdulillah" | "allahuakbar" | "la_ilaha_illallah" | "custom";
+export type ZikrEntry = {
+  count: number;
+  target: number;
+  updatedAt: number;
+  label?: string;
+  subtitle?: string;
+};
+export type ZikrState = {
+  activeKey: ZikrKey;
+  entries: Record<ZikrKey, ZikrEntry>;
+  updatedAt: number;
+};
+export type ZikrSettings = {
+  hapticsEnabled: boolean;
+};
 
 function createDefaultSettings(): Settings {
   return {
@@ -394,4 +413,159 @@ export async function setDefaultMosqueId(id: string | null): Promise<void> {
   }
 
   await AsyncStorage.setItem(MOSQUES_DEFAULT_KEY, JSON.stringify(id));
+}
+
+function createDefaultZikrState(): ZikrState {
+  const now = Date.now();
+  return {
+    activeKey: "subhanallah",
+    entries: {
+      subhanallah: { count: 0, target: 33, updatedAt: now },
+      alhamdulillah: { count: 0, target: 33, updatedAt: now },
+      allahuakbar: { count: 0, target: 34, updatedAt: now },
+      la_ilaha_illallah: { count: 0, target: 100, updatedAt: now },
+      custom: { count: 0, target: 100, updatedAt: now, label: "Custom", subtitle: "" }
+    },
+    updatedAt: now
+  };
+}
+
+export async function getZikrState(): Promise<ZikrState> {
+  const defaults = createDefaultZikrState();
+  const rawV2 = await AsyncStorage.getItem(ZIKR_STATE_KEY);
+  if (rawV2) {
+    try {
+      const parsed = JSON.parse(rawV2) as Partial<ZikrState>;
+      return sanitizeZikrState(parsed, defaults);
+    } catch {
+      return defaults;
+    }
+  }
+
+  const rawV1 = await AsyncStorage.getItem(ZIKR_STATE_V1_KEY);
+  if (!rawV1) {
+    return defaults;
+  }
+
+  try {
+    const parsedV1 = JSON.parse(rawV1) as Partial<{
+      count: number;
+      target: number;
+      zikrKey: string;
+      updatedAt: number;
+    }>;
+    const migrated = migrateV1ToV2(parsedV1, defaults);
+    await saveZikrState(migrated);
+    return migrated;
+  } catch {
+    return defaults;
+  }
+}
+
+export async function saveZikrState(state: ZikrState): Promise<void> {
+  const sanitized = sanitizeZikrState(state, createDefaultZikrState());
+  await AsyncStorage.setItem(
+    ZIKR_STATE_KEY,
+    JSON.stringify(sanitized)
+  );
+}
+
+function isZikrKey(value: string): value is ZikrKey {
+  return (
+    value === "subhanallah" ||
+    value === "alhamdulillah" ||
+    value === "allahuakbar" ||
+    value === "la_ilaha_illallah" ||
+    value === "custom"
+  );
+}
+
+function sanitizeZikrEntry(value: Partial<ZikrEntry> | undefined, fallback: ZikrEntry): ZikrEntry {
+  return {
+    count: typeof value?.count === "number" && value.count >= 0 ? Math.floor(value.count) : fallback.count,
+    target: typeof value?.target === "number" && value.target > 0 ? Math.floor(value.target) : fallback.target,
+    updatedAt:
+      typeof value?.updatedAt === "number" && Number.isFinite(value.updatedAt) ? value.updatedAt : fallback.updatedAt,
+    label: typeof value?.label === "string" && value.label.trim().length > 0 ? value.label.trim() : fallback.label,
+    subtitle: typeof value?.subtitle === "string" ? value.subtitle.trim() : fallback.subtitle
+  };
+}
+
+function sanitizeZikrState(value: Partial<ZikrState>, defaults: ZikrState): ZikrState {
+  const activeKey =
+    typeof value.activeKey === "string" && isZikrKey(value.activeKey) ? value.activeKey : defaults.activeKey;
+
+  const entries: Record<ZikrKey, ZikrEntry> = {
+    subhanallah: sanitizeZikrEntry(value.entries?.subhanallah, defaults.entries.subhanallah),
+    alhamdulillah: sanitizeZikrEntry(value.entries?.alhamdulillah, defaults.entries.alhamdulillah),
+    allahuakbar: sanitizeZikrEntry(value.entries?.allahuakbar, defaults.entries.allahuakbar),
+    la_ilaha_illallah: sanitizeZikrEntry(value.entries?.la_ilaha_illallah, defaults.entries.la_ilaha_illallah),
+    custom: sanitizeZikrEntry(value.entries?.custom, defaults.entries.custom)
+  };
+
+  return {
+    activeKey,
+    entries,
+    updatedAt:
+      typeof value.updatedAt === "number" && Number.isFinite(value.updatedAt) ? value.updatedAt : Date.now()
+  };
+}
+
+function migrateV1ToV2(
+  v1: Partial<{ count: number; target: number; zikrKey: string; updatedAt: number }>,
+  defaults: ZikrState
+): ZikrState {
+  const migrated: ZikrState = {
+    ...defaults,
+    entries: {
+      ...defaults.entries
+    }
+  };
+
+  const activeKey = typeof v1.zikrKey === "string" && isZikrKey(v1.zikrKey) ? v1.zikrKey : defaults.activeKey;
+  const fallbackEntry = migrated.entries[activeKey];
+  migrated.entries[activeKey] = sanitizeZikrEntry(
+    {
+      count: v1.count,
+      target: v1.target,
+      updatedAt: v1.updatedAt
+    },
+    fallbackEntry
+  );
+  migrated.activeKey = activeKey;
+  migrated.updatedAt = Date.now();
+  return migrated;
+}
+
+function createDefaultZikrSettings(): ZikrSettings {
+  return {
+    hapticsEnabled: true
+  };
+}
+
+export async function getZikrSettings(): Promise<ZikrSettings> {
+  const raw = await AsyncStorage.getItem(ZIKR_SETTINGS_KEY);
+  const defaults = createDefaultZikrSettings();
+  if (!raw) {
+    return defaults;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<ZikrSettings>;
+    return {
+      hapticsEnabled:
+        typeof parsed.hapticsEnabled === "boolean" ? parsed.hapticsEnabled : defaults.hapticsEnabled
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+export async function saveZikrSettings(settings: ZikrSettings): Promise<void> {
+  await AsyncStorage.setItem(
+    ZIKR_SETTINGS_KEY,
+    JSON.stringify({
+      hapticsEnabled: Boolean(settings.hapticsEnabled)
+    })
+  );
 }

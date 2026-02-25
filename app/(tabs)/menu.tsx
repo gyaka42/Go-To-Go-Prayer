@@ -50,6 +50,22 @@ export default function MenuScreen() {
           </View>
           <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
         </Pressable>
+
+        <Pressable
+          style={[styles.menuCard, styles.menuCardSpaced, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+          onPress={() => router.push("/zikr" as never)}
+        >
+          <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
+            <Ionicons name="infinite-outline" size={20} color="#2B8CEE" />
+          </View>
+          <View style={styles.cardTextWrap}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.zikr.title")}</Text>
+            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+              {t("menu.zikr.subtitle")}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
+        </Pressable>
       </View>
     </SafeAreaView>
   );
