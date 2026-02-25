@@ -9,6 +9,55 @@ fi
 export HOMEBREW_NO_AUTO_UPDATE=1
 export HOMEBREW_NO_INSTALL_CLEANUP=1
 
+run_with_heartbeat() {
+  local label="$1"
+  shift
+  echo "==> ${label}: start"
+  "$@" &
+  local cmd_pid=$!
+  while kill -0 "${cmd_pid}" 2>/dev/null; do
+    sleep 60
+    if kill -0 "${cmd_pid}" 2>/dev/null; then
+      echo "==> ${label}: still running..."
+    fi
+  done
+  wait "${cmd_pid}"
+  local status=$?
+  echo "==> ${label}: done (exit ${status})"
+  return "${status}"
+}
+
+ensure_node_in_path() {
+  local candidate
+  for candidate in \
+    "/opt/homebrew/bin" \
+    "/usr/local/bin" \
+    "/opt/homebrew/opt/node/bin" \
+    "/opt/homebrew/opt/node@20/bin" \
+    "/opt/homebrew/opt/node@22/bin"
+  do
+    if [ -x "${candidate}/node" ] && [ -x "${candidate}/npm" ]; then
+      export PATH="${candidate}:${PATH}"
+      return 0
+    fi
+  done
+
+  if command -v brew >/dev/null 2>&1; then
+    for formula in node node@20 node@22; do
+      if brew list --versions "${formula}" >/dev/null 2>&1; then
+        local prefix
+        prefix="$(brew --prefix "${formula}")"
+        if [ -x "${prefix}/bin/node" ] && [ -x "${prefix}/bin/npm" ]; then
+          export PATH="${prefix}/bin:${PATH}"
+          return 0
+        fi
+      fi
+    done
+  fi
+
+  return 1
+}
+
 echo "==> ci_post_clone: start"
 echo "==> working dir: ${WORKDIR}"
 echo "==> PATH: ${PATH}"
@@ -16,23 +65,10 @@ echo "==> PATH: ${PATH}"
 cd "${WORKDIR}"
 
 if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
-  echo "==> node/npm not found, trying Homebrew fallback install"
-  if ! command -v brew >/dev/null 2>&1; then
-    echo "==> ERROR: brew not found; cannot install node."
+  echo "==> node/npm not found in current PATH, probing known locations"
+  if ! ensure_node_in_path; then
+    echo "==> ERROR: node/npm not available on runner; aborting without Homebrew install to avoid CI timeout."
     exit 1
-  fi
-
-  if brew list --versions node >/dev/null 2>&1; then
-    export PATH="$(brew --prefix node)/bin:${PATH}"
-  elif brew list --versions node@20 >/dev/null 2>&1; then
-    export PATH="$(brew --prefix node@20)/bin:${PATH}"
-  else
-    brew install node || brew install node@20
-    if brew list --versions node >/dev/null 2>&1; then
-      export PATH="$(brew --prefix node)/bin:${PATH}"
-    elif brew list --versions node@20 >/dev/null 2>&1; then
-      export PATH="$(brew --prefix node@20)/bin:${PATH}"
-    fi
   fi
 fi
 
@@ -45,9 +81,9 @@ echo "==> Node: $(node -v || true)"
 echo "==> NPM: $(npm -v || true)"
 
 echo "==> Installing JS dependencies"
-if ! npm ci --include=dev; then
+if ! run_with_heartbeat "npm ci" npm ci --include=dev; then
   echo "==> npm ci failed, retrying with npm install"
-  npm install --include=dev
+  run_with_heartbeat "npm install" npm install --include=dev
 fi
 
 echo "==> Installing CocoaPods dependencies"
@@ -75,9 +111,9 @@ find . -name "*.pbxproj" -print0 | while IFS= read -r -d '' f; do
 done
 echo "==> objectVersion values after patch:"
 grep -R "objectVersion =" . --include="*.pbxproj" || true
-if ! pod install; then
+if ! run_with_heartbeat "pod install" pod install; then
   echo "==> pod install failed, retrying with --repo-update"
-  pod install --repo-update
+  run_with_heartbeat "pod install --repo-update" pod install --repo-update
 fi
 
 echo "==> ci_post_clone: done"
