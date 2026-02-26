@@ -2,6 +2,7 @@ import { PrayerName, Timings } from "@/types/prayer";
 
 const REQUIRED_PRAYERS: PrayerName[] = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
 const DEFAULT_DIYANET_PROXY_URL = "https://go-to-go-prayer-production.up.railway.app";
+const runtimeCityIdByLocation = new Map<string, number>();
 
 type ProxyTimingsResponse = {
   dateKey?: unknown;
@@ -99,6 +100,15 @@ function toFiniteNumber(raw: unknown): number | null {
   return null;
 }
 
+function locationRuntimeKey(lat: number, lon: number, cityHint?: string): string {
+  const latRounded = Number(lat.toFixed(2));
+  const lonRounded = Number(lon.toFixed(2));
+  const hint = String(cityHint || "")
+    .trim()
+    .toLowerCase();
+  return `${latRounded}|${lonRounded}|${hint}`;
+}
+
 export async function getTimingsByCoordinates(
   date: Date,
   lat: number,
@@ -107,6 +117,7 @@ export async function getTimingsByCoordinates(
 ): Promise<Timings> {
   const baseUrlRaw = process.env.EXPO_PUBLIC_DIYANET_PROXY_URL?.trim() || DEFAULT_DIYANET_PROXY_URL;
 
+  const runtimeKey = locationRuntimeKey(lat, lon, cityHint);
   const dateKey = toDateKey(date);
   const baseUrl = normalizeProxyBaseUrl(baseUrlRaw);
   const url = new URL(`${baseUrl}/timings`);
@@ -127,8 +138,10 @@ export async function getTimingsByCoordinates(
   }
 
   const forcedCityId = toFiniteNumber(process.env.EXPO_PUBLIC_DIYANET_FORCE_CITY_ID);
-  if (forcedCityId && forcedCityId > 0) {
-    url.searchParams.set("cityId", String(forcedCityId));
+  const runtimeCityId = runtimeCityIdByLocation.get(runtimeKey) ?? null;
+  const cityIdToUse = forcedCityId && forcedCityId > 0 ? forcedCityId : runtimeCityId;
+  if (cityIdToUse && cityIdToUse > 0) {
+    url.searchParams.set("cityId", String(cityIdToUse));
   }
 
   const response = await fetch(url.toString(), {
@@ -149,8 +162,13 @@ export async function getTimingsByCoordinates(
     throw new Error("Diyanet proxy response is missing one or more prayer times.");
   }
 
+  const resolvedCityId = toFiniteNumber(payload?.cityId);
+  if (resolvedCityId && resolvedCityId > 0) {
+    runtimeCityIdByLocation.set(runtimeKey, resolvedCityId);
+  }
+
   if (__DEV__) {
-    const cityId = toFiniteNumber(payload?.cityId);
+    const cityId = resolvedCityId;
     const source = typeof payload?.source === "string" ? payload.source : "diyanet-proxy";
     console.log(
       `[diyanet] source=${source} cityId=${cityId ?? "unknown"} date=${dateKey} times=${JSON.stringify(times)}`
@@ -171,6 +189,7 @@ export async function getMonthlyTimingsByCoordinates(
   lon: number,
   cityHint?: string
 ): Promise<Record<string, Timings>> {
+  const runtimeKey = locationRuntimeKey(lat, lon, cityHint);
   const baseUrlRaw = process.env.EXPO_PUBLIC_DIYANET_PROXY_URL?.trim() || DEFAULT_DIYANET_PROXY_URL;
   const baseUrl = normalizeProxyBaseUrl(baseUrlRaw);
   const url = new URL(`${baseUrl}/timings/monthly`);
@@ -193,8 +212,10 @@ export async function getMonthlyTimingsByCoordinates(
   }
 
   const forcedCityId = toFiniteNumber(process.env.EXPO_PUBLIC_DIYANET_FORCE_CITY_ID);
-  if (forcedCityId && forcedCityId > 0) {
-    url.searchParams.set("cityId", String(forcedCityId));
+  const runtimeCityId = runtimeCityIdByLocation.get(runtimeKey) ?? null;
+  const cityIdToUse = forcedCityId && forcedCityId > 0 ? forcedCityId : runtimeCityId;
+  if (cityIdToUse && cityIdToUse > 0) {
+    url.searchParams.set("cityId", String(cityIdToUse));
   }
 
   const response = await fetch(url.toString(), {
@@ -225,8 +246,13 @@ export async function getMonthlyTimingsByCoordinates(
     };
   }
 
+  const resolvedCityId = toFiniteNumber(payload?.cityId);
+  if (resolvedCityId && resolvedCityId > 0) {
+    runtimeCityIdByLocation.set(runtimeKey, resolvedCityId);
+  }
+
   if (__DEV__) {
-    const cityId = toFiniteNumber(payload?.cityId);
+    const cityId = resolvedCityId;
     const source = typeof payload?.source === "string" ? payload.source : "diyanet-proxy";
     console.log(`[diyanet] monthly source=${source} cityId=${cityId ?? "unknown"} month=${month}-${year} days=${keys.length}`);
   }
