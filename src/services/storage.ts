@@ -17,6 +17,7 @@ const ZIKR_STATE_V1_KEY = "zikr:state:v1";
 const ZIKR_SETTINGS_KEY = "zikr:settings:v1";
 const QAZA_STATE_V2_KEY = "qaza:state:v2";
 const QAZA_STATE_V1_KEY = "qaza:state:v1";
+const ONBOARDING_SEEN_KEY = "onboarding:seen:v1";
 
 export type HomeDateMode = "gregorian" | "hijri";
 export type ZikrKey = "subhanallah" | "alhamdulillah" | "allahuakbar" | "la_ilaha_illallah" | "custom";
@@ -331,6 +332,19 @@ export async function getHomeDateMode(): Promise<HomeDateMode> {
 
 export async function saveHomeDateMode(mode: HomeDateMode): Promise<void> {
   await AsyncStorage.setItem(HOME_DATE_MODE_KEY, mode);
+}
+
+export async function getOnboardingSeen(): Promise<boolean> {
+  const value = await AsyncStorage.getItem(ONBOARDING_SEEN_KEY);
+  return value === "1";
+}
+
+export async function saveOnboardingSeen(seen: boolean): Promise<void> {
+  if (seen) {
+    await AsyncStorage.setItem(ONBOARDING_SEEN_KEY, "1");
+    return;
+  }
+  await AsyncStorage.removeItem(ONBOARDING_SEEN_KEY);
 }
 
 export function buildMosquesCacheKey(lat: number, lon: number, radiusKm: number): string {

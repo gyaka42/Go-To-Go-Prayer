@@ -28,6 +28,30 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "menu.zikr.subtitle": "Count your dhikr with a goal",
     "menu.qaza.title": "Qaza Tracker",
     "menu.qaza.subtitle": "Track your missed prayers",
+    "onboarding.header": "Welcome",
+    "onboarding.status_granted": "Permission granted",
+    "onboarding.status_denied": "Permission denied",
+    "onboarding.location_title": "Your location, your choice",
+    "onboarding.location_body":
+      "We use GPS for accurate prayer times. Prefer not to use GPS? No problem, you can set your location manually later.",
+    "onboarding.location_primary": "Use GPS",
+    "onboarding.location_secondary": "Set manually later",
+    "onboarding.notifications_title": "Never miss a prayer",
+    "onboarding.notifications_body":
+      "You'll receive reminders for each prayer. Sound follows your iPhone settings (silent mode, volume and focus mode).",
+    "onboarding.notifications_primary": "Enable notifications",
+    "onboarding.qibla_title": "Accurate Qibla direction",
+    "onboarding.qibla_body":
+      "To determine Qibla accurately, the app needs access to your location and compass sensors.",
+    "onboarding.qibla_tip": "Move your phone in a figure-8 for best calibration.",
+    "onboarding.qibla_primary": "Grant access",
+    "onboarding.widgets_title": "Widgets for quick glance",
+    "onboarding.widgets_body":
+      "See prayer times and countdowns directly on your Home and Lock screen.",
+    "onboarding.widgets_primary": "Get started",
+    "onboarding.widgets_footnote": "Works on iOS 16+",
+    "onboarding.skip_for_now": "Not now, maybe later",
+    "onboarding.next": "Next",
 
     "common.loading": "Loading...",
     "common.save": "Save",
@@ -296,6 +320,30 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "menu.zikr.subtitle": "Tel je dhikr met een doel",
     "menu.qaza.title": "Qaza Tracker",
     "menu.qaza.subtitle": "Houd gemiste gebeden bij",
+    "onboarding.header": "Welkom",
+    "onboarding.status_granted": "Toestemming gegeven",
+    "onboarding.status_denied": "Toestemming geweigerd",
+    "onboarding.location_title": "Jouw locatie, jouw keuze",
+    "onboarding.location_body":
+      "We gebruiken GPS voor nauwkeurige gebedstijden. Gebruik je liever geen GPS? Geen probleem, je kunt je locatie later handmatig instellen.",
+    "onboarding.location_primary": "Gebruik GPS",
+    "onboarding.location_secondary": "Handmatig later instellen",
+    "onboarding.notifications_title": "Mis geen enkel gebed",
+    "onboarding.notifications_body":
+      "Je ontvangt meldingen voor elk gebed. Let op: geluid hangt af van je iPhone-instellingen (stilstand, volume en focus-modus).",
+    "onboarding.notifications_primary": "Notificaties inschakelen",
+    "onboarding.qibla_title": "Nauwkeurige Qibla richting",
+    "onboarding.qibla_body":
+      "Om Qibla nauwkeurig te bepalen, heeft de app toegang nodig tot je locatie en kompassen.",
+    "onboarding.qibla_tip": "Beweeg je telefoon in een 8-vorm voor de beste kalibratie.",
+    "onboarding.qibla_primary": "Geef toegang",
+    "onboarding.widgets_title": "Widgets voor direct overzicht",
+    "onboarding.widgets_body":
+      "Bekijk gebedstijden en aftellingen direct op je beginscherm en lockscreen.",
+    "onboarding.widgets_primary": "Aan de slag",
+    "onboarding.widgets_footnote": "Werkt op iOS 16+",
+    "onboarding.skip_for_now": "Niet nu, misschien later",
+    "onboarding.next": "Volgende",
 
     "common.loading": "Laden...",
     "common.save": "Opslaan",
@@ -564,6 +612,30 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "menu.zikr.subtitle": "Zikrini bir hedefle say",
     "menu.qaza.title": "Kaza Takibi",
     "menu.qaza.subtitle": "Kaçırdığın namazları takip et",
+    "onboarding.header": "Hoş geldin",
+    "onboarding.status_granted": "İzin verildi",
+    "onboarding.status_denied": "İzin reddedildi",
+    "onboarding.location_title": "Konumun, senin seçimin",
+    "onboarding.location_body":
+      "Doğru namaz vakitleri için GPS kullanıyoruz. GPS istemezsen sorun yok, konumu daha sonra manuel ayarlayabilirsin.",
+    "onboarding.location_primary": "GPS kullan",
+    "onboarding.location_secondary": "Manuel sonra ayarla",
+    "onboarding.notifications_title": "Hiçbir namazı kaçırma",
+    "onboarding.notifications_body":
+      "Her namaz için bildirim alırsın. Ses seviyesi iPhone ayarlarına bağlıdır (sessiz mod, ses seviyesi ve odak modu).",
+    "onboarding.notifications_primary": "Bildirimleri aç",
+    "onboarding.qibla_title": "Doğru kıble yönü",
+    "onboarding.qibla_body":
+      "Kıbleyi doğru belirlemek için uygulamanın konum ve pusula sensörlerine erişmesi gerekir.",
+    "onboarding.qibla_tip": "En iyi kalibrasyon için telefonu 8 çizerek hareket ettir.",
+    "onboarding.qibla_primary": "Erişim ver",
+    "onboarding.widgets_title": "Hızlı bakış için widgetlar",
+    "onboarding.widgets_body":
+      "Namaz vakitlerini ve geri sayımları ana ekranda ve kilit ekranında anında gör.",
+    "onboarding.widgets_primary": "Başla",
+    "onboarding.widgets_footnote": "iOS 16+ ile çalışır",
+    "onboarding.skip_for_now": "Şimdi değil, sonra",
+    "onboarding.next": "İleri",
 
     "common.loading": "Yükleniyor...",
     "common.save": "Kaydet",
