@@ -15,6 +15,8 @@ const MOSQUES_DEFAULT_KEY = "mosques:default:v1";
 const ZIKR_STATE_KEY = "zikr:state:v2";
 const ZIKR_STATE_V1_KEY = "zikr:state:v1";
 const ZIKR_SETTINGS_KEY = "zikr:settings:v1";
+const QAZA_STATE_V2_KEY = "qaza:state:v2";
+const QAZA_STATE_V1_KEY = "qaza:state:v1";
 
 export type HomeDateMode = "gregorian" | "hijri";
 export type ZikrKey = "subhanallah" | "alhamdulillah" | "allahuakbar" | "la_ilaha_illallah" | "custom";
@@ -33,6 +35,30 @@ export type ZikrState = {
 export type ZikrSettings = {
   hapticsEnabled: boolean;
 };
+export type QazaKey = "fajr" | "dhuhr" | "asr" | "maghrib" | "isha" | "witr";
+export type QazaEventType = "inc" | "dec" | "quick_add" | "reset" | "set_goal";
+type QazaSnapshot = {
+  remaining: Record<QazaKey, number>;
+  completed: number;
+  goal: number;
+};
+export type QazaEvent = {
+  id: string;
+  type: QazaEventType;
+  at: number;
+  prayerKey?: QazaKey;
+  delta?: Partial<Record<QazaKey, number>>;
+  snapshotBefore?: QazaSnapshot;
+  snapshotAfter?: QazaSnapshot;
+};
+export type QazaStateV2 = {
+  remaining: Record<QazaKey, number>;
+  completed: number;
+  goal: number;
+  events: QazaEvent[];
+  updatedAt: number;
+};
+export type QazaState = QazaStateV2;
 
 function createDefaultSettings(): Settings {
   return {
@@ -424,7 +450,7 @@ function createDefaultZikrState(): ZikrState {
       alhamdulillah: { count: 0, target: 33, updatedAt: now },
       allahuakbar: { count: 0, target: 34, updatedAt: now },
       la_ilaha_illallah: { count: 0, target: 100, updatedAt: now },
-      custom: { count: 0, target: 100, updatedAt: now, label: "Custom", subtitle: "" }
+      custom: { count: 0, target: 100, updatedAt: now, subtitle: "" }
     },
     updatedAt: now
   };
@@ -568,4 +594,188 @@ export async function saveZikrSettings(settings: ZikrSettings): Promise<void> {
       hapticsEnabled: Boolean(settings.hapticsEnabled)
     })
   );
+}
+
+const QAZA_MAX_EVENTS = 500;
+
+function createDefaultQazaState(): QazaStateV2 {
+  return {
+    remaining: {
+      fajr: 0,
+      dhuhr: 0,
+      asr: 0,
+      maghrib: 0,
+      isha: 0,
+      witr: 0
+    },
+    completed: 0,
+    goal: 0,
+    events: [],
+    updatedAt: Date.now()
+  };
+}
+
+function sanitizeQazaCount(value: unknown, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.max(0, Math.floor(value));
+}
+
+function sanitizeQazaDeltaValue(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+  const rounded = Math.floor(value);
+  if (rounded === 0) {
+    return undefined;
+  }
+  return rounded;
+}
+
+function sanitizeQazaSnapshot(raw: Partial<QazaSnapshot> | undefined): QazaSnapshot | undefined {
+  if (!raw) {
+    return undefined;
+  }
+  return {
+    remaining: {
+      fajr: sanitizeQazaCount(raw.remaining?.fajr, 0),
+      dhuhr: sanitizeQazaCount(raw.remaining?.dhuhr, 0),
+      asr: sanitizeQazaCount(raw.remaining?.asr, 0),
+      maghrib: sanitizeQazaCount(raw.remaining?.maghrib, 0),
+      isha: sanitizeQazaCount(raw.remaining?.isha, 0),
+      witr: sanitizeQazaCount(raw.remaining?.witr, 0)
+    },
+    completed: sanitizeQazaCount(raw.completed, 0),
+    goal: sanitizeQazaCount(raw.goal, 0)
+  };
+}
+
+function sanitizeQazaEvent(raw: Partial<QazaEvent> | undefined, index: number): QazaEvent | null {
+  if (!raw) {
+    return null;
+  }
+  const id =
+    typeof raw.id === "string" && raw.id.trim().length > 0
+      ? raw.id.trim()
+      : `qaza-event-${Date.now()}-${index}`;
+  const allowedType: QazaEventType =
+    raw.type === "inc" || raw.type === "dec" || raw.type === "quick_add" || raw.type === "reset" || raw.type === "set_goal"
+      ? raw.type
+      : "inc";
+  const at = typeof raw.at === "number" && Number.isFinite(raw.at) ? raw.at : Date.now();
+  const prayerKey: QazaKey | undefined =
+    raw.prayerKey === "fajr" ||
+    raw.prayerKey === "dhuhr" ||
+    raw.prayerKey === "asr" ||
+    raw.prayerKey === "maghrib" ||
+    raw.prayerKey === "isha" ||
+    raw.prayerKey === "witr"
+      ? raw.prayerKey
+      : undefined;
+  const delta =
+    raw.delta && typeof raw.delta === "object"
+      ? {
+          fajr: sanitizeQazaDeltaValue(raw.delta.fajr),
+          dhuhr: sanitizeQazaDeltaValue(raw.delta.dhuhr),
+          asr: sanitizeQazaDeltaValue(raw.delta.asr),
+          maghrib: sanitizeQazaDeltaValue(raw.delta.maghrib),
+          isha: sanitizeQazaDeltaValue(raw.delta.isha),
+          witr: sanitizeQazaDeltaValue(raw.delta.witr)
+        }
+      : undefined;
+
+  return {
+    id,
+    type: allowedType,
+    at,
+    prayerKey,
+    delta,
+    snapshotBefore: sanitizeQazaSnapshot(raw.snapshotBefore),
+    snapshotAfter: sanitizeQazaSnapshot(raw.snapshotAfter)
+  };
+}
+
+function sanitizeQazaState(raw: Partial<QazaStateV2>): QazaStateV2 {
+  const defaults = createDefaultQazaState();
+  const sanitizedEvents = Array.isArray(raw.events)
+    ? raw.events
+        .map((event, index) => sanitizeQazaEvent(event, index))
+        .filter((event): event is QazaEvent => Boolean(event))
+        .slice(-QAZA_MAX_EVENTS)
+    : [];
+  return {
+    remaining: {
+      fajr: sanitizeQazaCount(raw.remaining?.fajr, defaults.remaining.fajr),
+      dhuhr: sanitizeQazaCount(raw.remaining?.dhuhr, defaults.remaining.dhuhr),
+      asr: sanitizeQazaCount(raw.remaining?.asr, defaults.remaining.asr),
+      maghrib: sanitizeQazaCount(raw.remaining?.maghrib, defaults.remaining.maghrib),
+      isha: sanitizeQazaCount(raw.remaining?.isha, defaults.remaining.isha),
+      witr: sanitizeQazaCount(raw.remaining?.witr, defaults.remaining.witr)
+    },
+    completed: sanitizeQazaCount(raw.completed, defaults.completed),
+    goal: sanitizeQazaCount(raw.goal, defaults.goal),
+    events: sanitizedEvents,
+    updatedAt: typeof raw.updatedAt === "number" && Number.isFinite(raw.updatedAt) ? raw.updatedAt : Date.now()
+  };
+}
+
+function migrateQazaV1toV2(v1: Partial<{ remaining: Record<QazaKey, number>; completed: number; goal: number; updatedAt: number }>): QazaStateV2 {
+  const base = createDefaultQazaState();
+  return {
+    ...base,
+    remaining: {
+      fajr: sanitizeQazaCount(v1.remaining?.fajr, 0),
+      dhuhr: sanitizeQazaCount(v1.remaining?.dhuhr, 0),
+      asr: sanitizeQazaCount(v1.remaining?.asr, 0),
+      maghrib: sanitizeQazaCount(v1.remaining?.maghrib, 0),
+      isha: sanitizeQazaCount(v1.remaining?.isha, 0),
+      witr: sanitizeQazaCount(v1.remaining?.witr, 0)
+    },
+    completed: sanitizeQazaCount(v1.completed, 0),
+    goal: sanitizeQazaCount(v1.goal, 0),
+    events: [],
+    updatedAt: typeof v1.updatedAt === "number" && Number.isFinite(v1.updatedAt) ? v1.updatedAt : Date.now()
+  };
+}
+
+export async function getQazaState(): Promise<QazaStateV2> {
+  const rawV2 = await AsyncStorage.getItem(QAZA_STATE_V2_KEY);
+  if (rawV2) {
+    try {
+      const parsed = JSON.parse(rawV2) as Partial<QazaStateV2>;
+      return sanitizeQazaState(parsed);
+    } catch {
+      return createDefaultQazaState();
+    }
+  }
+
+  const rawV1 = await AsyncStorage.getItem(QAZA_STATE_V1_KEY);
+  if (!rawV1) {
+    return createDefaultQazaState();
+  }
+
+  try {
+    const parsedV1 = JSON.parse(rawV1) as Partial<QazaState>;
+    const migrated = migrateQazaV1toV2(parsedV1);
+    await saveQazaState(migrated);
+    return migrated;
+  } catch {
+    return createDefaultQazaState();
+  }
+}
+
+export async function saveQazaState(state: QazaStateV2): Promise<void> {
+  const sanitized = sanitizeQazaState(state);
+  await AsyncStorage.setItem(QAZA_STATE_V2_KEY, JSON.stringify(sanitized));
+}
+
+export async function appendQazaEvent(event: QazaEvent): Promise<void> {
+  const state = await getQazaState();
+  const next: QazaStateV2 = {
+    ...state,
+    events: [...state.events, event].slice(-QAZA_MAX_EVENTS),
+    updatedAt: Date.now()
+  };
+  await saveQazaState(next);
 }

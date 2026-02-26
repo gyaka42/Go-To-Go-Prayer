@@ -69,14 +69,22 @@ export default function ZikrScreen() {
   const [customSubtitleInput, setCustomSubtitleInput] = useState("");
 
   const activeEntry: ZikrEntry =
-    state?.entries[state.activeKey] ?? { count: 0, target: 100, updatedAt: Date.now(), label: "Custom", subtitle: "" };
+    state?.entries[state.activeKey] ?? { count: 0, target: 100, updatedAt: Date.now(), subtitle: "" };
+
+  const resolveCustomLabel = (rawLabel?: string) => {
+    const trimmed = rawLabel?.trim();
+    if (!trimmed || trimmed.toLowerCase() === "custom") {
+      return t("zikr.custom");
+    }
+    return trimmed;
+  };
 
   const activeLabel = useMemo(() => {
     if (!state) {
       return t("zikr.subhanallah");
     }
     if (state.activeKey === "custom") {
-      return activeEntry.label?.trim() || t("zikr.custom");
+      return resolveCustomLabel(activeEntry.label);
     }
     return t(zikrNameKey(state.activeKey));
   }, [activeEntry.label, state, t]);
@@ -216,7 +224,7 @@ export default function ZikrScreen() {
       return;
     }
     setShowSelectorModal(false);
-    setCustomLabelInput(state.entries.custom.label || t("zikr.custom"));
+    setCustomLabelInput(resolveCustomLabel(state.entries.custom.label));
     setCustomSubtitleInput(state.entries.custom.subtitle || "");
     setTimeout(() => {
       setShowCustomModal(true);
@@ -306,10 +314,27 @@ export default function ZikrScreen() {
         </View>
 
         <Pressable
-          style={[styles.zikrTextWrap, { borderColor: colors.cardBorder }]}
+          style={[
+            styles.zikrTextWrap,
+            {
+              borderColor: colors.cardBorder,
+              borderWidth: 1,
+              backgroundColor: isLight ? "#EFF5FC" : "#1A2D42"
+            }
+          ]}
           onPress={() => setShowSelectorModal(true)}
           disabled={!state}
         >
+          <View style={styles.zikrSelectHeader}>
+            <Image
+              source={require("../assets/images/list.png")}
+              style={[styles.zikrSelectIcon, { tintColor: colors.accent }]}
+              resizeMode="contain"
+            />
+            <Text style={[styles.zikrSelectHint, { color: colors.textSecondary }]}>{t("zikr.selectTitle")}</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+          </View>
+
           <Text style={[styles.zikrName, { color: colors.textPrimary }]}>{activeLabel}</Text>
           {activeSubtitle ? <Text style={[styles.zikrSubtitle, { color: colors.textSecondary }]}>{activeSubtitle}</Text> : null}
         </Pressable>
@@ -482,7 +507,7 @@ export default function ZikrScreen() {
                 ? ZIKR_KEYS.map((key) => {
                     const entry = state.entries[key];
                     const isActive = state.activeKey === key;
-                    const label = key === "custom" ? entry.label?.trim() || t("zikr.custom") : t(zikrNameKey(key));
+                    const label = key === "custom" ? resolveCustomLabel(entry.label) : t(zikrNameKey(key));
                     return (
                       <View key={key} style={styles.selectorRow}>
                         <Pressable
@@ -683,7 +708,25 @@ const styles = StyleSheet.create({
   zikrTextWrap: {
     marginTop: 18,
     alignItems: "center",
-    paddingVertical: 6
+    paddingVertical: 10,
+    borderRadius: 14
+  },
+  zikrSelectHeader: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginBottom: 6
+  },
+  zikrSelectIcon: {
+    width: 14,
+    height: 14
+  },
+  zikrSelectHint: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.6
   },
   zikrName: {
     fontSize: 26,
