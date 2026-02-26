@@ -340,11 +340,7 @@ async function handleRequest(req, res) {
       rows: daily.rows.length
     });
 
-    if (daily.rows.length === 0) {
-      continue;
-    }
-
-    const row = findByDate(daily.rows, dateKey);
+    const row = daily.row || (daily.rows.length > 0 ? findByDate(daily.rows, dateKey) : null);
     if (!row) {
       continue;
     }
@@ -590,14 +586,25 @@ function normalizedCountryHints(countryCode, countryName) {
 }
 
 async function fetchDailyRows(token, cityId, dateKey) {
+  const parsedDate = parseDateKey(dateKey);
+  const ymdDate = toYmd(dateKey);
+  const ymdMonthStart =
+    parsedDate && Number.isFinite(parsedDate.year) && Number.isFinite(parsedDate.month)
+      ? `${parsedDate.year}-${String(parsedDate.month).padStart(2, "0")}-01`
+      : null;
+
   const endpoints = [
+    ymdMonthStart ? `${DIYANET_BASE}/api/PrayerTime/Monthly/${cityId}?startDate=${ymdMonthStart}` : null,
+    ymdMonthStart ? `${DIYANET_BASE}/api/AwqatSalah/Monthly/${cityId}?startDate=${ymdMonthStart}` : null,
+    ymdDate ? `${DIYANET_BASE}/api/PrayerTime/Daily/${cityId}?date=${ymdDate}` : null,
+    ymdDate ? `${DIYANET_BASE}/api/AwqatSalah/Daily/${cityId}?date=${ymdDate}` : null,
     `${DIYANET_BASE}/api/PrayerTime/Daily/${cityId}`,
     `${DIYANET_BASE}/api/AwqatSalah/Daily/${cityId}`,
     `${DIYANET_BASE}/api/PrayerTime/Daily/${cityId}?date=${dateKey}`,
     `${DIYANET_BASE}/api/AwqatSalah/Daily/${cityId}?date=${dateKey}`,
     `${DIYANET_BASE}/api/PrayerTime/Monthly/${cityId}`,
     `${DIYANET_BASE}/api/AwqatSalah/Monthly/${cityId}`
-  ];
+  ].filter(Boolean);
 
   for (const endpoint of endpoints) {
     const response = await fetch(endpoint, {
@@ -605,12 +612,19 @@ async function fetchDailyRows(token, cityId, dateKey) {
     });
     const payload = await safeJson(response);
     const rows = extractRows(payload);
-    if (rows.length > 0) {
-      return { rows, endpoint, status: response.status };
+    if (rows.length === 0) {
+      continue;
     }
+
+    const matched = findByDate(rows, dateKey);
+    if (!matched) {
+      continue;
+    }
+
+    return { rows: [matched], row: matched, endpoint, status: response.status };
   }
 
-  return { rows: [], endpoint: null, status: 0 };
+  return { rows: [], row: null, endpoint: null, status: 0 };
 }
 
 async function fetchMonthlyRows(token, cityId, ymdStart) {
@@ -1068,11 +1082,17 @@ function extractRows(payload) {
   if (Array.isArray(payload.items)) return payload.items.filter((item) => item && typeof item === "object");
   if (Array.isArray(payload.prayerTimeList)) return payload.prayerTimeList.filter((item) => item && typeof item === "object");
 
-  if (hasTimingFields(payload)) return [payload];
-  if (payload.data && typeof payload.data === "object" && hasTimingFields(payload.data)) return [payload.data];
+  if (hasTimingFields(payload) && hasDateField(payload)) return [payload];
+  if (payload.data && typeof payload.data === "object" && hasTimingFields(payload.data) && hasDateField(payload.data)) {
+    return [payload.data];
+  }
 
-  const deepRows = collectObjects(payload).filter((row) => hasTimingFields(row));
-  return deepRows;
+  const deepRows = collectObjects(payload).filter((row) => hasTimingFields(row) && hasDateField(row));
+  if (deepRows.length > 0) {
+    return deepRows;
+  }
+
+  return collectObjects(payload).filter((row) => hasTimingFields(row));
 }
 
 function findByDate(rows, target) {
@@ -1167,6 +1187,17 @@ function hasTimingFields(row) {
       row?.ikindiVakti || row?.ikindi || row?.asr ||
       row?.aksamVakti || row?.aksam || row?.maghrib ||
       row?.yatsiVakti || row?.yatsi || row?.isha
+  );
+}
+
+function hasDateField(row) {
+  return Boolean(
+    row?.gregorianDateShortIso8601 ||
+      row?.gregorianDateLongIso8601 ||
+      row?.gregorianDate ||
+      row?.date ||
+      row?.day ||
+      row?.miladiTarihUzunIso8601
   );
 }
 
