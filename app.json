@@ -3,7 +3,7 @@
     "name": "Go-To-Go Prayer",
     "slug": "go-to-go-prayer",
     "scheme": "gotogoprayer",
-    "icon": "./assets/images/Dark/AppIcon~ios-marketing.png",
+    "icon": "./assets/images/Light/AppIcon~ios-marketing.png",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -20,7 +20,10 @@
       ]
     ],
     "ios": {
-      "icon": "./assets/images/Dark/AppIcon~ios-marketing.png",
+      "icon": {
+        "light": "./assets/images/Light/AppIcon~ios-marketing.png",
+        "dark": "./assets/images/Dark/AppIcon~ios-marketing.png"
+      },
       "buildNumber": "55",
       "supportsTablet": true,
       "bundleIdentifier": "com.gogo22.gotogoprayer",

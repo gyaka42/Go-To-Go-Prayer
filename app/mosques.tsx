@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Linking,
   Pressable,
   RefreshControl,
@@ -486,11 +487,22 @@ export default function MosquesScreen() {
         <Text style={[styles.mosqueMeta, { color: colors.textSecondary }]}>
           {t("mosques.last_updated_prefix")}: {formatRelativeUpdated(item.lastUpdated)}
         </Text>
-        <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}>
-          {item.isFeasible === null
-            ? t("mosques.eta_prefix", { mins: item.etaMinutes })
-            : `${t("mosques.eta_prefix", { mins: item.etaMinutes })} • ${item.isFeasible ? t("mosques.feasible_yes") : t("mosques.feasible_no")}`}
-        </Text>
+        <View style={styles.mosqueEtaRow}>
+          <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}>{t("mosques.eta_prefix", { mins: item.etaMinutes })}</Text>
+          {item.isFeasible === null ? null : (
+            <>
+              <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}> • </Text>
+              {item.isFeasible ? (
+                <View style={styles.feasibleRow}>
+                  <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}>{t("mosques.feasible_yes_plain")}</Text>
+                  <Image source={require("../assets/images/check.png")} style={styles.feasibleCheckIcon} resizeMode="contain" />
+                </View>
+              ) : (
+                <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}>{t("mosques.feasible_no")}</Text>
+              )}
+            </>
+          )}
+        </View>
 
         <View style={styles.cardActionRow}>
           <Pressable style={[styles.cardActionButton, { borderColor: colors.cardBorder }]} onPress={() => void openRoute(item)}>
@@ -862,6 +874,21 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 13,
     fontWeight: "600"
+  },
+  mosqueEtaRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap"
+  },
+  feasibleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  feasibleCheckIcon: {
+    width: 16,
+    height: 16
   },
   cardActionRow: {
     marginTop: 12,

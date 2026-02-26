@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -24,7 +24,11 @@ export default function MenuScreen() {
           onPress={() => router.push("/mosques" as never)}
         >
           <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-            <Ionicons name="location-outline" size={20} color="#2B8CEE" />
+            <Image
+              source={require("../../assets/images/mosque.png")}
+              style={[styles.menuPngIcon, { tintColor: "#2B8CEE" }]}
+              resizeMode="contain"
+            />
           </View>
           <View style={styles.cardTextWrap}>
             <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.mosques_title")}</Text>
@@ -56,7 +60,11 @@ export default function MenuScreen() {
           onPress={() => router.push("/zikr" as never)}
         >
           <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-            <Ionicons name="infinite-outline" size={20} color="#2B8CEE" />
+            <Image
+              source={require("../../assets/images/zikir.png")}
+              style={[styles.menuPngIcon, { tintColor: "#2B8CEE" }]}
+              resizeMode="contain"
+            />
           </View>
           <View style={styles.cardTextWrap}>
             <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.zikr.title")}</Text>
@@ -114,6 +122,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#1C3550",
     alignItems: "center",
     justifyContent: "center"
+  },
+  menuPngIcon: {
+    width: 22,
+    height: 22
   },
   cardTextWrap: {
     flex: 1

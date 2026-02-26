@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
+  Image,
   Modal,
   KeyboardAvoidingView,
   Platform,
@@ -533,7 +534,11 @@ export default function SettingsScreen() {
             <View style={[styles.settingRowWithBorder, { borderBottomColor: colors.cardBorder }]}>
               <View style={styles.settingLeft}>
                 <View style={[styles.iconBox, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-                  <Ionicons name="location-outline" size={20} color="#2B8CEE" />
+                  <Image
+                    source={require("../../assets/images/mosque.png")}
+                    style={[styles.sectionPngIcon, { tintColor: "#2B8CEE" }]}
+                    resizeMode="contain"
+                  />
                 </View>
                 <View>
                   <Text style={[styles.settingTitle, isLight ? { color: "#1A2E45" } : null]}>{t("settings.mosques_title")}</Text>
@@ -916,6 +921,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#1C3550"
+  },
+  sectionPngIcon: {
+    width: 22,
+    height: 22
   },
   settingTitle: {
     fontSize: 16,
