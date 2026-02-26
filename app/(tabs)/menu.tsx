@@ -94,6 +94,22 @@ export default function MenuScreen() {
           </View>
           <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
         </Pressable>
+
+        <Pressable
+          style={[styles.menuCard, styles.menuCardSpaced, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+          onPress={() => router.push("/monthly" as never)}
+        >
+          <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
+            <Ionicons name="calendar-outline" size={20} color="#2B8CEE" />
+          </View>
+          <View style={styles.cardTextWrap}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.monthly.title")}</Text>
+            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+              {t("menu.monthly.subtitle")}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
+        </Pressable>
       </View>
     </SafeAreaView>
   );

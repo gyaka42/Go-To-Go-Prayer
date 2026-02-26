@@ -155,7 +155,16 @@ export default function OnboardingScreen() {
 
     return (
       <View style={[styles.illustrationCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
-        <Image source={require("../assets/images/widgets.png")} style={styles.widgetsImage} resizeMode="contain" />
+        <Image
+          source={require("../assets/images/widgets.png")}
+          style={[
+            styles.widgetsImage,
+            {
+              tintColor: isLight ? "#2B8CEE" : "#EAF4FF"
+            }
+          ]}
+          resizeMode="contain"
+        />
       </View>
     );
   };
