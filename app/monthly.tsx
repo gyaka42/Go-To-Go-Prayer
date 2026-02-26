@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -87,6 +88,7 @@ export default function MonthlyScreen() {
   const router = useRouter();
   const { t } = useI18n();
   const { colors, resolvedTheme } = useAppTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const isLight = resolvedTheme === "light";
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(normalizeMonth(new Date()));
@@ -104,6 +106,13 @@ export default function MonthlyScreen() {
   const contextRef = useRef<ResolvedMonthlyContext | null>(null);
 
   const monthTitle = `${t(monthNameKey(selectedMonth.getMonth()))} ${selectedMonth.getFullYear()}`;
+  const contentWidth = Math.min(windowWidth, 860) - 40;
+  const tableInnerWidth = Math.max(contentWidth - 16, 300);
+  const dateColumnWidth = Math.max(58, Math.floor(tableInnerWidth * 0.17));
+  const timeColumnWidth = Math.max(
+    40,
+    Math.floor((tableInnerWidth - dateColumnWidth) / COLUMN_ORDER.length)
+  );
 
   const todayDate = useMemo(() => new Date(), []);
   const shouldHighlightToday = sameMonth(selectedMonth, todayDate);
@@ -334,59 +343,63 @@ export default function MonthlyScreen() {
             </View>
           ) : (
             <>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.tableWrap}>
-                  <View style={[styles.tableHeaderRow, { borderBottomColor: colors.cardBorder }]}> 
-                    <Text style={[styles.dateHeaderCell, { color: colors.textSecondary }]}> </Text>
-                    {COLUMN_ORDER.map((column) => (
-                      <Text
-                        key={column.key}
+              <View style={styles.tableWrap}>
+                <View style={[styles.tableHeaderRow, { borderBottomColor: colors.cardBorder }]}> 
+                  <Text style={[styles.dateHeaderCell, { color: colors.textSecondary, width: dateColumnWidth }]}> </Text>
+                  {COLUMN_ORDER.map((column) => (
+                    <Text
+                      key={column.key}
+                      style={[
+                        styles.headerCell,
+                        {
+                          width: timeColumnWidth,
+                          color: column.key === "Fajr" ? colors.accent : colors.textSecondary,
+                          fontWeight: column.key === "Fajr" ? "800" : "700"
+                        }
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {t(column.labelKey)}
+                    </Text>
+                  ))}
+                </View>
+
+                <ScrollView style={styles.rowsScroll} showsVerticalScrollIndicator={false}>
+                  {rows.map((row) => {
+                    const isToday =
+                      shouldHighlightToday &&
+                      row.date.getDate() === todayDate.getDate() &&
+                      row.date.getMonth() === todayDate.getMonth() &&
+                      row.date.getFullYear() === todayDate.getFullYear();
+
+                    return (
+                      <View
+                        key={row.dateKey}
                         style={[
-                          styles.headerCell,
+                          styles.tableDataRow,
                           {
-                            color: column.key === "Fajr" ? colors.accent : colors.textSecondary,
-                            fontWeight: column.key === "Fajr" ? "800" : "700"
+                            borderBottomColor: colors.cardBorder,
+                            backgroundColor: isToday ? (isLight ? "#EAF4FF" : "rgba(43,140,238,0.12)") : "transparent"
                           }
                         ]}
                       >
-                        {t(column.labelKey)}
-                      </Text>
-                    ))}
-                  </View>
-
-                  <ScrollView style={styles.rowsScroll} showsVerticalScrollIndicator={false}>
-                    {rows.map((row) => {
-                      const isToday =
-                        shouldHighlightToday &&
-                        row.date.getDate() === todayDate.getDate() &&
-                        row.date.getMonth() === todayDate.getMonth() &&
-                        row.date.getFullYear() === todayDate.getFullYear();
-
-                      return (
-                        <View
-                          key={row.dateKey}
-                          style={[
-                            styles.tableDataRow,
-                            {
-                              borderBottomColor: colors.cardBorder,
-                              backgroundColor: isToday ? (isLight ? "#EAF4FF" : "rgba(43,140,238,0.12)") : "transparent"
-                            }
-                          ]}
-                        >
-                          <Text style={[styles.dateCell, { color: colors.textPrimary }]}>
-                            {`${row.date.getDate()} ${t(monthNameKey(row.date.getMonth()))}`}
+                        <Text style={[styles.dateCell, { color: colors.textPrimary, width: dateColumnWidth }]}>
+                          {`${row.date.getDate()} ${t(monthNameKey(row.date.getMonth()))}`}
+                        </Text>
+                        {COLUMN_ORDER.map((column) => (
+                          <Text
+                            key={`${row.dateKey}-${column.key}`}
+                            style={[styles.timeCell, { color: colors.textPrimary, width: timeColumnWidth }]}
+                            numberOfLines={1}
+                          >
+                            {row.timings?.times[column.key] ?? "—"}
                           </Text>
-                          {COLUMN_ORDER.map((column) => (
-                            <Text key={`${row.dateKey}-${column.key}`} style={[styles.timeCell, { color: colors.textPrimary }]}>
-                              {row.timings?.times[column.key] ?? "—"}
-                            </Text>
-                          ))}
-                        </View>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              </ScrollView>
+                        ))}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
 
               {partialError ? (
                 <Text style={[styles.partialError, { color: colors.textSecondary }]}>{t("monthly.partialError")}</Text>
@@ -414,8 +427,18 @@ export default function MonthlyScreen() {
             </View>
 
             <View style={styles.modalRow}>
-              <Pressable style={[styles.modalButton, styles.modalHalf, styles.modalGhost]} onPress={() => setPickerOpen(false)}>
-                <Text style={[styles.modalButtonLabel, styles.modalGhostLabel]}>{t("monthly.close")}</Text>
+              <Pressable
+                style={[
+                  styles.modalButton,
+                  styles.modalHalf,
+                  {
+                    borderColor: colors.cardBorder,
+                    backgroundColor: isLight ? "#EFF5FC" : "#1A2D42"
+                  }
+                ]}
+                onPress={() => setPickerOpen(false)}
+              >
+                <Text style={[styles.modalButtonLabel, { color: colors.textPrimary }]}>{t("monthly.close")}</Text>
               </Pressable>
               <Pressable style={[styles.modalButton, styles.modalHalf]} onPress={applyPickerMonth}>
                 <Text style={styles.modalButtonLabel}>{t("monthly.apply")}</Text>
@@ -529,7 +552,6 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   tableWrap: {
-    minWidth: 720,
     flex: 1
   },
   tableHeaderRow: {
@@ -550,23 +572,23 @@ const styles = StyleSheet.create({
     flex: 1
   },
   dateHeaderCell: {
-    width: 92,
+    width: 64,
     fontSize: 15,
     fontWeight: "700"
   },
   dateCell: {
-    width: 92,
+    width: 64,
     fontSize: 15,
     fontWeight: "700"
   },
   headerCell: {
-    width: 104,
-    fontSize: 15,
+    width: 48,
+    fontSize: 12,
     fontWeight: "700"
   },
   timeCell: {
-    width: 104,
-    fontSize: 17,
+    width: 48,
+    fontSize: 12,
     fontWeight: "600"
   },
   partialError: {
@@ -618,12 +640,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700"
   },
-  modalGhost: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#9FB6CC"
-  },
-  modalGhostLabel: {
-    color: "#46617D"
-  }
 });
