@@ -124,6 +124,112 @@ async function handleRequest(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/timings/monthly") {
+    const lat = Number(url.searchParams.get("lat"));
+    const lon = Number(url.searchParams.get("lon"));
+    const year = Number(url.searchParams.get("year"));
+    const month = Number(url.searchParams.get("month"));
+    const cityIdParam = Number(url.searchParams.get("cityId"));
+    const cityQuery = String(url.searchParams.get("city") || "").trim();
+    const countryQuery = String(url.searchParams.get("country") || "").trim();
+    const countryCodeQuery = String(url.searchParams.get("countryCode") || "").trim().toUpperCase();
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      sendJson(res, 400, { error: "Invalid lat/lon" });
+      return;
+    }
+    if (!Number.isFinite(year) || year < 2000 || year > 2100 || !Number.isFinite(month) || month < 1 || month > 12) {
+      sendJson(res, 400, { error: "Invalid year/month" });
+      return;
+    }
+
+    const requestCacheKey = buildMonthlyRequestCacheKey({
+      lat,
+      lon,
+      year,
+      month,
+      cityId: cityIdParam,
+      city: cityQuery,
+      country: countryQuery,
+      countryCode: countryCodeQuery
+    });
+    const cached = getCachedTimingsResponse(requestCacheKey);
+    if (cached) {
+      sendJson(res, 200, cached);
+      return;
+    }
+
+    const username = process.env.DIYANET_USERNAME?.trim();
+    const password = process.env.DIYANET_PASSWORD?.trim();
+    if (!username || !password) {
+      sendJson(res, 500, { error: "Server not configured (missing DIYANET_USERNAME / DIYANET_PASSWORD)" });
+      return;
+    }
+
+    const token = await login(username, password);
+    const reverse = await reverseGeocode(lat, lon);
+    const resolvedCity = cityQuery || reverse.city || "";
+    const resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
+    const resolvedCountryName = countryQuery || reverse.country || "";
+
+    const candidates = await resolveCityCandidates({
+      token,
+      lat,
+      lon,
+      cityIdParam,
+      resolvedCity,
+      resolvedCountryCode,
+      resolvedCountryName
+    });
+
+    const ymdStart = `${year}-${String(month).padStart(2, "0")}-01`;
+    const attempts = [];
+    for (const c of candidates) {
+      const monthly = await fetchMonthlyRows(token, c.cityId, ymdStart);
+      attempts.push({
+        cityId: c.cityId,
+        source: c.source,
+        endpoint: monthly.endpoint,
+        status: monthly.status,
+        rows: monthly.rows.length
+      });
+      if (monthly.rows.length === 0) {
+        continue;
+      }
+      const days = toMonthlyTimesMap(monthly.rows, year, month);
+      if (Object.keys(days).length === 0) {
+        continue;
+      }
+
+      const payload = {
+        year,
+        month,
+        cityId: c.cityId,
+        citySource: c.source,
+        source: "diyanet-proxy",
+        days
+      };
+      cacheTimingsResponse(requestCacheKey, payload);
+      sendJson(res, 200, payload);
+      return;
+    }
+
+    sendJson(res, 502, {
+      error: "No monthly timing rows returned",
+      details: {
+        lat,
+        lon,
+        year,
+        month,
+        resolvedCity,
+        resolvedCountryCode,
+        resolvedCountryName,
+        attempts: attempts.slice(0, 12)
+      }
+    });
+    return;
+  }
+
   if (req.method !== "GET" || url.pathname !== "/timings") {
     sendJson(res, 404, { error: "Not found" });
     return;
@@ -169,45 +275,20 @@ async function handleRequest(req, res) {
   }
 
   const token = await login(username, password);
-  const candidates = [];
-  const seen = new Set();
-  const addCandidate = (id, source) => {
-    const n = Number(id);
-    if (Number.isFinite(n) && n > 0 && !seen.has(n)) {
-      seen.add(n);
-      candidates.push({ cityId: n, source });
-    }
-  };
-
-  if (Number.isFinite(cityIdParam) && cityIdParam > 0) {
-    addCandidate(cityIdParam, "query-cityId");
-  }
-
-  const byGeo = await resolveCityIdByGeo(token, lat, lon);
-  if (byGeo) {
-    addCandidate(byGeo, "diyanet-geocode");
-  }
-
   const reverse = await reverseGeocode(lat, lon);
   const resolvedCity = cityQuery || reverse.city || "";
   const resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
   const resolvedCountryName = countryQuery || reverse.country || "";
 
-  const cities = await getCities(token);
-  const matched = matchCities(cities, {
+  const candidates = await resolveCityCandidates({
+    token,
     lat,
     lon,
-    city: resolvedCity,
-    countryCode: resolvedCountryCode,
-    countryName: resolvedCountryName
+    cityIdParam,
+    resolvedCity,
+    resolvedCountryCode,
+    resolvedCountryName
   });
-  for (const id of matched) {
-    addCandidate(id, "cities-match");
-  }
-
-  for (const item of nearestCities(cities, lat, lon, 30)) {
-    addCandidate(item.id, "nearest");
-  }
 
   if (candidates.length === 0) {
     const fallback = await tryImsakiyemFallback({
@@ -530,6 +611,67 @@ async function fetchDailyRows(token, cityId, dateKey) {
   }
 
   return { rows: [], endpoint: null, status: 0 };
+}
+
+async function fetchMonthlyRows(token, cityId, ymdStart) {
+  const endpoints = [
+    `${DIYANET_BASE}/api/PrayerTime/Monthly/${cityId}?startDate=${ymdStart}`,
+    `${DIYANET_BASE}/api/AwqatSalah/Monthly/${cityId}?startDate=${ymdStart}`,
+    `${DIYANET_BASE}/api/PrayerTime/Monthly/${cityId}`,
+    `${DIYANET_BASE}/api/AwqatSalah/Monthly/${cityId}`
+  ];
+
+  for (const endpoint of endpoints) {
+    const response = await fetch(endpoint, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+    });
+    const payload = await safeJson(response);
+    const rows = extractRows(payload);
+    if (rows.length > 0) {
+      return { rows, endpoint, status: response.status };
+    }
+  }
+
+  return { rows: [], endpoint: null, status: 0 };
+}
+
+async function resolveCityCandidates(params) {
+  const candidates = [];
+  const seen = new Set();
+  const addCandidate = (id, source) => {
+    const n = Number(id);
+    if (Number.isFinite(n) && n > 0 && !seen.has(n)) {
+      seen.add(n);
+      candidates.push({ cityId: n, source });
+    }
+  };
+
+  if (Number.isFinite(params.cityIdParam) && params.cityIdParam > 0) {
+    addCandidate(params.cityIdParam, "query-cityId");
+  }
+
+  const byGeo = await resolveCityIdByGeo(params.token, params.lat, params.lon);
+  if (byGeo) {
+    addCandidate(byGeo, "diyanet-geocode");
+  }
+
+  const cities = await getCities(params.token);
+  const matched = matchCities(cities, {
+    lat: params.lat,
+    lon: params.lon,
+    city: params.resolvedCity,
+    countryCode: params.resolvedCountryCode,
+    countryName: params.resolvedCountryName
+  });
+  for (const id of matched) {
+    addCandidate(id, "cities-match");
+  }
+
+  for (const item of nearestCities(cities, params.lat, params.lon, 30)) {
+    addCandidate(item.id, "nearest");
+  }
+
+  return candidates;
 }
 
 async function tryImsakiyemFallback(params) {
@@ -885,6 +1027,20 @@ function buildRequestCacheKey(input) {
   ].join("|");
 }
 
+function buildMonthlyRequestCacheKey(input) {
+  const latRounded = Number(input.lat.toFixed(3));
+  const lonRounded = Number(input.lon.toFixed(3));
+  return [
+    `${input.year}-${String(input.month).padStart(2, "0")}`,
+    latRounded,
+    lonRounded,
+    Number.isFinite(input.cityId) && input.cityId > 0 ? `cid:${Number(input.cityId)}` : "cid:none",
+    `city:${normalizeText(input.city || "")}`,
+    `country:${normalizeText(input.country || "")}`,
+    `cc:${normalizeText(input.countryCode || "")}`
+  ].join("|");
+}
+
 function getCachedTimingsResponse(key) {
   const hit = timingsCache.get(key);
   if (!hit) return null;
@@ -915,13 +1071,8 @@ function extractRows(payload) {
   if (hasTimingFields(payload)) return [payload];
   if (payload.data && typeof payload.data === "object" && hasTimingFields(payload.data)) return [payload.data];
 
-  const deepRows = collectObjects(payload);
-  for (const row of deepRows) {
-    if (hasTimingFields(row)) {
-      return [row];
-    }
-  }
-  return [];
+  const deepRows = collectObjects(payload).filter((row) => hasTimingFields(row));
+  return deepRows;
 }
 
 function findByDate(rows, target) {
@@ -968,6 +1119,38 @@ function mapTimings(row) {
     return null;
   }
   return { Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha };
+}
+
+function toMonthlyTimesMap(rows, year, month) {
+  const byDate = {};
+  for (const row of rows) {
+    const raw =
+      row?.gregorianDateShortIso8601 ||
+      row?.gregorianDateLongIso8601 ||
+      row?.gregorianDate ||
+      row?.date ||
+      row?.day ||
+      row?.miladiTarihUzunIso8601;
+    const normalized = normalizeDate(raw);
+    if (!normalized) continue;
+    const parsed = parseDateKey(normalized);
+    if (!parsed) continue;
+    if (parsed.year !== year || parsed.month !== month) continue;
+    const times = mapTimings(row);
+    if (!times) continue;
+    byDate[normalized] = times;
+  }
+  return byDate;
+}
+
+function parseDateKey(dateKey) {
+  const match = String(dateKey).match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (!match) return null;
+  return {
+    day: Number(match[1]),
+    month: Number(match[2]),
+    year: Number(match[3])
+  };
 }
 
 function parseTime(value) {

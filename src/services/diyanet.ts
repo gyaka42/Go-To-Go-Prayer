@@ -12,6 +12,16 @@ type ProxyTimingsResponse = {
   details?: unknown;
 };
 
+type ProxyMonthlyTimingsResponse = {
+  year?: unknown;
+  month?: unknown;
+  cityId?: unknown;
+  source?: unknown;
+  days?: unknown;
+  error?: unknown;
+  details?: unknown;
+};
+
 function toDateKey(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -49,6 +59,25 @@ function parseTimes(raw: unknown): Record<PrayerName, string> | null {
   }
 
   return { Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha };
+}
+
+function parseMonthlyTimes(raw: unknown): Record<string, Record<PrayerName, string>> {
+  if (!raw || typeof raw !== "object") {
+    return {};
+  }
+  const result: Record<string, Record<PrayerName, string>> = {};
+  const rows = raw as Record<string, unknown>;
+  for (const [dateKey, value] of Object.entries(rows)) {
+    if (!/^\d{2}-\d{2}-\d{4}$/.test(dateKey)) {
+      continue;
+    }
+    const parsed = parseTimes(value);
+    if (!parsed) {
+      continue;
+    }
+    result[dateKey] = parsed;
+  }
+  return result;
 }
 
 async function safeJson(response: Response): Promise<unknown> {
@@ -133,4 +162,74 @@ export async function getTimingsByCoordinates(
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     times
   };
+}
+
+export async function getMonthlyTimingsByCoordinates(
+  year: number,
+  month: number,
+  lat: number,
+  lon: number,
+  cityHint?: string
+): Promise<Record<string, Timings>> {
+  const baseUrlRaw = process.env.EXPO_PUBLIC_DIYANET_PROXY_URL?.trim() || DEFAULT_DIYANET_PROXY_URL;
+  const baseUrl = normalizeProxyBaseUrl(baseUrlRaw);
+  const url = new URL(`${baseUrl}/timings/monthly`);
+  url.searchParams.set("lat", String(lat));
+  url.searchParams.set("lon", String(lon));
+  url.searchParams.set("year", String(year));
+  url.searchParams.set("month", String(month));
+
+  if (cityHint && cityHint.trim().length > 0) {
+    const parts = cityHint
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+    if (parts[0]) {
+      url.searchParams.set("city", parts[0]);
+    }
+    if (parts.length > 1) {
+      url.searchParams.set("country", parts[parts.length - 1]);
+    }
+  }
+
+  const forcedCityId = toFiniteNumber(process.env.EXPO_PUBLIC_DIYANET_FORCE_CITY_ID);
+  if (forcedCityId && forcedCityId > 0) {
+    url.searchParams.set("cityId", String(forcedCityId));
+  }
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: { Accept: "application/json" }
+  });
+  const payload = (await safeJson(response)) as ProxyMonthlyTimingsResponse | null;
+
+  if (!response.ok) {
+    const apiError = typeof payload?.error === "string" ? payload.error : `HTTP ${response.status}`;
+    const details = typeof payload?.details === "string" ? ` (${payload.details})` : "";
+    throw new Error(`Diyanet monthly proxy error: ${apiError}${details}`);
+  }
+
+  const monthly = parseMonthlyTimes(payload?.days);
+  const keys = Object.keys(monthly);
+  if (keys.length === 0) {
+    throw new Error("Diyanet monthly proxy response is missing daily timing rows.");
+  }
+
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const mapped: Record<string, Timings> = {};
+  for (const dateKey of keys) {
+    mapped[dateKey] = {
+      dateKey,
+      timezone,
+      times: monthly[dateKey]
+    };
+  }
+
+  if (__DEV__) {
+    const cityId = toFiniteNumber(payload?.cityId);
+    const source = typeof payload?.source === "string" ? payload.source : "diyanet-proxy";
+    console.log(`[diyanet] monthly source=${source} cityId=${cityId ?? "unknown"} month=${month}-${year} days=${keys.length}`);
+  }
+
+  return mapped;
 }
