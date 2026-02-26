@@ -263,7 +263,10 @@ async function handleRequest(req, res) {
       continue;
     }
 
-    const row = findByDate(daily.rows, dateKey) || daily.rows[0];
+    const row = findByDate(daily.rows, dateKey);
+    if (!row) {
+      continue;
+    }
     const times = mapTimings(row);
     if (!times) {
       continue;
@@ -647,7 +650,10 @@ async function tryImsakiyemFallback(params) {
     if (!Array.isArray(timingsRows) || timingsRows.length === 0) {
       continue;
     }
-    const row = findByDate(timingsRows, params.dateKey) || timingsRows[0];
+    const row = findByDate(timingsRows, params.dateKey);
+    if (!row) {
+      continue;
+    }
     const times = mapTimings(row);
     if (!times) {
       continue;
@@ -932,15 +938,20 @@ function findByDate(rows, target) {
 }
 
 function normalizeDate(raw) {
-  if (!raw || typeof raw !== "string") return null;
-  const ddmmyyyy = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (raw == null) return null;
+  const value = String(raw);
+  const ddmmyyyy = value.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
   if (ddmmyyyy) {
     const day = String(Number(ddmmyyyy[1])).padStart(2, "0");
     const month = String(Number(ddmmyyyy[2])).padStart(2, "0");
     return `${day}-${month}-${ddmmyyyy[3]}`;
   }
-  const yyyymmdd = raw.match(/^(\d{4})[./-](\d{2})[./-](\d{2})/);
-  if (yyyymmdd) return `${yyyymmdd[3]}-${yyyymmdd[2]}-${yyyymmdd[1]}`;
+  const yyyymmdd = value.match(/(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+  if (yyyymmdd) {
+    const month = String(Number(yyyymmdd[2])).padStart(2, "0");
+    const day = String(Number(yyyymmdd[3])).padStart(2, "0");
+    return `${day}-${month}-${yyyymmdd[1]}`;
+  }
   return null;
 }
 
