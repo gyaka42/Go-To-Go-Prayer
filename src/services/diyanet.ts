@@ -100,13 +100,62 @@ function toFiniteNumber(raw: unknown): number | null {
   return null;
 }
 
-function locationRuntimeKey(lat: number, lon: number, cityHint?: string): string {
+function locationRuntimeKey(lat: number, lon: number): string {
   const latRounded = Number(lat.toFixed(2));
   const lonRounded = Number(lon.toFixed(2));
-  const hint = String(cityHint || "")
-    .trim()
-    .toLowerCase();
-  return `${latRounded}|${lonRounded}|${hint}`;
+  return `${latRounded}|${lonRounded}`;
+}
+
+function buildCityHintParams(cityHint?: string): { city?: string; country?: string } {
+  if (!cityHint || cityHint.trim().length === 0) {
+    return {};
+  }
+  const parts = cityHint
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  return {
+    city: parts[0],
+    country: parts.length > 1 ? parts[parts.length - 1] : undefined
+  };
+}
+
+async function resolveCityIdProbe(
+  lat: number,
+  lon: number,
+  cityHint?: string
+): Promise<number | null> {
+  const baseUrlRaw = process.env.EXPO_PUBLIC_DIYANET_PROXY_URL?.trim() || DEFAULT_DIYANET_PROXY_URL;
+  const baseUrl = normalizeProxyBaseUrl(baseUrlRaw);
+  const now = new Date();
+  const probeDate = new Date(now.getFullYear(), now.getMonth(), Math.min(15, now.getDate()));
+  const dateKey = toDateKey(probeDate);
+  const hint = buildCityHintParams(cityHint);
+
+  const url = new URL(`${baseUrl}/timings`);
+  url.searchParams.set("lat", String(lat));
+  url.searchParams.set("lon", String(lon));
+  url.searchParams.set("date", dateKey);
+  if (hint.city) {
+    url.searchParams.set("city", hint.city);
+  }
+  if (hint.country) {
+    url.searchParams.set("country", hint.country);
+  }
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" }
+    });
+    const payload = (await safeJson(response)) as ProxyTimingsResponse | null;
+    if (!response.ok) {
+      return null;
+    }
+    return toFiniteNumber(payload?.cityId);
+  } catch {
+    return null;
+  }
 }
 
 export async function getTimingsByCoordinates(
@@ -117,24 +166,19 @@ export async function getTimingsByCoordinates(
 ): Promise<Timings> {
   const baseUrlRaw = process.env.EXPO_PUBLIC_DIYANET_PROXY_URL?.trim() || DEFAULT_DIYANET_PROXY_URL;
 
-  const runtimeKey = locationRuntimeKey(lat, lon, cityHint);
+  const runtimeKey = locationRuntimeKey(lat, lon);
   const dateKey = toDateKey(date);
   const baseUrl = normalizeProxyBaseUrl(baseUrlRaw);
   const url = new URL(`${baseUrl}/timings`);
   url.searchParams.set("lat", String(lat));
   url.searchParams.set("lon", String(lon));
   url.searchParams.set("date", dateKey);
-  if (cityHint && cityHint.trim().length > 0) {
-    const parts = cityHint
-      .split(",")
-      .map((part) => part.trim())
-      .filter((part) => part.length > 0);
-    if (parts[0]) {
-      url.searchParams.set("city", parts[0]);
-    }
-    if (parts.length > 1) {
-      url.searchParams.set("country", parts[parts.length - 1]);
-    }
+  const hint = buildCityHintParams(cityHint);
+  if (hint.city) {
+    url.searchParams.set("city", hint.city);
+  }
+  if (hint.country) {
+    url.searchParams.set("country", hint.country);
   }
 
   const forcedCityId = toFiniteNumber(process.env.EXPO_PUBLIC_DIYANET_FORCE_CITY_ID);
@@ -163,6 +207,9 @@ export async function getTimingsByCoordinates(
   }
 
   const resolvedCityId = toFiniteNumber(payload?.cityId);
+  if (cityIdToUse && resolvedCityId && resolvedCityId !== cityIdToUse) {
+    throw new Error(`Diyanet proxy returned different cityId (${resolvedCityId}) than requested (${cityIdToUse}).`);
+  }
   if (resolvedCityId && resolvedCityId > 0) {
     runtimeCityIdByLocation.set(runtimeKey, resolvedCityId);
   }
@@ -189,7 +236,7 @@ export async function getMonthlyTimingsByCoordinates(
   lon: number,
   cityHint?: string
 ): Promise<Record<string, Timings>> {
-  const runtimeKey = locationRuntimeKey(lat, lon, cityHint);
+  const runtimeKey = locationRuntimeKey(lat, lon);
   const baseUrlRaw = process.env.EXPO_PUBLIC_DIYANET_PROXY_URL?.trim() || DEFAULT_DIYANET_PROXY_URL;
   const baseUrl = normalizeProxyBaseUrl(baseUrlRaw);
   const url = new URL(`${baseUrl}/timings/monthly`);
@@ -198,22 +245,24 @@ export async function getMonthlyTimingsByCoordinates(
   url.searchParams.set("year", String(year));
   url.searchParams.set("month", String(month));
 
-  if (cityHint && cityHint.trim().length > 0) {
-    const parts = cityHint
-      .split(",")
-      .map((part) => part.trim())
-      .filter((part) => part.length > 0);
-    if (parts[0]) {
-      url.searchParams.set("city", parts[0]);
-    }
-    if (parts.length > 1) {
-      url.searchParams.set("country", parts[parts.length - 1]);
-    }
+  const hint = buildCityHintParams(cityHint);
+  if (hint.city) {
+    url.searchParams.set("city", hint.city);
+  }
+  if (hint.country) {
+    url.searchParams.set("country", hint.country);
   }
 
   const forcedCityId = toFiniteNumber(process.env.EXPO_PUBLIC_DIYANET_FORCE_CITY_ID);
   const runtimeCityId = runtimeCityIdByLocation.get(runtimeKey) ?? null;
-  const cityIdToUse = forcedCityId && forcedCityId > 0 ? forcedCityId : runtimeCityId;
+  let cityIdToUse = forcedCityId && forcedCityId > 0 ? forcedCityId : runtimeCityId;
+  if (!cityIdToUse) {
+    const probed = await resolveCityIdProbe(lat, lon, cityHint);
+    if (probed && probed > 0) {
+      cityIdToUse = probed;
+      runtimeCityIdByLocation.set(runtimeKey, probed);
+    }
+  }
   if (cityIdToUse && cityIdToUse > 0) {
     url.searchParams.set("cityId", String(cityIdToUse));
   }
@@ -247,6 +296,9 @@ export async function getMonthlyTimingsByCoordinates(
   }
 
   const resolvedCityId = toFiniteNumber(payload?.cityId);
+  if (cityIdToUse && resolvedCityId && resolvedCityId !== cityIdToUse) {
+    throw new Error(`Diyanet monthly proxy returned different cityId (${resolvedCityId}) than requested (${cityIdToUse}).`);
+  }
   if (resolvedCityId && resolvedCityId > 0) {
     runtimeCityIdByLocation.set(runtimeKey, resolvedCityId);
   }

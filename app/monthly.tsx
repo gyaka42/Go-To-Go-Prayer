@@ -21,7 +21,7 @@ import {
   MonthlyTimingsRow,
   prefetchMonthTimings
 } from "@/services/timingsCache";
-import { getLatestCachedLocation, getSettings } from "@/services/storage";
+import { getLatestCachedLocation, getSettings, saveLatestCachedLocation } from "@/services/storage";
 import { PrayerName, Settings } from "@/types/prayer";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
@@ -103,7 +103,6 @@ export default function MonthlyScreen() {
   const [partialError, setPartialError] = useState(false);
 
   const loadRequestRef = useRef(0);
-  const contextRef = useRef<ResolvedMonthlyContext | null>(null);
 
   const monthTitle = `${t(monthNameKey(selectedMonth.getMonth()))} ${selectedMonth.getFullYear()}`;
   const contentWidth = Math.min(windowWidth, 860) - 40;
@@ -118,31 +117,42 @@ export default function MonthlyScreen() {
   const shouldHighlightToday = sameMonth(selectedMonth, todayDate);
 
   const getContext = useCallback(async (): Promise<ResolvedMonthlyContext> => {
-    if (contextRef.current) {
-      return contextRef.current;
+    const settings = await getSettings();
+    if (settings.locationMode === "manual" && settings.manualLocation) {
+      return {
+        settings,
+        location: {
+          lat: settings.manualLocation.lat,
+          lon: settings.manualLocation.lon,
+          label: settings.manualLocation.label
+        }
+      };
     }
 
-    const settings = await getSettings();
-    const cachedLocation = await getLatestCachedLocation();
-
-    const location =
-      settings.locationMode === "manual" && settings.manualLocation
-        ? {
-            lat: settings.manualLocation.lat,
-            lon: settings.manualLocation.lon,
-            label: settings.manualLocation.label
+    try {
+      const freshLocation = await resolveLocationForSettings(settings);
+      await saveLatestCachedLocation({
+        lat: freshLocation.lat,
+        lon: freshLocation.lon,
+        label: freshLocation.label,
+        mode: "gps",
+        updatedAt: new Date().toISOString()
+      });
+      return { settings, location: freshLocation };
+    } catch {
+      const cachedLocation = await getLatestCachedLocation();
+      if (cachedLocation && cachedLocation.mode === "gps") {
+        return {
+          settings,
+          location: {
+            lat: cachedLocation.lat,
+            lon: cachedLocation.lon,
+            label: cachedLocation.label
           }
-        : cachedLocation && cachedLocation.mode === "gps"
-          ? {
-              lat: cachedLocation.lat,
-              lon: cachedLocation.lon,
-              label: cachedLocation.label
-            }
-          : await resolveLocationForSettings(settings);
-
-    const resolved = { settings, location };
-    contextRef.current = resolved;
-    return resolved;
+        };
+      }
+      throw new Error("Kon huidige GPS-locatie niet ophalen.");
+    }
   }, []);
 
   const loadMonthly = useCallback(
@@ -221,7 +231,9 @@ export default function MonthlyScreen() {
         setLoadState("ready");
 
         const needsSuspiciousRefresh = shouldForceRefreshSuspiciousCache(snapshot.rows);
-        const needsBackgroundFetch = snapshot.missingDates.length > 0 || needsSuspiciousRefresh;
+        const shouldAlwaysRefreshDiyanet = ctx.settings.timingsProvider === "diyanet";
+        const needsBackgroundFetch =
+          shouldAlwaysRefreshDiyanet || snapshot.missingDates.length > 0 || needsSuspiciousRefresh;
 
         if (!needsBackgroundFetch) {
           setIsPrefetching(false);
