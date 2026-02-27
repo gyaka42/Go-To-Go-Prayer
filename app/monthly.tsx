@@ -79,6 +79,24 @@ function monthNameKey(monthIndex: number): string {
   return keys[monthIndex] ?? "months.jan";
 }
 
+function monthShortNameKey(monthIndex: number): string {
+  const keys = [
+    "months_short.jan",
+    "months_short.feb",
+    "months_short.mar",
+    "months_short.apr",
+    "months_short.may",
+    "months_short.jun",
+    "months_short.jul",
+    "months_short.aug",
+    "months_short.sep",
+    "months_short.oct",
+    "months_short.nov",
+    "months_short.dec"
+  ];
+  return keys[monthIndex] ?? "months_short.jan";
+}
+
 interface ResolvedMonthlyContext {
   settings: Settings;
   location: { lat: number; lon: number; label: string };
@@ -396,7 +414,7 @@ export default function MonthlyScreen() {
                         ]}
                       >
                         <Text style={[styles.dateCell, { color: colors.textPrimary, width: dateColumnWidth }]}>
-                          {`${row.date.getDate()} ${t(monthNameKey(row.date.getMonth()))}`}
+                          {`${row.date.getDate()} ${t(monthShortNameKey(row.date.getMonth()))}`}
                         </Text>
                         {COLUMN_ORDER.map((column) => (
                           <Text
