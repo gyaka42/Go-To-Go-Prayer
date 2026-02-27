@@ -253,9 +253,7 @@ export default function MonthlyScreen() {
         setLoadState("ready");
 
         const needsSuspiciousRefresh = shouldForceRefreshSuspiciousCache(snapshot.rows);
-        const shouldAlwaysRefreshDiyanet = ctx.settings.timingsProvider === "diyanet";
-        const needsBackgroundFetch =
-          shouldAlwaysRefreshDiyanet || snapshot.missingDates.length > 0 || needsSuspiciousRefresh;
+        const needsBackgroundFetch = snapshot.missingDates.length > 0 || needsSuspiciousRefresh;
 
         if (!needsBackgroundFetch) {
           setIsPrefetching(false);
@@ -272,7 +270,10 @@ export default function MonthlyScreen() {
           },
           locationLabel: ctx.location.label,
           settings: ctx.settings,
-          dates: needsSuspiciousRefresh ? undefined : snapshot.missingDates
+          dates:
+            needsSuspiciousRefresh || snapshot.missingDates.length === 0
+              ? undefined
+              : snapshot.missingDates
         });
 
         if (isStale()) {

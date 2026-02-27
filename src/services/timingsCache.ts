@@ -282,12 +282,12 @@ export async function prefetchMonthTimings(params: {
   settings: Settings;
   dates?: Date[];
 }): Promise<Record<string, Timings>> {
-  const dates =
-    params.dates && params.dates.length > 0
-      ? params.dates
-      : monthDates(new Date(params.year, params.monthIndex, 1));
+  const monthAllDates = monthDates(new Date(params.year, params.monthIndex, 1));
+  const dates = params.dates && params.dates.length > 0 ? params.dates : monthAllDates;
+  const hasExplicitDates = Array.isArray(params.dates) && params.dates.length > 0;
+  const isFullMonthRequest = !hasExplicitDates || dates.length === monthAllDates.length;
 
-  if (!params.dates && params.settings.timingsProvider === "diyanet") {
+  if (params.settings.timingsProvider === "diyanet" && isFullMonthRequest) {
     try {
       const cityHint = params.settings.locationMode === "manual" ? params.settings.manualLocation?.label : params.locationLabel;
       const monthly = await getMonthlyTimingsByCoordinates(
@@ -320,7 +320,9 @@ export async function prefetchMonthTimings(params: {
       );
       return monthly;
     } catch {
-      // Fall back to per-day fetching below if bulk endpoint is unavailable.
+      // For full-month requests, avoid 28/30 per-day calls when monthly endpoint is unstable.
+      // This prevents request storms while keeping existing cache data visible.
+      return {};
     }
   }
 
