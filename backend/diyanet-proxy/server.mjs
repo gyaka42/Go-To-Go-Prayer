@@ -3,6 +3,7 @@ import http from "node:http";
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
 const PORT = Number(process.env.PORT || 3000);
 const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 * 60 * 1000);
+const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 8000);
 
 let tokenState = null; // { token: string, expMs: number }
 let citiesState = null; // { items: Array<City>, atMs: number }
@@ -31,6 +32,16 @@ server.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[diyanet-proxy] listening on :${PORT}`);
 });
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = UPSTREAM_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 async function handleRequest(req, res) {
   if (req.method === "OPTIONS") {
@@ -166,22 +177,31 @@ async function handleRequest(req, res) {
       return;
     }
 
-    const token = await login(username, password);
     const reverse = await reverseGeocode(lat, lon);
     const resolvedCity = cityQuery || reverse.city || "";
     const resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
     const resolvedCountryName = countryQuery || reverse.country || "";
 
-    const cityResolution = await resolveCityCandidates({
-      token,
-      lat,
-      lon,
-      cityIdParam,
-      resolvedCity,
-      resolvedCountryCode,
-      resolvedCountryName
-    });
-    const candidates = cityResolution.candidates;
+    let token = null;
+    try {
+      token = await login(username, password);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn("[diyanet-proxy] login failed, trying fallback", String(error));
+    }
+
+    const cityResolution = token
+      ? await resolveCityCandidates({
+          token,
+          lat,
+          lon,
+          cityIdParam,
+          resolvedCity,
+          resolvedCountryCode,
+          resolvedCountryName
+        })
+      : { candidates: [], citiesLoaded: 0 };
+    const candidates = cityResolution.candidates.slice(0, 8);
 
     const ymdStart = `${year}-${String(month).padStart(2, "0")}-01`;
     const attempts = [];
@@ -300,22 +320,31 @@ async function handleRequest(req, res) {
     return;
   }
 
-  const token = await login(username, password);
-  const reverse = await reverseGeocode(lat, lon);
-  const resolvedCity = cityQuery || reverse.city || "";
-  const resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
-  const resolvedCountryName = countryQuery || reverse.country || "";
+    const reverse = await reverseGeocode(lat, lon);
+    const resolvedCity = cityQuery || reverse.city || "";
+    const resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
+    const resolvedCountryName = countryQuery || reverse.country || "";
 
-  const cityResolution = await resolveCityCandidates({
-    token,
-    lat,
-    lon,
-    cityIdParam,
-    resolvedCity,
-    resolvedCountryCode,
-    resolvedCountryName
-  });
-  const candidates = cityResolution.candidates;
+    let token = null;
+    try {
+      token = await login(username, password);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn("[diyanet-proxy] login failed, trying fallback", String(error));
+    }
+
+    const cityResolution = token
+      ? await resolveCityCandidates({
+          token,
+          lat,
+          lon,
+          cityIdParam,
+          resolvedCity,
+          resolvedCountryCode,
+          resolvedCountryName
+        })
+      : { candidates: [], citiesLoaded: 0 };
+    const candidates = cityResolution.candidates.slice(0, 8);
 
   if (candidates.length === 0) {
     const fallback = await tryImsakiyemFallback({
@@ -442,7 +471,7 @@ async function login(username, password) {
   let lastBody = null;
   for (const path of paths) {
     for (const body of bodies) {
-      const response = await fetch(`${DIYANET_BASE}${path}`, {
+      const response = await fetchWithTimeout(`${DIYANET_BASE}${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(body)
@@ -470,7 +499,7 @@ async function resolveCityIdByGeo(token, lat, lon) {
     `${DIYANET_BASE}/api/AwqatSalah/CityIdByGeoCode?latitude=${lat}&longitude=${lon}`
   ];
   for (const url of urls) {
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
     });
     const payload = await safeJson(response);
@@ -488,7 +517,7 @@ async function getCities(token) {
     return citiesState.items;
   }
 
-  const response = await fetch(`${DIYANET_BASE}/api/Place/Cities`, {
+  const response = await fetchWithTimeout(`${DIYANET_BASE}/api/Place/Cities`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
   });
   const payload = await safeJson(response);
@@ -582,7 +611,7 @@ function nearestCities(cities, lat, lon, limit = 20) {
 async function reverseGeocode(lat, lon) {
   const fromOpenMeteo = async () => {
     const url = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en&count=1`;
-    const response = await fetch(url, { headers: { Accept: "application/json" } });
+    const response = await fetchWithTimeout(url, { headers: { Accept: "application/json" } });
     const payload = await safeJson(response);
     const first = Array.isArray(payload?.results) ? payload.results[0] : null;
     return {
@@ -594,7 +623,7 @@ async function reverseGeocode(lat, lon) {
 
   const fromNominatim = async () => {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=jsonv2&accept-language=en`;
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       headers: {
         Accept: "application/json",
         "User-Agent": "go-to-go-prayer-diyanet-proxy/1.0"
@@ -664,20 +693,14 @@ async function fetchDailyRows(token, cityId, dateKey) {
       : null;
 
   const endpoints = [
-    ymdMonthStart ? `${DIYANET_BASE}/api/PrayerTime/Monthly/${cityId}?startDate=${ymdMonthStart}` : null,
-    ymdMonthStart ? `${DIYANET_BASE}/api/AwqatSalah/Monthly/${cityId}?startDate=${ymdMonthStart}` : null,
     ymdDate ? `${DIYANET_BASE}/api/PrayerTime/Daily/${cityId}?date=${ymdDate}` : null,
     ymdDate ? `${DIYANET_BASE}/api/AwqatSalah/Daily/${cityId}?date=${ymdDate}` : null,
-    `${DIYANET_BASE}/api/PrayerTime/Daily/${cityId}`,
-    `${DIYANET_BASE}/api/AwqatSalah/Daily/${cityId}`,
-    `${DIYANET_BASE}/api/PrayerTime/Daily/${cityId}?date=${dateKey}`,
-    `${DIYANET_BASE}/api/AwqatSalah/Daily/${cityId}?date=${dateKey}`,
-    `${DIYANET_BASE}/api/PrayerTime/Monthly/${cityId}`,
-    `${DIYANET_BASE}/api/AwqatSalah/Monthly/${cityId}`
+    ymdMonthStart ? `${DIYANET_BASE}/api/PrayerTime/Monthly/${cityId}?startDate=${ymdMonthStart}` : null,
+    ymdMonthStart ? `${DIYANET_BASE}/api/AwqatSalah/Monthly/${cityId}?startDate=${ymdMonthStart}` : null
   ].filter(Boolean);
 
   for (const endpoint of endpoints) {
-    const response = await fetch(endpoint, {
+    const response = await fetchWithTimeout(endpoint, {
       headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
     });
     const payload = await safeJson(response);
@@ -706,7 +729,7 @@ async function fetchMonthlyRows(token, cityId, ymdStart) {
   ];
 
   for (const endpoint of endpoints) {
-    const response = await fetch(endpoint, {
+    const response = await fetchWithTimeout(endpoint, {
       headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
     });
     const payload = await safeJson(response);
@@ -756,7 +779,7 @@ async function resolveCityCandidates(params) {
   }
 
   return {
-    candidates,
+    candidates: candidates.slice(0, 12),
     citiesLoaded: Array.isArray(cities) ? cities.length : 0
   };
 }
@@ -1116,7 +1139,7 @@ async function getImsakiyemDistricts(stateId, lang = "en") {
 
 async function imsakiyemGet(path, lang = "en") {
   try {
-    const response = await fetch(`https://ezanvakti.imsakiyem.com${path}`, {
+    const response = await fetchWithTimeout(`https://ezanvakti.imsakiyem.com${path}`, {
       headers: {
         Accept: "application/json",
         "Accept-Language": `${lang};q=0.9,en;q=0.8,tr;q=0.7`
@@ -1214,7 +1237,7 @@ async function geocodeOpenMeteo(query, countryCode, lang = "en") {
     if (countryCode && countryCode.length === 2) {
       url.searchParams.set("countryCode", countryCode.toUpperCase());
     }
-    const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+    const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } });
     const payload = await safeJson(response);
     const first = Array.isArray(payload?.results) ? payload.results[0] : null;
     const lat = Number(first?.latitude);
