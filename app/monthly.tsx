@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -108,6 +108,7 @@ export default function MonthlyScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const isLight = resolvedTheme === "light";
+  const isFocused = useIsFocused();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(normalizeMonth(new Date()));
   const [pickerMonth, setPickerMonth] = useState<Date>(normalizeMonth(new Date()));
@@ -121,6 +122,9 @@ export default function MonthlyScreen() {
   const [partialError, setPartialError] = useState(false);
 
   const loadRequestRef = useRef(0);
+  const isLoadingRef = useRef(false);
+  const pendingLoadRef = useRef<{ month: Date; forceRefresh: boolean } | null>(null);
+  const monthDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const monthTitle = `${t(monthNameKey(selectedMonth.getMonth()))} ${selectedMonth.getFullYear()}`;
   const contentWidth = Math.min(windowWidth, 860) - 40;
@@ -173,8 +177,8 @@ export default function MonthlyScreen() {
     }
   }, []);
 
-  const loadMonthly = useCallback(
-    async (opts?: { forceRefresh?: boolean }) => {
+  const doLoadMonthly = useCallback(
+    async (targetMonth: Date, opts?: { forceRefresh?: boolean }) => {
       const requestId = ++loadRequestRef.current;
       const isStale = () => requestId !== loadRequestRef.current;
 
@@ -196,8 +200,8 @@ export default function MonthlyScreen() {
 
         if (forceRefresh) {
           const fetched = await prefetchMonthTimings({
-            year: selectedMonth.getFullYear(),
-            monthIndex: selectedMonth.getMonth(),
+            year: targetMonth.getFullYear(),
+            monthIndex: targetMonth.getMonth(),
             location: {
               lat: ctx.location.lat,
               lon: ctx.location.lon
@@ -211,7 +215,7 @@ export default function MonthlyScreen() {
           }
 
           const afterForce = await getMonthlyCacheSnapshot({
-            month: selectedMonth,
+            month: targetMonth,
             location: {
               lat: ctx.location.lat,
               lon: ctx.location.lon
@@ -232,7 +236,7 @@ export default function MonthlyScreen() {
         }
 
         const snapshot = await getMonthlyCacheSnapshot({
-          month: selectedMonth,
+          month: targetMonth,
           location: {
             lat: ctx.location.lat,
             lon: ctx.location.lon
@@ -260,8 +264,8 @@ export default function MonthlyScreen() {
 
         setIsPrefetching(true);
         const fetched = await prefetchMonthTimings({
-          year: selectedMonth.getFullYear(),
-          monthIndex: selectedMonth.getMonth(),
+          year: targetMonth.getFullYear(),
+          monthIndex: targetMonth.getMonth(),
           location: {
             lat: ctx.location.lat,
             lon: ctx.location.lon
@@ -276,7 +280,7 @@ export default function MonthlyScreen() {
         }
 
         const refreshed = await getMonthlyCacheSnapshot({
-          month: selectedMonth,
+          month: targetMonth,
           location: {
             lat: ctx.location.lat,
             lon: ctx.location.lon
@@ -303,14 +307,54 @@ export default function MonthlyScreen() {
         setErrorMessage(message);
       }
     },
-    [getContext, selectedMonth]
+    [getContext]
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      void loadMonthly();
-    }, [loadMonthly])
+  const scheduleLoad = useCallback(
+    (month: Date, opts?: { forceRefresh?: boolean }) => {
+      const forceRefresh = opts?.forceRefresh === true;
+      const normalized = normalizeMonth(month);
+
+      if (isLoadingRef.current) {
+        // Keep only latest requested month/load mode; older requests are dropped.
+        pendingLoadRef.current = { month: normalized, forceRefresh };
+        return;
+      }
+
+      const run = async (initial: { month: Date; forceRefresh: boolean }) => {
+        isLoadingRef.current = true;
+        let current: { month: Date; forceRefresh: boolean } | null = initial;
+        while (current) {
+          await doLoadMonthly(current.month, { forceRefresh: current.forceRefresh });
+          current = pendingLoadRef.current;
+          pendingLoadRef.current = null;
+        }
+        isLoadingRef.current = false;
+      };
+
+      void run({ month: normalized, forceRefresh });
+    },
+    [doLoadMonthly]
   );
+
+  useEffect(() => {
+    if (!isFocused) {
+      return;
+    }
+    if (monthDebounceRef.current) {
+      clearTimeout(monthDebounceRef.current);
+    }
+    monthDebounceRef.current = setTimeout(() => {
+      scheduleLoad(selectedMonth);
+    }, 250);
+
+    return () => {
+      if (monthDebounceRef.current) {
+        clearTimeout(monthDebounceRef.current);
+        monthDebounceRef.current = null;
+      }
+    };
+  }, [isFocused, selectedMonth, scheduleLoad]);
 
   const movePickerMonth = (delta: number) => {
     setPickerMonth((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
@@ -347,7 +391,12 @@ export default function MonthlyScreen() {
 
         <View style={styles.subHeaderRow}>
           <Text style={[styles.monthLabel, { color: colors.textPrimary }]}>{monthTitle}</Text>
-          <Pressable style={styles.refreshBtn} onPress={() => void loadMonthly({ forceRefresh: true })}>
+          <Pressable
+            style={styles.refreshBtn}
+            onPress={() => {
+              scheduleLoad(selectedMonth, { forceRefresh: true });
+            }}
+          >
             <Ionicons name="refresh" size={16} color="#FFFFFF" />
             <Text style={styles.refreshLabel}>{t("monthly.refresh")}</Text>
           </Pressable>
@@ -367,7 +416,12 @@ export default function MonthlyScreen() {
           ) : loadState === "error" ? (
             <View style={styles.loadingWrap}>
               <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{errorMessage ?? t("monthly.loading")}</Text>
-              <Pressable style={styles.retryBtn} onPress={() => void loadMonthly()}>
+              <Pressable
+                style={styles.retryBtn}
+                onPress={() => {
+                  scheduleLoad(selectedMonth);
+                }}
+              >
                 <Text style={styles.retryLabel}>{t("common.retry")}</Text>
               </Pressable>
             </View>
