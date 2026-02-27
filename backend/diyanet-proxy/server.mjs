@@ -172,7 +172,7 @@ async function handleRequest(req, res) {
     const resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
     const resolvedCountryName = countryQuery || reverse.country || "";
 
-    const candidates = await resolveCityCandidates({
+    const cityResolution = await resolveCityCandidates({
       token,
       lat,
       lon,
@@ -181,6 +181,7 @@ async function handleRequest(req, res) {
       resolvedCountryCode,
       resolvedCountryName
     });
+    const candidates = cityResolution.candidates;
 
     const ymdStart = `${year}-${String(month).padStart(2, "0")}-01`;
     const attempts = [];
@@ -214,6 +215,30 @@ async function handleRequest(req, res) {
       return;
     }
 
+    const fallback = await tryImsakiyemMonthlyFallback({
+      lat,
+      lon,
+      year,
+      month,
+      city: resolvedCity,
+      countryCode: resolvedCountryCode,
+      countryName: resolvedCountryName
+    });
+
+    if (fallback?.days && Object.keys(fallback.days).length > 0) {
+      const payload = {
+        year,
+        month,
+        cityId: fallback.districtId,
+        citySource: "imsakiyem-fallback",
+        source: "diyanet-proxy",
+        days: fallback.days
+      };
+      cacheTimingsResponse(requestCacheKey, payload);
+      sendJson(res, 200, payload);
+      return;
+    }
+
     sendJson(res, 502, {
       error: "No monthly timing rows returned",
       details: {
@@ -224,6 +249,7 @@ async function handleRequest(req, res) {
         resolvedCity,
         resolvedCountryCode,
         resolvedCountryName,
+        citiesLoaded: cityResolution.citiesLoaded,
         attempts: attempts.slice(0, 12)
       }
     });
@@ -280,7 +306,7 @@ async function handleRequest(req, res) {
   const resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
   const resolvedCountryName = countryQuery || reverse.country || "";
 
-  const candidates = await resolveCityCandidates({
+  const cityResolution = await resolveCityCandidates({
     token,
     lat,
     lon,
@@ -289,6 +315,7 @@ async function handleRequest(req, res) {
     resolvedCountryCode,
     resolvedCountryName
   });
+  const candidates = cityResolution.candidates;
 
   if (candidates.length === 0) {
     const fallback = await tryImsakiyemFallback({
@@ -322,7 +349,7 @@ async function handleRequest(req, res) {
         resolvedCity,
         resolvedCountryCode,
         resolvedCountryName,
-        citiesLoaded: cities.length,
+        citiesLoaded: cityResolution.citiesLoaded,
         fallback: fallback?.debug ?? null
       }
     });
@@ -685,7 +712,138 @@ async function resolveCityCandidates(params) {
     addCandidate(item.id, "nearest");
   }
 
-  return candidates;
+  return {
+    candidates,
+    citiesLoaded: Array.isArray(cities) ? cities.length : 0
+  };
+}
+
+async function tryImsakiyemMonthlyFallback(params) {
+  const debug = {
+    provider: "imsakiyem",
+    city: params.city,
+    countryCode: params.countryCode,
+    countryName: params.countryName
+  };
+
+  if (!params.city) {
+    return { debug: { ...debug, reason: "missing-city" } };
+  }
+
+  const districtCandidates = [];
+  const seenDistricts = new Set();
+  const addDistrict = (item, source) => {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    const districtId = Number(
+      item.districtId ||
+        item.DistrictId ||
+        item._id ||
+        item.id ||
+        item.ID ||
+        item.placeId ||
+        0
+    );
+    if (!(districtId > 0) || seenDistricts.has(districtId)) {
+      return;
+    }
+    seenDistricts.add(districtId);
+    districtCandidates.push({
+      districtId,
+      name: String(item.districtName || item.name || item.DistrictName || "").trim(),
+      stateName: String(item.stateName || item.cityName || item.StateName || "").trim(),
+      countryName: String(item.countryName || item.CountryName || "").trim(),
+      source
+    });
+  };
+
+  const districtsSearch = await imsakiyemGet(
+    `/api/locations/search/districts?q=${encodeURIComponent(params.city)}`,
+    "en"
+  );
+  for (const item of collectAnyRows(districtsSearch)) {
+    addDistrict(item, "search-districts");
+  }
+
+  const statesSearch = await imsakiyemGet(
+    `/api/locations/search/states?q=${encodeURIComponent(params.city)}`,
+    "en"
+  );
+  const states = collectAnyRows(statesSearch);
+  for (const state of states.slice(0, 8)) {
+    const stateId = Number(state.stateId || state.state_id || state.id || state.StateId || state._id || 0);
+    if (!(stateId > 0)) {
+      continue;
+    }
+    const districtsByState = await imsakiyemGet(`/api/locations/districts?stateId=${stateId}`, "en");
+    for (const item of collectAnyRows(districtsByState)) {
+      addDistrict(item, "state->districts");
+    }
+  }
+
+  const countryHints = normalizedCountryHints(params.countryCode, params.countryName);
+  const cityNorm = normalizeText(params.city);
+
+  const scored = districtCandidates
+    .map((row) => {
+      let score = 0;
+      const districtNorm = normalizeText(row.name);
+      const stateNorm = normalizeText(row.stateName);
+      const countryNorm = normalizeText(row.countryName);
+
+      if (districtNorm === cityNorm || stateNorm === cityNorm) {
+        score += 100;
+      } else if (
+        districtNorm.includes(cityNorm) ||
+        cityNorm.includes(districtNorm) ||
+        stateNorm.includes(cityNorm) ||
+        cityNorm.includes(stateNorm)
+      ) {
+        score += 50;
+      }
+
+      for (const hint of countryHints) {
+        if (!hint) continue;
+        if (countryNorm === hint) {
+          score += 25;
+        } else if (countryNorm.includes(hint) || hint.includes(countryNorm)) {
+          score += 10;
+        }
+      }
+
+      return { ...row, score };
+    })
+    .sort((a, b) => b.score - a.score || a.districtId - b.districtId);
+
+  const ymdMonthStart = `${params.year}-${String(params.month).padStart(2, "0")}-01`;
+  for (const candidate of scored.slice(0, 8)) {
+    const timingsData = await imsakiyemGet(
+      `/api/prayer-times/${candidate.districtId}/monthly?startDate=${ymdMonthStart}`,
+      "en"
+    );
+    const timingsRows = collectAnyRows(timingsData);
+    if (!Array.isArray(timingsRows) || timingsRows.length === 0) {
+      continue;
+    }
+
+    const days = toMonthlyTimesMap(timingsRows, params.year, params.month);
+    if (Object.keys(days).length === 0) {
+      continue;
+    }
+
+    return {
+      districtId: candidate.districtId,
+      days,
+      debug: {
+        ...debug,
+        chosen: candidate.districtId,
+        candidateCount: scored.length
+      }
+    };
+  }
+
+  return { debug: { ...debug, reason: "no-usable-monthly-times" } };
 }
 
 async function tryImsakiyemFallback(params) {
