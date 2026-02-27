@@ -580,19 +580,62 @@ function nearestCities(cities, lat, lon, limit = 20) {
 }
 
 async function reverseGeocode(lat, lon) {
-  try {
+  const fromOpenMeteo = async () => {
     const url = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en&count=1`;
     const response = await fetch(url, { headers: { Accept: "application/json" } });
     const payload = await safeJson(response);
     const first = Array.isArray(payload?.results) ? payload.results[0] : null;
     return {
-      city: String(first?.city || first?.name || first?.admin2 || "").trim(),
+      city: String(first?.city || first?.name || first?.admin2 || first?.admin1 || "").trim(),
       country: String(first?.country || "").trim(),
       countryCode: String(first?.country_code || "").trim().toUpperCase()
     };
+  };
+
+  const fromNominatim = async () => {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=jsonv2&accept-language=en`;
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "go-to-go-prayer-diyanet-proxy/1.0"
+      }
+    });
+    const payload = await safeJson(response);
+    const address = payload?.address && typeof payload.address === "object" ? payload.address : {};
+    const cityRaw =
+      address.city ||
+      address.town ||
+      address.village ||
+      address.municipality ||
+      address.county ||
+      payload?.name ||
+      "";
+    return {
+      city: String(cityRaw || "").trim(),
+      country: String(address.country || payload?.display_name || "").trim(),
+      countryCode: String(address.country_code || "").trim().toUpperCase()
+    };
+  };
+
+  try {
+    const primary = await fromOpenMeteo();
+    if (primary.city || primary.countryCode || primary.country) {
+      return primary;
+    }
   } catch {
-    return { city: "", country: "", countryCode: "" };
+    // ignore and try fallback provider
   }
+
+  try {
+    const fallback = await fromNominatim();
+    if (fallback.city || fallback.countryCode || fallback.country) {
+      return fallback;
+    }
+  } catch {
+    // ignore and return empty
+  }
+
+  return { city: "", country: "", countryCode: "" };
 }
 
 function normalizedCountryHints(countryCode, countryName) {
