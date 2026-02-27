@@ -700,21 +700,25 @@ async function fetchDailyRows(token, cityId, dateKey) {
   ].filter(Boolean);
 
   for (const endpoint of endpoints) {
-    const response = await fetchWithTimeout(endpoint, {
-      headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
-    });
-    const payload = await safeJson(response);
-    const rows = extractRows(payload);
-    if (rows.length === 0) {
+    try {
+      const response = await fetchWithTimeout(endpoint, {
+        headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+      });
+      const payload = await safeJson(response);
+      const rows = extractRows(payload);
+      if (rows.length === 0) {
+        continue;
+      }
+
+      const matched = findByDate(rows, dateKey);
+      if (!matched) {
+        continue;
+      }
+
+      return { rows: [matched], row: matched, endpoint, status: response.status };
+    } catch {
       continue;
     }
-
-    const matched = findByDate(rows, dateKey);
-    if (!matched) {
-      continue;
-    }
-
-    return { rows: [matched], row: matched, endpoint, status: response.status };
   }
 
   return { rows: [], row: null, endpoint: null, status: 0 };
@@ -729,13 +733,17 @@ async function fetchMonthlyRows(token, cityId, ymdStart) {
   ];
 
   for (const endpoint of endpoints) {
-    const response = await fetchWithTimeout(endpoint, {
-      headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
-    });
-    const payload = await safeJson(response);
-    const rows = extractRows(payload);
-    if (rows.length > 0) {
-      return { rows, endpoint, status: response.status };
+    try {
+      const response = await fetchWithTimeout(endpoint, {
+        headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+      });
+      const payload = await safeJson(response);
+      const rows = extractRows(payload);
+      if (rows.length > 0) {
+        return { rows, endpoint, status: response.status };
+      }
+    } catch {
+      continue;
     }
   }
 
@@ -757,12 +765,21 @@ async function resolveCityCandidates(params) {
     addCandidate(params.cityIdParam, "query-cityId");
   }
 
-  const byGeo = await resolveCityIdByGeo(params.token, params.lat, params.lon);
-  if (byGeo) {
-    addCandidate(byGeo, "diyanet-geocode");
+  try {
+    const byGeo = await resolveCityIdByGeo(params.token, params.lat, params.lon);
+    if (byGeo) {
+      addCandidate(byGeo, "diyanet-geocode");
+    }
+  } catch {
+    // ignore geocode upstream failures
   }
 
-  const cities = await getCities(params.token);
+  let cities = [];
+  try {
+    cities = await getCities(params.token);
+  } catch {
+    cities = [];
+  }
   const matched = matchCities(cities, {
     lat: params.lat,
     lon: params.lon,
