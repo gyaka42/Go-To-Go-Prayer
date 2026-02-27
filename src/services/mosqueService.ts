@@ -4,6 +4,8 @@ import { haversineDistanceKm } from "@/utils/geo";
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const MOSQUE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const OVERPASS_TIMEOUT_MS = 8000;
+const OVERPASS_RETRY_DELAYS_MS = [1000, 2000];
 const UNKNOWN_MOSQUE_NAME = "Moskee (onbekend)";
 const inFlightMosqueRequests = new Map<string, Promise<GetMosquesResult>>();
 
@@ -17,6 +19,7 @@ type GetMosquesParams = {
 type GetMosquesResult = {
   mosques: Mosque[];
   source: "cache" | "network";
+  staleFallback?: boolean;
 };
 
 type CachedMosquesPayload = {
@@ -96,16 +99,33 @@ out center;
 `;
 }
 
-async function fetchMosquesFromOverpass(lat: number, lon: number, radiusKm: number): Promise<Mosque[]> {
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchMosquesFromOverpassOnce(lat: number, lon: number, radiusKm: number): Promise<Mosque[]> {
   const radiusMeters = Math.max(100, Math.round(radiusKm * 1000));
   const query = buildOverpassQuery(lat, lon, radiusMeters);
-  const response = await fetch(OVERPASS_URL, {
+  const response = await fetchWithTimeout(OVERPASS_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
     },
     body: `data=${encodeURIComponent(query)}`
-  });
+  }, OVERPASS_TIMEOUT_MS);
 
   if (!response.ok) {
     throw new Error(`Overpass request failed (${response.status})`);
@@ -114,6 +134,29 @@ async function fetchMosquesFromOverpass(lat: number, lon: number, radiusKm: numb
   const json = (await response.json()) as OverpassResponse;
   const elements = Array.isArray(json.elements) ? json.elements : [];
   return mapOverpassElementsToMosques(elements, lat, lon);
+}
+
+async function fetchMosquesFromOverpass(lat: number, lon: number, radiusKm: number): Promise<Mosque[]> {
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt <= OVERPASS_RETRY_DELAYS_MS.length; attempt += 1) {
+    if (attempt > 0) {
+      await delay(OVERPASS_RETRY_DELAYS_MS[attempt - 1]);
+    }
+
+    try {
+      return await fetchMosquesFromOverpassOnce(lat, lon, radiusKm);
+    } catch (error) {
+      lastError = error;
+      const message =
+        error instanceof Error && error.name === "AbortError"
+          ? `Overpass request timed out (${OVERPASS_TIMEOUT_MS}ms)`
+          : String(error);
+      console.log(`[mosques] network attempt=${attempt + 1} failed error=${message}`);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "Overpass request failed"));
 }
 
 export async function getMosques(params: GetMosquesParams): Promise<GetMosquesResult> {
@@ -127,9 +170,12 @@ export async function getMosques(params: GetMosquesParams): Promise<GetMosquesRe
   }
 
   const requestPromise = (async (): Promise<GetMosquesResult> => {
+    const cached = await getCachedJson<CachedMosquesPayload>(cacheKey);
+    const hasUsableCache =
+      cached && Array.isArray(cached.mosques) && Date.now() - cached.fetchedAt <= MOSQUE_CACHE_TTL_MS;
+
     if (!forceRefresh) {
-      const cached = await getCachedJson<CachedMosquesPayload>(cacheKey);
-      if (cached && Array.isArray(cached.mosques) && Date.now() - cached.fetchedAt <= MOSQUE_CACHE_TTL_MS) {
+      if (hasUsableCache) {
         console.log(
           `[mosques] cache hit key=${cacheKey} count=${cached.mosques.length} durationMs=${Date.now() - startedAt}`
         );
@@ -140,17 +186,31 @@ export async function getMosques(params: GetMosquesParams): Promise<GetMosquesRe
       console.log(`[mosques] force refresh key=${cacheKey}`);
     }
 
-    const mosques = await fetchMosquesFromOverpass(params.lat, params.lon, params.radiusKm);
-    const payload: CachedMosquesPayload = {
-      fetchedAt: Date.now(),
-      mosques
-    };
-    await saveCachedJson(cacheKey, payload);
+    try {
+      const mosques = await fetchMosquesFromOverpass(params.lat, params.lon, params.radiusKm);
+      const payload: CachedMosquesPayload = {
+        fetchedAt: Date.now(),
+        mosques
+      };
+      await saveCachedJson(cacheKey, payload);
 
-    console.log(
-      `[mosques] network success key=${cacheKey} count=${mosques.length} source=network durationMs=${Date.now() - startedAt}`
-    );
-    return { mosques, source: "network" };
+      console.log(
+        `[mosques] network success key=${cacheKey} count=${mosques.length} source=network durationMs=${Date.now() - startedAt}`
+      );
+      return { mosques, source: "network" };
+    } catch (error) {
+      if (hasUsableCache) {
+        console.log(
+          `[mosques] stale cache fallback key=${cacheKey} count=${cached.mosques.length} durationMs=${Date.now() - startedAt}`
+        );
+        return {
+          mosques: cached.mosques,
+          source: "cache",
+          staleFallback: true
+        };
+      }
+      throw error;
+    }
   })();
 
   inFlightMosqueRequests.set(cacheKey, requestPromise);

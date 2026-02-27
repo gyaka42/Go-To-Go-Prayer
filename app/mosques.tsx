@@ -257,6 +257,9 @@ export default function MosquesScreen() {
         setMosques(result.mosques);
         setSource(result.source);
         setTimeLeftMinutes(nextTimeLeft);
+        if (result.staleFallback) {
+          setWarningMessage(t("mosques.refresh_failed_cache"));
+        }
         setState("ready");
 
         const preview = result.mosques[0];
