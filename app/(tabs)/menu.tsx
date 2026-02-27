@@ -17,7 +17,6 @@ export default function MenuScreen() {
       <View style={styles.container}>
         <AppBackground />
         <Text style={[styles.title, { color: colors.textPrimary }]}>{t("menu.title")}</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("menu.subtitle")}</Text>
 
         <Pressable
           style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
@@ -100,7 +99,11 @@ export default function MenuScreen() {
           onPress={() => router.push("/monthly" as never)}
         >
           <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-            <Ionicons name="calendar-outline" size={20} color="#2B8CEE" />
+            <Image
+              source={require("../../assets/images/islamic.png")}
+              style={[styles.menuPngIcon, styles.monthlyPngIcon, { tintColor: "#2B8CEE" }]}
+              resizeMode="contain"
+            />
           </View>
           <View style={styles.cardTextWrap}>
             <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.monthly.title")}</Text>
@@ -131,7 +134,8 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 30,
     fontWeight: "800",
-    color: "#EDF4FF"
+    color: "#EDF4FF",
+    marginBottom: 14
   },
   subtitle: {
     marginTop: 8,
@@ -162,6 +166,10 @@ const styles = StyleSheet.create({
   menuPngIcon: {
     width: 22,
     height: 22
+  },
+  monthlyPngIcon: {
+    width: 24,
+    height: 24
   },
   cardTextWrap: {
     flex: 1
