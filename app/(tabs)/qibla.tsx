@@ -17,13 +17,12 @@ import { AppBackground } from "@/components/AppBackground";
 import { QiblaCompass } from "@/components/QiblaCompass";
 import { useCompassConfidence } from "@/hooks/useCompassConfidence";
 import { useI18n } from "@/i18n/I18nProvider";
-import { getLocationName, resolveLocationForSettings } from "@/services/location";
+import { getCurrentLocationDetails } from "@/services/location";
 import { getQiblaCompassImageUrl, getQiblaDirection } from "@/services/qibla";
 import {
   buildQiblaCacheKey,
   getCachedQibla,
   getLatestCachedQibla,
-  getSettings,
   saveCachedQibla
 } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
@@ -68,14 +67,11 @@ export default function QiblaScreen() {
     setErrorText(null);
 
     try {
-      const settings = await getSettings();
-      const loc = await resolveLocationForSettings(settings);
+      const loc = await getCurrentLocationDetails();
       setCoords({ lat: loc.lat, lon: loc.lon });
-
-      const resolvedName = await getLocationName(loc.lat, loc.lon);
-      const displayName = resolvedName === "Unknown location" ? loc.label : resolvedName;
+      const displayName = loc.label;
       setLocationName(displayName);
-      setStatusText(settings.locationMode === "manual" ? t("qibla.manual_active") : t("qibla.gps_connected"));
+      setStatusText(t("qibla.gps_connected"));
 
       const cacheKey = buildQiblaCacheKey(loc.lat, loc.lon);
 
