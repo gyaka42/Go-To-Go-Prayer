@@ -204,7 +204,9 @@ export const translations: Record<AppLanguage, TranslationDict> = {
 
     "notifications.title": "Prayer time",
     "notifications.body_at_time": "It's time for {{prayer}}.",
+    "notifications.body_at_time_with_location": "It's time for {{prayer}} in {{location}}.",
     "notifications.body_offset": "{{prayer}} in {{mins}} minutes.",
+    "notifications.body_offset_with_location": "{{prayer}} in {{location}} in {{mins}} minutes.",
 
     "mosques.title": "Mosques",
     "mosques.subtitle": "Find mosques nearby based on your current location.",
@@ -539,7 +541,9 @@ export const translations: Record<AppLanguage, TranslationDict> = {
 
     "notifications.title": "Gebedstijd",
     "notifications.body_at_time": "Het is tijd voor {{prayer}}.",
+    "notifications.body_at_time_with_location": "Het is tijd voor {{prayer}} in {{location}}.",
     "notifications.body_offset": "{{prayer}} over {{mins}} minuten.",
+    "notifications.body_offset_with_location": "{{prayer}} in {{location}} over {{mins}} minuten.",
 
     "mosques.title": "Moskeeën",
     "mosques.subtitle": "Vind moskeeën in de buurt op basis van je huidige locatie.",
@@ -874,7 +878,9 @@ export const translations: Record<AppLanguage, TranslationDict> = {
 
     "notifications.title": "Namaz vakti",
     "notifications.body_at_time": "{{prayer}} vakti geldi.",
+    "notifications.body_at_time_with_location": "{{location}} için {{prayer}} vakti geldi.",
     "notifications.body_offset": "{{prayer}} için {{mins}} dakika kaldı.",
+    "notifications.body_offset_with_location": "{{location}} için {{prayer}} vaktine {{mins}} dakika kaldı.",
 
     "mosques.title": "Camiler",
     "mosques.subtitle": "Mevcut konumuna göre yakındaki camileri bul.",

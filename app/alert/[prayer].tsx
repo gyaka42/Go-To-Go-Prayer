@@ -169,13 +169,23 @@ export default function PrayerAlertPreferencesScreen() {
       setTimeout(() => Vibration.vibrate(45), 120);
     }
 
+    const locationLabel = settings?.manualLocation?.label ?? null;
+
     await Notifications.scheduleNotificationAsync({
       content: {
         title: t("notifications.title"),
         body:
           entry.minutesBefore === 0
-            ? t("notifications.body_at_time", { prayer: prayerLabel })
-            : t("notifications.body_offset", { prayer: prayerLabel, mins: entry.minutesBefore }),
+            ? locationLabel
+              ? t("notifications.body_at_time_with_location", { prayer: prayerLabel, location: locationLabel })
+              : t("notifications.body_at_time", { prayer: prayerLabel })
+            : locationLabel
+              ? t("notifications.body_offset_with_location", {
+                  prayer: prayerLabel,
+                  mins: entry.minutesBefore,
+                  location: locationLabel
+                })
+              : t("notifications.body_offset", { prayer: prayerLabel, mins: entry.minutesBefore }),
         data: {
           playSound: entry.playSound,
           tone: entry.tone
