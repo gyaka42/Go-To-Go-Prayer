@@ -201,10 +201,6 @@ export default function PrayerAlertPreferencesScreen() {
       }
     });
 
-    Alert.alert(
-      t("alert.test_sent_title"),
-      t("alert.test_sent_body")
-    );
   };
 
   const onResetToDefault = () => {
