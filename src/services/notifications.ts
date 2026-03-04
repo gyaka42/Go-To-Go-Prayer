@@ -39,6 +39,19 @@ let lastAppliedAt = 0;
 type ScheduledIntent = "offset" | "at_time";
 const ADHAN_SOUND_FILE = "adhan_short.wav";
 
+function toNotificationLocationLabel(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const firstPart = value
+    .split(",")
+    .map((part) => part.trim())
+    .find((part) => part.length > 0);
+
+  return firstPart || null;
+}
+
 export function resolveNotificationSound(
   playSound: boolean,
   tone: PrayerNotificationSetting["tone"]
@@ -157,7 +170,7 @@ export async function schedulePrayerNotificationsForDay(
   dedupeSet: Set<string>
 ): Promise<void> {
   const language = await getPreferredLanguage();
-  let locationLabel: string | null = settings.manualLocation?.label ?? null;
+  let locationLabel = toNotificationLocationLabel(settings.manualLocation?.label);
   for (const prayer of PRAYER_NAMES) {
     const prayerSetting = settings.prayerNotifications[prayer];
     if (!prayerSetting?.enabled) {
@@ -232,11 +245,11 @@ async function replanAllOnce(params: {
   });
   const todayTimings = resolved.today;
   const tomorrowTimings = resolved.tomorrow;
-  let locationLabel: string | null = params.settings.manualLocation?.label ?? null;
+  let locationLabel = toNotificationLocationLabel(params.settings.manualLocation?.label);
   if (!locationLabel) {
     try {
       const resolvedLabel = await getLocationName(params.lat, params.lon);
-      locationLabel = resolvedLabel === "Unknown location" ? null : resolvedLabel;
+      locationLabel = resolvedLabel === "Unknown location" ? null : toNotificationLocationLabel(resolvedLabel);
     } catch {
       locationLabel = null;
     }
