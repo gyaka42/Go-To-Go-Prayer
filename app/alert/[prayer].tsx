@@ -169,9 +169,10 @@ export default function PrayerAlertPreferencesScreen() {
       setTimeout(() => Vibration.vibrate(45), 120);
     }
 
-    const locationLabel = settings?.manualLocation?.label
-      ? settings.manualLocation.label.split(",")[0]?.trim() || null
-      : null;
+    const locationLabel =
+      settings?.locationMode === "manual" && settings?.manualLocation?.label
+        ? settings.manualLocation.label.split(",")[0]?.trim() || null
+        : null;
 
     await Notifications.scheduleNotificationAsync({
       content: {

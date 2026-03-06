@@ -170,7 +170,8 @@ export async function schedulePrayerNotificationsForDay(
   dedupeSet: Set<string>
 ): Promise<void> {
   const language = await getPreferredLanguage();
-  let locationLabel = toNotificationLocationLabel(settings.manualLocation?.label);
+  let locationLabel =
+    settings.locationMode === "manual" ? toNotificationLocationLabel(settings.manualLocation?.label) : null;
   for (const prayer of PRAYER_NAMES) {
     const prayerSetting = settings.prayerNotifications[prayer];
     if (!prayerSetting?.enabled) {
@@ -245,7 +246,10 @@ async function replanAllOnce(params: {
   });
   const todayTimings = resolved.today;
   const tomorrowTimings = resolved.tomorrow;
-  let locationLabel = toNotificationLocationLabel(params.settings.manualLocation?.label);
+  let locationLabel =
+    params.settings.locationMode === "manual"
+      ? toNotificationLocationLabel(params.settings.manualLocation?.label)
+      : null;
   if (!locationLabel) {
     try {
       const resolvedLabel = await getLocationName(params.lat, params.lon);
