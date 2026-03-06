@@ -30,7 +30,13 @@ import { AppBackground } from "@/components/AppBackground";
 import { LanguageMode, useI18n } from "@/i18n/I18nProvider";
 import { replanAll } from "@/services/notifications";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
-import { getMosquesSettings, getSettings, saveMosquesSettings, saveSettings } from "@/services/storage";
+import {
+  getMosquesSettings,
+  getSettings,
+  saveLatestCachedLocation,
+  saveMosquesSettings,
+  saveSettings
+} from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { ThemeMode } from "@/theme/theme";
 import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
@@ -175,6 +181,13 @@ export default function SettingsScreen() {
         setSettings(updated);
         setLocationStatus(location.label);
         await saveSettings(updated);
+        await saveLatestCachedLocation({
+          lat: location.lat,
+          lon: location.lon,
+          label: location.label,
+          mode: "manual",
+          updatedAt: new Date().toISOString()
+        });
         setLocationModalVisible(false);
         setCityQuery("");
         setCitySuggestions([]);
@@ -258,6 +271,13 @@ export default function SettingsScreen() {
       };
       setSettings(updated);
       await saveSettings(updated);
+      await saveLatestCachedLocation({
+        lat: loc.lat,
+        lon: loc.lon,
+        label: loc.label,
+        mode: "gps",
+        updatedAt: new Date().toISOString()
+      });
 
       // Force a fresh API fetch to refill the 30-day cache window for GPS location.
       await getTodayTomorrowTimings({
