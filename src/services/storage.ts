@@ -462,7 +462,7 @@ function createDefaultZikrState(): ZikrState {
     entries: {
       subhanallah: { count: 0, target: 33, updatedAt: now },
       alhamdulillah: { count: 0, target: 33, updatedAt: now },
-      allahuakbar: { count: 0, target: 34, updatedAt: now },
+      allahuakbar: { count: 0, target: 33, updatedAt: now },
       la_ilaha_illallah: { count: 0, target: 100, updatedAt: now },
       custom: { count: 0, target: 100, updatedAt: now, subtitle: "" }
     },
