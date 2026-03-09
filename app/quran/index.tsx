@@ -9,6 +9,15 @@ import { getQuranSurahs } from "@/services/quran";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { SurahSummary } from "@/types/quran";
 
+function normalizeForSearch(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[’'`´]/g, "")
+    .replace(/[^a-z0-9\u0600-\u06ff]/g, "");
+}
+
 export default function QuranScreen() {
   const router = useRouter();
   const { colors, resolvedTheme } = useAppTheme();
@@ -40,15 +49,17 @@ export default function QuranScreen() {
   );
 
   const filtered = useMemo(() => {
-    const trimmed = query.trim().toLowerCase();
+    const trimmed = normalizeForSearch(query.trim());
     if (!trimmed) {
       return rows;
     }
     return rows.filter((row) => {
+      const latin = normalizeForSearch(row.nameLatin);
+      const arabic = normalizeForSearch(row.nameArabic);
       return (
         String(row.id).includes(trimmed) ||
-        row.nameArabic.toLowerCase().includes(trimmed) ||
-        row.nameLatin.toLowerCase().includes(trimmed)
+        arabic.includes(trimmed) ||
+        latin.includes(trimmed)
       );
     });
   }, [query, rows]);
