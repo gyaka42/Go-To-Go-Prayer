@@ -1,7 +1,7 @@
 import http from "node:http";
 
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
-const DIYANET_QURAN_DEFAULT_BASE = "https://acikkaynakkuran-dev.diyanet.gov.tr";
+const DIYANET_QURAN_DEFAULT_BASE = "https://api.diyanet.gov.tr";
 const PORT = Number(process.env.PORT || 3000);
 const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 * 60 * 1000);
 const QURAN_CACHE_TTL_MS = Number(process.env.QURAN_CACHE_TTL_MS || 24 * 60 * 60 * 1000);
@@ -1376,10 +1376,17 @@ function resolveQuranConfig() {
   if (!apiKey) {
     return { ok: false, error: "Server not configured (missing DIYANET_QURAN_API_KEY)" };
   }
-  const baseUrl = String(process.env.DIYANET_QURAN_API_BASE_URL || DIYANET_QURAN_DEFAULT_BASE)
+  const primaryBaseUrl = String(process.env.DIYANET_QURAN_API_BASE_URL || DIYANET_QURAN_DEFAULT_BASE)
     .trim()
     .replace(/\/+$/, "");
-  return { ok: true, apiKey, baseUrl };
+  const baseUrls = Array.from(
+    new Set([
+      primaryBaseUrl,
+      "https://api.diyanet.gov.tr",
+      "https://acikkaynakkuran-dev.diyanet.gov.tr"
+    ])
+  ).filter((url) => url.length > 0);
+  return { ok: true, apiKey, baseUrl: primaryBaseUrl, baseUrls };
 }
 
 function quranHeaders(config) {
@@ -1413,44 +1420,47 @@ function getCachedQuranResponse(key) {
 
 async function fetchQuranCandidateJson(config, candidates, query) {
   let lastError = null;
-  for (const path of candidates) {
-    const cacheKey = `quran:${path}|${JSON.stringify(query || {})}`;
-    const cached = getCachedQuranResponse(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const url = new URL(path, `${config.baseUrl}/`);
-    if (query && typeof query === "object") {
-      for (const [key, value] of Object.entries(query)) {
-        if (value == null) continue;
-        const clean = String(value).trim();
-        if (clean.length === 0) continue;
-        url.searchParams.set(key, clean);
+  const bases = Array.isArray(config.baseUrls) && config.baseUrls.length > 0 ? config.baseUrls : [config.baseUrl];
+  for (const baseUrl of bases) {
+    for (const path of candidates) {
+      const cacheKey = `quran:${baseUrl}:${path}|${JSON.stringify(query || {})}`;
+      const cached = getCachedQuranResponse(cacheKey);
+      if (cached) {
+        return cached;
       }
-    }
 
-    for (const method of ["GET"]) {
-      try {
-        const response = await fetchWithTimeout(url.toString(), {
-          method,
-          headers: quranHeaders(config)
-        });
-        if (!response.ok) {
-          if (response.status === 404) {
+      const url = new URL(path, `${baseUrl}/`);
+      if (query && typeof query === "object") {
+        for (const [key, value] of Object.entries(query)) {
+          if (value == null) continue;
+          const clean = String(value).trim();
+          if (clean.length === 0) continue;
+          url.searchParams.set(key, clean);
+        }
+      }
+
+      for (const method of ["GET"]) {
+        try {
+          const response = await fetchWithTimeout(url.toString(), {
+            method,
+            headers: quranHeaders(config)
+          });
+          if (!response.ok) {
+            if (response.status === 404) {
+              continue;
+            }
+            const payload = await safeJson(response);
+            lastError = new Error(`HTTP ${response.status} url=${url.toString()} body=${JSON.stringify(payload)}`);
             continue;
           }
           const payload = await safeJson(response);
-          lastError = new Error(`HTTP ${response.status} body=${JSON.stringify(payload)}`);
-          continue;
+          if (payload && typeof payload === "object") {
+            cacheQuranResponse(cacheKey, payload);
+            return payload;
+          }
+        } catch (error) {
+          lastError = error;
         }
-        const payload = await safeJson(response);
-        if (payload && typeof payload === "object") {
-          cacheQuranResponse(cacheKey, payload);
-          return payload;
-        }
-      } catch (error) {
-        lastError = error;
       }
     }
   }
@@ -1697,7 +1707,7 @@ function normalizeAudioInfo(payload, fallbackSurahId, fallbackReciter) {
 async function fetchQuranSurahs(config, lang) {
   const payload = await fetchQuranCandidateJson(
     config,
-    ["/api/surahs", "/api/surah", "/surahs", "/quran/surahs", "/quran/chapters", "/swagger/surahs"],
+    ["/api/v1/chapters", "/api/surahs", "/api/surah", "/surahs", "/quran/surahs", "/quran/chapters"],
     { lang }
   );
   const items = normalizeSurahRows(payload);
@@ -1711,6 +1721,7 @@ async function fetchQuranSurahDetail(config, surahId, lang) {
   const payload = await fetchQuranCandidateJson(
     config,
     [
+      `/api/v1/chapters/${surahId}`,
       `/api/surahs/${surahId}`,
       `/api/surah/${surahId}`,
       `/api/chapters/${surahId}`,
@@ -1734,6 +1745,7 @@ async function fetchQuranAyah(config, verseKey, lang) {
   const payload = await fetchQuranCandidateJson(
     config,
     [
+      `/api/v1/chapters/${parsed.surahId}`,
       `/api/ayah/${parsed.key}`,
       `/api/ayah/${parsed.surahId}/${parsed.ayahNumber}`,
       `/api/verses/${parsed.key}`,

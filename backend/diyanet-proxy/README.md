@@ -5,7 +5,7 @@
 - `DIYANET_USERNAME`
 - `DIYANET_PASSWORD`
 - `DIYANET_QURAN_API_KEY`
-- `DIYANET_QURAN_API_BASE_URL` (optional, default: `https://acikkaynakkuran-dev.diyanet.gov.tr`)
+- `DIYANET_QURAN_API_BASE_URL` (optional, default: `https://api.diyanet.gov.tr`)
 - `QURAN_CACHE_TTL_MS` (optional, default: 86400000)
 
 ## Local run
