@@ -96,6 +96,26 @@ export default function MenuScreen() {
 
         <Pressable
           style={[styles.menuCard, styles.menuCardSpaced, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+          onPress={() => router.push("/quran" as never)}
+        >
+          <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
+            <Image
+              source={require("../../assets/images/list.png")}
+              style={[styles.menuPngIcon, { tintColor: "#2B8CEE" }]}
+              resizeMode="contain"
+            />
+          </View>
+          <View style={styles.cardTextWrap}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.quran.title")}</Text>
+            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+              {t("menu.quran.subtitle")}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
+        </Pressable>
+
+        <Pressable
+          style={[styles.menuCard, styles.menuCardSpaced, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
           onPress={() => router.push("/monthly" as never)}
         >
           <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>

@@ -1,13 +1,16 @@
 import http from "node:http";
 
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
+const DIYANET_QURAN_DEFAULT_BASE = "https://acikkaynakkuran-dev.diyanet.gov.tr";
 const PORT = Number(process.env.PORT || 3000);
 const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 * 60 * 1000);
+const QURAN_CACHE_TTL_MS = Number(process.env.QURAN_CACHE_TTL_MS || 24 * 60 * 60 * 1000);
 const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 8000);
 
 let tokenState = null; // { token: string, expMs: number }
 let citiesState = null; // { items: Array<City>, atMs: number }
 const timingsCache = new Map(); // key -> { payload, expMs }
+const quranCache = new Map(); // key -> { payload, expMs }
 const countriesCache = new Map(); // lang -> { atMs, items }
 const statesCache = new Map(); // countryId -> { atMs, items }
 const districtsCache = new Map(); // stateId -> { atMs, items }
@@ -59,7 +62,107 @@ async function handleRequest(req, res) {
   const lang = normalizeLang(url.searchParams.get("lang"));
 
   if (req.method === "GET" && url.pathname === "/health") {
-    sendJson(res, 200, { ok: true, service: "diyanet-proxy", at: new Date().toISOString() });
+    sendJson(res, 200, {
+      ok: true,
+      service: "diyanet-proxy",
+      at: new Date().toISOString(),
+      quranApiConfigured: Boolean(process.env.DIYANET_QURAN_API_KEY?.trim())
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/quran/surahs") {
+    const quranConfig = resolveQuranConfig();
+    if (!quranConfig.ok) {
+      sendJson(res, 503, { error: quranConfig.error });
+      return;
+    }
+
+    try {
+      const items = await fetchQuranSurahs(quranConfig, lang);
+      sendJson(res, 200, { items });
+    } catch (error) {
+      sendJson(res, 502, { error: "Quran upstream failure", details: String(error) });
+    }
+    return;
+  }
+
+  const surahMatch = url.pathname.match(/^\/quran\/surahs\/(\d+)$/);
+  if (req.method === "GET" && surahMatch) {
+    const surahId = Number(surahMatch[1]);
+    if (!Number.isFinite(surahId) || surahId <= 0) {
+      sendJson(res, 400, { error: "Invalid surahId" });
+      return;
+    }
+
+    const quranConfig = resolveQuranConfig();
+    if (!quranConfig.ok) {
+      sendJson(res, 503, { error: quranConfig.error });
+      return;
+    }
+
+    try {
+      const detail = await fetchQuranSurahDetail(quranConfig, surahId, lang);
+      if (!detail || !Array.isArray(detail.verses) || detail.verses.length === 0) {
+        sendJson(res, 404, { error: "Surah not found" });
+        return;
+      }
+      sendJson(res, 200, detail);
+    } catch (error) {
+      sendJson(res, 502, { error: "Quran upstream failure", details: String(error) });
+    }
+    return;
+  }
+
+  const ayahMatch = url.pathname.match(/^\/quran\/ayah\/([^/]+)$/);
+  if (req.method === "GET" && ayahMatch) {
+    const verseKey = decodeURIComponent(ayahMatch[1] || "").trim();
+    if (!isValidVerseKey(verseKey)) {
+      sendJson(res, 400, { error: "Invalid verseKey. Expected format like 2:255." });
+      return;
+    }
+
+    const quranConfig = resolveQuranConfig();
+    if (!quranConfig.ok) {
+      sendJson(res, 503, { error: quranConfig.error });
+      return;
+    }
+
+    try {
+      const verse = await fetchQuranAyah(quranConfig, verseKey, lang);
+      if (!verse) {
+        sendJson(res, 404, { error: "Ayah not found" });
+        return;
+      }
+      sendJson(res, 200, verse);
+    } catch (error) {
+      sendJson(res, 502, { error: "Quran upstream failure", details: String(error) });
+    }
+    return;
+  }
+
+  const audioMatch = url.pathname.match(/^\/quran\/audio\/(\d+)$/);
+  if (req.method === "GET" && audioMatch) {
+    const surahId = Number(audioMatch[1]);
+    if (!Number.isFinite(surahId) || surahId <= 0) {
+      sendJson(res, 400, { error: "Invalid surahId" });
+      return;
+    }
+
+    const quranConfig = resolveQuranConfig();
+    if (!quranConfig.ok) {
+      sendJson(res, 503, { error: quranConfig.error });
+      return;
+    }
+
+    try {
+      const reciter = String(url.searchParams.get("reciter") || "").trim();
+      const audio = await fetchQuranAudio(quranConfig, surahId, reciter || null, lang);
+      sendJson(res, 200, audio);
+    } catch {
+      // Audio is optional for V1; keep the endpoint non-breaking.
+      sendJson(res, 200, { available: false });
+    }
     return;
   }
 
@@ -1266,6 +1369,371 @@ async function geocodeOpenMeteo(query, countryCode, lang = "en") {
   } catch {
     return null;
   }
+}
+
+function resolveQuranConfig() {
+  const apiKey = process.env.DIYANET_QURAN_API_KEY?.trim();
+  if (!apiKey) {
+    return { ok: false, error: "Server not configured (missing DIYANET_QURAN_API_KEY)" };
+  }
+  const baseUrl = String(process.env.DIYANET_QURAN_API_BASE_URL || DIYANET_QURAN_DEFAULT_BASE)
+    .trim()
+    .replace(/\/+$/, "");
+  return { ok: true, apiKey, baseUrl };
+}
+
+function quranHeaders(config) {
+  return {
+    Accept: "application/json",
+    Authorization: `Bearer ${config.apiKey}`,
+    "x-auth-token": config.apiKey,
+    "x-api-key": config.apiKey,
+    "x-client-id": "go-to-go-prayer"
+  };
+}
+
+function cacheQuranResponse(key, payload) {
+  quranCache.set(key, {
+    payload,
+    expMs: Date.now() + QURAN_CACHE_TTL_MS
+  });
+}
+
+function getCachedQuranResponse(key) {
+  const hit = quranCache.get(key);
+  if (!hit) {
+    return null;
+  }
+  if (Date.now() > hit.expMs) {
+    quranCache.delete(key);
+    return null;
+  }
+  return hit.payload;
+}
+
+async function fetchQuranCandidateJson(config, candidates, query) {
+  let lastError = null;
+  for (const path of candidates) {
+    const cacheKey = `quran:${path}|${JSON.stringify(query || {})}`;
+    const cached = getCachedQuranResponse(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const url = new URL(path, `${config.baseUrl}/`);
+    if (query && typeof query === "object") {
+      for (const [key, value] of Object.entries(query)) {
+        if (value == null) continue;
+        const clean = String(value).trim();
+        if (clean.length === 0) continue;
+        url.searchParams.set(key, clean);
+      }
+    }
+
+    for (const method of ["GET"]) {
+      try {
+        const response = await fetchWithTimeout(url.toString(), {
+          method,
+          headers: quranHeaders(config)
+        });
+        if (!response.ok) {
+          if (response.status === 404) {
+            continue;
+          }
+          const payload = await safeJson(response);
+          lastError = new Error(`HTTP ${response.status} body=${JSON.stringify(payload)}`);
+          continue;
+        }
+        const payload = await safeJson(response);
+        if (payload && typeof payload === "object") {
+          cacheQuranResponse(cacheKey, payload);
+          return payload;
+        }
+      } catch (error) {
+        lastError = error;
+      }
+    }
+  }
+  if (lastError) {
+    throw lastError;
+  }
+  return null;
+}
+
+function getValueByAnyKey(obj, keys) {
+  for (const key of keys) {
+    if (obj[key] != null) {
+      return obj[key];
+    }
+  }
+  return null;
+}
+
+function toPositiveNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function parseVerseKey(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{1,3})[:\-|](\d{1,3})$/);
+  if (!match) {
+    return null;
+  }
+  const surahId = Number(match[1]);
+  const ayahNumber = Number(match[2]);
+  if (!(surahId > 0) || !(ayahNumber > 0)) {
+    return null;
+  }
+  return { surahId, ayahNumber, key: `${surahId}:${ayahNumber}` };
+}
+
+function isValidVerseKey(value) {
+  return Boolean(parseVerseKey(value));
+}
+
+function normalizeSurahRows(payload) {
+  const rows = collectObjects(payload);
+  const map = new Map();
+
+  for (const row of rows) {
+    const id = toPositiveNumber(
+      getValueByAnyKey(row, ["id", "surahId", "surahID", "number", "surahNo", "chapterId"])
+    );
+    const nameArabic = String(
+      getValueByAnyKey(row, ["nameArabic", "name_arabic", "arabicName", "surahNameArabic", "nameAr"]) || ""
+    ).trim();
+    const nameLatin = String(
+      getValueByAnyKey(row, [
+        "nameLatin",
+        "name_latin",
+        "name",
+        "latinName",
+        "surahName",
+        "title",
+        "nameTr",
+        "nameEn"
+      ]) || ""
+    ).trim();
+    const ayahCount = Number(
+      getValueByAnyKey(row, ["ayahCount", "verseCount", "numberOfAyahs", "totalAyah", "totalVerse"]) || 0
+    );
+
+    if (!id) continue;
+    if (!nameArabic && !nameLatin) continue;
+    if (!map.has(id)) {
+      map.set(id, {
+        id,
+        nameArabic: nameArabic || nameLatin || `Surah ${id}`,
+        nameLatin: nameLatin || nameArabic || `Surah ${id}`,
+        ayahCount: Number.isFinite(ayahCount) && ayahCount > 0 ? ayahCount : 0
+      });
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.id - b.id);
+}
+
+function normalizeVerseRows(payload, fallbackSurahId = null) {
+  const rows = collectObjects(payload);
+  const map = new Map();
+
+  for (const row of rows) {
+    const surahId = toPositiveNumber(
+      getValueByAnyKey(row, ["surahId", "surahID", "chapterId", "sura", "surahNumber", "chapter_number"])
+    ) || fallbackSurahId;
+    const numberInSurah = toPositiveNumber(
+      getValueByAnyKey(row, [
+        "numberInSurah",
+        "ayahNumber",
+        "verseNumber",
+        "verseNo",
+        "number",
+        "ayah",
+        "verse"
+      ])
+    );
+    const arabic = String(
+      getValueByAnyKey(row, [
+        "arabic",
+        "textArabic",
+        "text_arabic",
+        "arabicText",
+        "ayetTextAr",
+        "verseArabic",
+        "text"
+      ]) || ""
+    ).trim();
+    const translationTr = String(
+      getValueByAnyKey(row, [
+        "translationTr",
+        "translation",
+        "meal",
+        "textTr",
+        "textTurkish",
+        "turkish",
+        "ayetTextTr"
+      ]) || ""
+    ).trim();
+
+    if (!surahId || !numberInSurah || !arabic) {
+      continue;
+    }
+    const key = `${surahId}:${numberInSurah}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        numberInSurah,
+        arabic,
+        translationTr
+      });
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.numberInSurah - b.numberInSurah);
+}
+
+function normalizeSurahMeta(payload, surahId, verses) {
+  const rows = collectObjects(payload);
+  for (const row of rows) {
+    const rowId = toPositiveNumber(
+      getValueByAnyKey(row, ["id", "surahId", "surahID", "number", "surahNo", "chapterId"])
+    );
+    if (rowId !== surahId) {
+      continue;
+    }
+    const nameArabic = String(
+      getValueByAnyKey(row, ["nameArabic", "name_arabic", "arabicName", "surahNameArabic", "nameAr"]) || ""
+    ).trim();
+    const nameLatin = String(
+      getValueByAnyKey(row, [
+        "nameLatin",
+        "name_latin",
+        "name",
+        "latinName",
+        "surahName",
+        "title",
+        "nameTr",
+        "nameEn"
+      ]) || ""
+    ).trim();
+    const ayahCountRaw = Number(
+      getValueByAnyKey(row, ["ayahCount", "verseCount", "numberOfAyahs", "totalAyah", "totalVerse"]) || 0
+    );
+    return {
+      id: surahId,
+      nameArabic: nameArabic || nameLatin || `Surah ${surahId}`,
+      nameLatin: nameLatin || nameArabic || `Surah ${surahId}`,
+      ayahCount: Number.isFinite(ayahCountRaw) && ayahCountRaw > 0 ? ayahCountRaw : verses.length
+    };
+  }
+
+  return {
+    id: surahId,
+    nameArabic: `Surah ${surahId}`,
+    nameLatin: `Surah ${surahId}`,
+    ayahCount: verses.length
+  };
+}
+
+function normalizeAudioInfo(payload, fallbackSurahId, fallbackReciter) {
+  const rows = collectObjects(payload);
+  for (const row of rows) {
+    const url = String(
+      getValueByAnyKey(row, ["url", "audioUrl", "audio_url", "streamUrl", "mp3", "recitationUrl"]) || ""
+    ).trim();
+    if (!url || !/^https?:\/\//.test(url)) {
+      continue;
+    }
+    const reciter = String(
+      getValueByAnyKey(row, ["reciter", "reader", "reciterName", "readerName", "qari"]) || fallbackReciter || ""
+    ).trim();
+    return {
+      available: true,
+      audio: {
+        surahId: fallbackSurahId,
+        reciter: reciter || "default",
+        url
+      }
+    };
+  }
+  return { available: false };
+}
+
+async function fetchQuranSurahs(config, lang) {
+  const payload = await fetchQuranCandidateJson(
+    config,
+    ["/api/surahs", "/api/surah", "/surahs", "/quran/surahs", "/swagger/surahs"],
+    { lang }
+  );
+  const items = normalizeSurahRows(payload);
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error("Quran surah list response is empty or not parseable.");
+  }
+  return items;
+}
+
+async function fetchQuranSurahDetail(config, surahId, lang) {
+  const payload = await fetchQuranCandidateJson(
+    config,
+    [
+      `/api/surahs/${surahId}`,
+      `/api/surah/${surahId}`,
+      `/api/chapters/${surahId}`,
+      `/api/verses/by-surah/${surahId}`,
+      `/quran/surahs/${surahId}`
+    ],
+    { lang, translation: "tr" }
+  );
+  const verses = normalizeVerseRows(payload, surahId);
+  const surah = normalizeSurahMeta(payload, surahId, verses);
+  return { surah, verses };
+}
+
+async function fetchQuranAyah(config, verseKey, lang) {
+  const parsed = parseVerseKey(verseKey);
+  if (!parsed) {
+    return null;
+  }
+
+  const payload = await fetchQuranCandidateJson(
+    config,
+    [
+      `/api/ayah/${parsed.key}`,
+      `/api/ayah/${parsed.surahId}/${parsed.ayahNumber}`,
+      `/api/verses/${parsed.key}`,
+      `/api/verses/${parsed.surahId}/${parsed.ayahNumber}`,
+      `/quran/ayah/${parsed.key}`
+    ],
+    { lang, translation: "tr" }
+  );
+  const verses = normalizeVerseRows(payload, parsed.surahId);
+  const hit = verses.find((row) => row.numberInSurah === parsed.ayahNumber) || verses[0] || null;
+  if (!hit) {
+    return null;
+  }
+  return {
+    key: `${parsed.surahId}:${hit.numberInSurah}`,
+    surahId: parsed.surahId,
+    numberInSurah: hit.numberInSurah,
+    arabic: hit.arabic,
+    translationTr: hit.translationTr
+  };
+}
+
+async function fetchQuranAudio(config, surahId, reciter, lang) {
+  const payload = await fetchQuranCandidateJson(
+    config,
+    [
+      `/api/audio/surahs/${surahId}`,
+      `/api/audio/surah/${surahId}`,
+      `/api/surahs/${surahId}/audio`,
+      `/api/recitations/surah/${surahId}`,
+      `/quran/audio/${surahId}`
+    ],
+    { lang, reciter: reciter || undefined }
+  );
+  return normalizeAudioInfo(payload, surahId, reciter);
 }
 
 function buildRequestCacheKey(input) {
