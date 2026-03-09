@@ -29,6 +29,7 @@ export interface QuranAyah {
 
 export interface QuranAudioInfo {
   available: boolean;
+  source?: "diyanet" | "fallback";
   audio?: {
     surahId: number;
     reciter: string;

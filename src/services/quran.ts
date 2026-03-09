@@ -160,6 +160,7 @@ function assertAudioInfo(raw: unknown): QuranAudioInfo {
 
   return {
     available: true,
+    source: payload?.source === "fallback" ? "fallback" : "diyanet",
     audio: {
       surahId: Number(payload?.audio?.surahId || 0),
       reciter: String(payload?.audio?.reciter || "default"),

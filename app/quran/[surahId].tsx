@@ -138,15 +138,22 @@ export default function QuranSurahDetailScreen() {
         ) : null}
 
         {audioInfo.available ? (
-          <Pressable
-            style={[styles.audioButton, playing ? { backgroundColor: "#D86076" } : { backgroundColor: "#2B8CEE" }]}
-            onPress={() => void toggleAudio()}
-          >
-            <Ionicons name={playing ? "pause" : "play"} size={16} color="#FFFFFF" />
-            <Text style={styles.audioButtonText}>
-              {playing ? t("quran.audio_stop") : t("quran.audio_play")}
-            </Text>
-          </Pressable>
+          <View style={styles.audioWrap}>
+            <Pressable
+              style={[styles.audioButton, playing ? { backgroundColor: "#D86076" } : { backgroundColor: "#2B8CEE" }]}
+              onPress={() => void toggleAudio()}
+            >
+              <Ionicons name={playing ? "pause" : "play"} size={16} color="#FFFFFF" />
+              <Text style={styles.audioButtonText}>
+                {playing ? t("quran.audio_stop") : t("quran.audio_play")}
+              </Text>
+            </Pressable>
+            {audioInfo.source === "fallback" ? (
+              <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>
+                {t("quran.audio_fallback_hint")}
+              </Text>
+            ) : null}
+          </View>
         ) : null}
 
         {loading ? (
@@ -231,10 +238,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8
   },
+  audioWrap: {
+    marginBottom: 10,
+    alignItems: "center",
+    gap: 6
+  },
   audioButtonText: {
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 14
+  },
+  audioHintText: {
+    fontSize: 12,
+    color: "#8EA4BF"
   },
   centerWrap: {
     flex: 1,

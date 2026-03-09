@@ -1699,6 +1699,7 @@ function normalizeAudioInfo(payload, fallbackSurahId, fallbackReciter) {
     ).trim();
     return {
       available: true,
+      source: "diyanet",
       audio: {
         surahId: fallbackSurahId,
         reciter: reciter || "default",
@@ -1715,6 +1716,7 @@ function buildSurahAudioFallback(surahId, reciterOverride) {
   const bitrate = allowedBitrates.has(QURAN_AUDIO_FALLBACK_BITRATE) ? QURAN_AUDIO_FALLBACK_BITRATE : 128;
   return {
     available: true,
+    source: "fallback",
     audio: {
       surahId,
       reciter,
