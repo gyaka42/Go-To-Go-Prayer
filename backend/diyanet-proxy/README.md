@@ -7,6 +7,9 @@
 - `DIYANET_QURAN_API_KEY`
 - `DIYANET_QURAN_API_BASE_URL` (optional, default: `https://api.diyanet.gov.tr`)
 - `QURAN_CACHE_TTL_MS` (optional, default: 86400000)
+- `QURAN_AUDIO_FALLBACK_ENABLED` (optional, default: `true`)
+- `QURAN_AUDIO_FALLBACK_RECITER` (optional, default: `ar.alafasy`)
+- `QURAN_AUDIO_FALLBACK_BITRATE` (optional, default: `128`)
 
 ## Local run
 

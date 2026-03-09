@@ -2,6 +2,11 @@ import http from "node:http";
 
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
 const DIYANET_QURAN_DEFAULT_BASE = "https://api.diyanet.gov.tr";
+const QURAN_AUDIO_FALLBACK_ENABLED = String(process.env.QURAN_AUDIO_FALLBACK_ENABLED || "true")
+  .trim()
+  .toLowerCase() !== "false";
+const QURAN_AUDIO_FALLBACK_RECITER = String(process.env.QURAN_AUDIO_FALLBACK_RECITER || "ar.alafasy").trim();
+const QURAN_AUDIO_FALLBACK_BITRATE = Number(process.env.QURAN_AUDIO_FALLBACK_BITRATE || 128);
 const PORT = Number(process.env.PORT || 3000);
 const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 * 60 * 1000);
 const QURAN_CACHE_TTL_MS = Number(process.env.QURAN_CACHE_TTL_MS || 24 * 60 * 60 * 1000);
@@ -1704,6 +1709,20 @@ function normalizeAudioInfo(payload, fallbackSurahId, fallbackReciter) {
   return { available: false };
 }
 
+function buildSurahAudioFallback(surahId, reciterOverride) {
+  const reciter = String(reciterOverride || QURAN_AUDIO_FALLBACK_RECITER || "ar.alafasy").trim();
+  const allowedBitrates = new Set([32, 40, 48, 64, 128, 192]);
+  const bitrate = allowedBitrates.has(QURAN_AUDIO_FALLBACK_BITRATE) ? QURAN_AUDIO_FALLBACK_BITRATE : 128;
+  return {
+    available: true,
+    audio: {
+      surahId,
+      reciter,
+      url: `https://cdn.islamic.network/quran/audio-surah/${bitrate}/${encodeURIComponent(reciter)}/${surahId}.mp3`
+    }
+  };
+}
+
 async function fetchQuranSurahs(config, lang) {
   const payload = await fetchQuranCandidateJson(
     config,
@@ -1783,18 +1802,31 @@ async function fetchQuranAyah(config, verseKey, lang) {
 }
 
 async function fetchQuranAudio(config, surahId, reciter, lang) {
-  const payload = await fetchQuranCandidateJson(
-    config,
-    [
-      `/api/audio/surahs/${surahId}`,
-      `/api/audio/surah/${surahId}`,
-      `/api/surahs/${surahId}/audio`,
-      `/api/recitations/surah/${surahId}`,
-      `/quran/audio/${surahId}`
-    ],
-    { lang, reciter: reciter || undefined }
-  );
-  return normalizeAudioInfo(payload, surahId, reciter);
+  try {
+    const payload = await fetchQuranCandidateJson(
+      config,
+      [
+        `/api/v1/surah-audio/${surahId}`,
+        `/api/audio/surahs/${surahId}`,
+        `/api/audio/surah/${surahId}`,
+        `/api/surahs/${surahId}/audio`,
+        `/api/recitations/surah/${surahId}`,
+        `/quran/audio/${surahId}`
+      ],
+      { lang, reciter: reciter || undefined }
+    );
+    const normalized = normalizeAudioInfo(payload, surahId, reciter);
+    if (normalized.available) {
+      return normalized;
+    }
+  } catch {
+    // Continue to fallback.
+  }
+
+  if (QURAN_AUDIO_FALLBACK_ENABLED) {
+    return buildSurahAudioFallback(surahId, reciter);
+  }
+  return { available: false };
 }
 
 function buildRequestCacheKey(input) {
