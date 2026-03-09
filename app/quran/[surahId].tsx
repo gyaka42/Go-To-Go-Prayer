@@ -29,8 +29,10 @@ export default function QuranSurahDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [audioBusy, setAudioBusy] = useState(false);
 
   const soundRef = useRef<Audio.Sound | null>(null);
+  const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const cleanupSound = useCallback(async () => {
     const sound = soundRef.current;
@@ -49,6 +51,22 @@ export default function QuranSurahDetailScreen() {
     }
     soundRef.current = null;
     setPlaying(false);
+  }, []);
+
+  const queueAudioAction = useCallback(async (action: () => Promise<void>) => {
+    audioQueueRef.current = audioQueueRef.current
+      .then(async () => {
+        setAudioBusy(true);
+        try {
+          await action();
+        } finally {
+          setAudioBusy(false);
+        }
+      })
+      .catch(() => {
+        setAudioBusy(false);
+      });
+    await audioQueueRef.current;
   }, []);
 
   useEffect(() => {
@@ -89,35 +107,59 @@ export default function QuranSurahDetailScreen() {
     if (!audioInfo.available || !audioInfo.audio?.url) {
       return;
     }
-    if (playing) {
-      await cleanupSound();
-      return;
-    }
-
-    await cleanupSound();
-    try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false
-      });
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: audioInfo.audio.url },
-        { shouldPlay: true }
-      );
-      soundRef.current = sound;
-      setPlaying(true);
-      sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+    const audioUrl = audioInfo.audio.url;
+    await queueAudioAction(async () => {
+      const existing = soundRef.current;
+      if (existing) {
+        const status = await existing.getStatusAsync();
         if (!status.isLoaded) {
+          await cleanupSound();
           return;
         }
-        if (status.didJustFinish) {
-          void cleanupSound();
+
+        if (status.isPlaying) {
+          await existing.pauseAsync();
+          setPlaying(false);
+          return;
         }
-      });
-    } catch {
-      await cleanupSound();
-    }
-  }, [audioInfo.audio?.url, audioInfo.available, cleanupSound, playing]);
+
+        const duration = status.durationMillis ?? 0;
+        const position = status.positionMillis ?? 0;
+        if (duration > 0 && position >= duration - 400) {
+          await existing.setPositionAsync(0);
+        }
+        await existing.playAsync();
+        setPlaying(true);
+        return;
+      }
+
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false
+        });
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: audioUrl },
+          { shouldPlay: false }
+        );
+        soundRef.current = sound;
+        sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+          if (!status.isLoaded) {
+            return;
+          }
+          if (status.didJustFinish) {
+            setPlaying(false);
+            return;
+          }
+          setPlaying(status.isPlaying);
+        });
+        await sound.playAsync();
+        setPlaying(true);
+      } catch {
+        await cleanupSound();
+      }
+    });
+  }, [audioInfo.audio, audioInfo.available, cleanupSound, queueAudioAction]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -140,12 +182,17 @@ export default function QuranSurahDetailScreen() {
         {audioInfo.available ? (
           <View style={styles.audioWrap}>
             <Pressable
-              style={[styles.audioButton, playing ? { backgroundColor: "#D86076" } : { backgroundColor: "#2B8CEE" }]}
+              style={[
+                styles.audioButton,
+                playing ? { backgroundColor: "#D86076" } : { backgroundColor: "#2B8CEE" },
+                audioBusy ? { opacity: 0.65 } : null
+              ]}
               onPress={() => void toggleAudio()}
+              disabled={audioBusy}
             >
               <Ionicons name={playing ? "pause" : "play"} size={16} color="#FFFFFF" />
               <Text style={styles.audioButtonText}>
-                {playing ? t("quran.audio_stop") : t("quran.audio_play")}
+                {playing ? t("quran.audio_pause") : t("quran.audio_play")}
               </Text>
             </Pressable>
             {audioInfo.source === "fallback" ? (
