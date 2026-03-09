@@ -1732,7 +1732,21 @@ async function fetchQuranSurahDetail(config, surahId, lang) {
     { lang, translation: "tr" }
   );
   const verses = normalizeVerseRows(payload, surahId);
-  const surah = normalizeSurahMeta(payload, surahId, verses);
+  let surah = normalizeSurahMeta(payload, surahId, verses);
+  try {
+    const allSurahs = await fetchQuranSurahs(config, lang);
+    const fromList = allSurahs.find((item) => item.id === surahId);
+    if (fromList) {
+      surah = {
+        id: surahId,
+        nameArabic: fromList.nameArabic || surah.nameArabic,
+        nameLatin: fromList.nameLatin || surah.nameLatin,
+        ayahCount: fromList.ayahCount > 0 ? fromList.ayahCount : surah.ayahCount
+      };
+    }
+  } catch {
+    // Keep fallback metadata when list merge is unavailable.
+  }
   return { surah, verses };
 }
 
