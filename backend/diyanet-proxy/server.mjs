@@ -1498,10 +1498,17 @@ function normalizeSurahRows(payload) {
 
   for (const row of rows) {
     const id = toPositiveNumber(
-      getValueByAnyKey(row, ["id", "surahId", "surahID", "number", "surahNo", "chapterId"])
+      getValueByAnyKey(row, ["id", "surahId", "surahID", "surah_id", "number", "surahNo", "chapterId", "SureId"])
     );
     const nameArabic = String(
-      getValueByAnyKey(row, ["nameArabic", "name_arabic", "arabicName", "surahNameArabic", "nameAr"]) || ""
+      getValueByAnyKey(row, [
+        "nameArabic",
+        "name_arabic",
+        "arabicName",
+        "surahNameArabic",
+        "nameAr",
+        "SureNameArabic"
+      ]) || ""
     ).trim();
     const nameLatin = String(
       getValueByAnyKey(row, [
@@ -1512,11 +1519,13 @@ function normalizeSurahRows(payload) {
         "surahName",
         "title",
         "nameTr",
-        "nameEn"
+        "nameEn",
+        "SureNameTurkish",
+        "SureNameEnglish"
       ]) || ""
     ).trim();
     const ayahCount = Number(
-      getValueByAnyKey(row, ["ayahCount", "verseCount", "numberOfAyahs", "totalAyah", "totalVerse"]) || 0
+      getValueByAnyKey(row, ["ayahCount", "verseCount", "numberOfAyahs", "totalAyah", "totalVerse", "AyetCount"]) || 0
     );
 
     if (!id) continue;
@@ -1540,7 +1549,16 @@ function normalizeVerseRows(payload, fallbackSurahId = null) {
 
   for (const row of rows) {
     const surahId = toPositiveNumber(
-      getValueByAnyKey(row, ["surahId", "surahID", "chapterId", "sura", "surahNumber", "chapter_number"])
+      getValueByAnyKey(row, [
+        "surahId",
+        "surahID",
+        "surah_id",
+        "chapterId",
+        "sura",
+        "surahNumber",
+        "chapter_number",
+        "SureId"
+      ])
     ) || fallbackSurahId;
     const numberInSurah = toPositiveNumber(
       getValueByAnyKey(row, [
@@ -1550,9 +1568,13 @@ function normalizeVerseRows(payload, fallbackSurahId = null) {
         "verseNo",
         "number",
         "ayah",
-        "verse"
+        "verse",
+        "verse_id_in_surah",
+        "AyetId"
       ])
     );
+    const arabicNested = row?.arabic_script && typeof row.arabic_script === "object" ? row.arabic_script : null;
+    const translationNested = row?.translation && typeof row.translation === "object" ? row.translation : null;
     const arabic = String(
       getValueByAnyKey(row, [
         "arabic",
@@ -1562,18 +1584,21 @@ function normalizeVerseRows(payload, fallbackSurahId = null) {
         "ayetTextAr",
         "verseArabic",
         "text"
-      ]) || ""
+      ]) ||
+        getValueByAnyKey(arabicNested || {}, ["text", "value", "content"]) ||
+        ""
     ).trim();
     const translationTr = String(
       getValueByAnyKey(row, [
         "translationTr",
-        "translation",
         "meal",
         "textTr",
         "textTurkish",
         "turkish",
         "ayetTextTr"
-      ]) || ""
+      ]) ||
+        getValueByAnyKey(translationNested || {}, ["text", "value", "content"]) ||
+        ""
     ).trim();
 
     if (!surahId || !numberInSurah || !arabic) {
@@ -1597,13 +1622,20 @@ function normalizeSurahMeta(payload, surahId, verses) {
   const rows = collectObjects(payload);
   for (const row of rows) {
     const rowId = toPositiveNumber(
-      getValueByAnyKey(row, ["id", "surahId", "surahID", "number", "surahNo", "chapterId"])
+      getValueByAnyKey(row, ["id", "surahId", "surahID", "surah_id", "number", "surahNo", "chapterId", "SureId"])
     );
     if (rowId !== surahId) {
       continue;
     }
     const nameArabic = String(
-      getValueByAnyKey(row, ["nameArabic", "name_arabic", "arabicName", "surahNameArabic", "nameAr"]) || ""
+      getValueByAnyKey(row, [
+        "nameArabic",
+        "name_arabic",
+        "arabicName",
+        "surahNameArabic",
+        "nameAr",
+        "SureNameArabic"
+      ]) || ""
     ).trim();
     const nameLatin = String(
       getValueByAnyKey(row, [
@@ -1614,11 +1646,13 @@ function normalizeSurahMeta(payload, surahId, verses) {
         "surahName",
         "title",
         "nameTr",
-        "nameEn"
+        "nameEn",
+        "SureNameTurkish",
+        "SureNameEnglish"
       ]) || ""
     ).trim();
     const ayahCountRaw = Number(
-      getValueByAnyKey(row, ["ayahCount", "verseCount", "numberOfAyahs", "totalAyah", "totalVerse"]) || 0
+      getValueByAnyKey(row, ["ayahCount", "verseCount", "numberOfAyahs", "totalAyah", "totalVerse", "AyetCount"]) || 0
     );
     return {
       id: surahId,
@@ -1663,7 +1697,7 @@ function normalizeAudioInfo(payload, fallbackSurahId, fallbackReciter) {
 async function fetchQuranSurahs(config, lang) {
   const payload = await fetchQuranCandidateJson(
     config,
-    ["/api/surahs", "/api/surah", "/surahs", "/quran/surahs", "/swagger/surahs"],
+    ["/api/surahs", "/api/surah", "/surahs", "/quran/surahs", "/quran/chapters", "/swagger/surahs"],
     { lang }
   );
   const items = normalizeSurahRows(payload);
@@ -1681,7 +1715,8 @@ async function fetchQuranSurahDetail(config, surahId, lang) {
       `/api/surah/${surahId}`,
       `/api/chapters/${surahId}`,
       `/api/verses/by-surah/${surahId}`,
-      `/quran/surahs/${surahId}`
+      `/quran/surahs/${surahId}`,
+      `/quran/surah/${surahId}`
     ],
     { lang, translation: "tr" }
   );
