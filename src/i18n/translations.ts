@@ -1015,7 +1015,7 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "qaza.actionDec": "{{prayer}} -1 (tamamlandı)",
     "qaza.actionReset": "Sayaçlar sıfırlandı",
     "qaza.noHistory": "Henüz geçmiş yok.",
-    "prayer.fajr": "İmsak Sabah",
+    "prayer.fajr": "Sabah",
     "prayer.dhuhr": "Öğle",
     "prayer.asr": "İkindi",
     "prayer.maghrib": "Akşam",
