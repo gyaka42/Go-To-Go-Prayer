@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
-import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppBackground } from "@/components/AppBackground";
@@ -9,6 +9,10 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { getQuranSurahs } from "@/services/quran";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { SurahSummary } from "@/types/quran";
+
+let quranListCache: { localeTag: string; rows: SurahSummary[] } | null = null;
+let quranListScrollOffset = 0;
+let quranListQuery = "";
 
 function normalizeForSearch(value: string): string {
   return value
@@ -24,33 +28,64 @@ export default function QuranScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
+  const listRef = useRef<FlatList<SurahSummary> | null>(null);
+  const scrollRestoredRef = useRef(false);
   const [fontsLoaded] = useFonts({
     QuranArabic: require("../../assets/fonts/NotoNaskhArabic-Regular.ttf")
   });
 
-  const [rows, setRows] = useState<SurahSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const cachedRows = quranListCache?.localeTag === localeTag ? quranListCache.rows : null;
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const [rows, setRows] = useState<SurahSummary[]>(cachedRows || []);
+  const [loading, setLoading] = useState(!cachedRows);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState(quranListQuery);
+
+  const load = useCallback(async (withLoading: boolean = true) => {
+    if (withLoading) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const data = await getQuranSurahs(localeTag);
       setRows(data);
+      quranListCache = { localeTag, rows: data };
     } catch (err) {
       setError(String(err));
     } finally {
-      setLoading(false);
+      if (withLoading) {
+        setLoading(false);
+      }
     }
   }, [localeTag]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void load();
-    }, [load])
-  );
+  useEffect(() => {
+    const hasCache = quranListCache?.localeTag === localeTag && quranListCache.rows.length > 0;
+    if (hasCache) {
+      setRows(quranListCache?.rows || []);
+      setLoading(false);
+      return;
+    }
+    void load(true);
+  }, [localeTag, load]);
+
+  useEffect(() => {
+    if (scrollRestoredRef.current) {
+      return;
+    }
+    if (loading || rows.length === 0 || quranListScrollOffset <= 0) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToOffset({ offset: quranListScrollOffset, animated: false });
+      scrollRestoredRef.current = true;
+    });
+  }, [loading, rows.length]);
+
+  const handleQueryChange = useCallback((value: string) => {
+    setQuery(value);
+    quranListQuery = value;
+  }, []);
 
   const filtered = useMemo(() => {
     const trimmed = normalizeForSearch(query.trim());
@@ -89,7 +124,7 @@ export default function QuranScreen() {
             placeholder={t("quran.search_placeholder")}
             placeholderTextColor={isLight ? "#617990" : "#8EA4BF"}
             value={query}
-            onChangeText={setQuery}
+            onChangeText={handleQueryChange}
             autoCapitalize="none"
             autoCorrect={false}
           />
@@ -109,10 +144,15 @@ export default function QuranScreen() {
           </View>
         ) : (
           <FlatList
+            ref={listRef}
             data={filtered}
             keyExtractor={(item) => String(item.id)}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
+            onScroll={(event) => {
+              quranListScrollOffset = event.nativeEvent.contentOffset.y;
+            }}
+            scrollEventThrottle={16}
             ListEmptyComponent={
               <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.empty")}</Text>
             }
