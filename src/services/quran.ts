@@ -1,7 +1,7 @@
 import { QuranAudioInfo, QuranAyah, SurahMeta, SurahSummary, VerseRow } from "@/types/quran";
 
 const DEFAULT_DIYANET_PROXY_URL = "https://go-to-go-prayer-production.up.railway.app";
-const UNSUPPORTED_QURAN_MARKS_REGEX = /[\u08D4-\u08FF]/g;
+const UNSUPPORTED_QURAN_MARKS_REGEX = /[\u0610-\u061A\u06D6-\u06ED\u08D0-\u08FF\u{10EFD}-\u{10EFF}]/gu;
 
 const inFlight = new Map<string, Promise<unknown>>();
 
