@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFonts } from "expo-font";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -23,6 +24,9 @@ export default function QuranScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
+  const [fontsLoaded] = useFonts({
+    QuranArabic: require("../../assets/fonts/NotoNaskhArabic-Regular.ttf")
+  });
 
   const [rows, setRows] = useState<SurahSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,7 +132,15 @@ export default function QuranScreen() {
                     </Text>
                   </View>
                   <View style={styles.rowRight}>
-                    <Text style={[styles.rowArabic, { color: colors.textPrimary }]}>{item.nameArabic}</Text>
+                    <Text
+                      style={[
+                        styles.rowArabic,
+                        { color: colors.textPrimary },
+                        fontsLoaded ? styles.quranArabicFont : null
+                      ]}
+                    >
+                      {item.nameArabic}
+                    </Text>
                     <Ionicons name="chevron-forward" size={16} color={isLight ? "#617990" : "#8EA4BF"} />
                   </View>
                 </Pressable>
@@ -259,5 +271,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     color: "#EDF4FF"
+  },
+  quranArabicFont: {
+    fontFamily: "QuranArabic",
+    fontWeight: "400"
   }
 });

@@ -1,4 +1,5 @@
 import { Audio, AVPlaybackStatus } from "expo-av";
+import { useFonts } from "expo-font";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -16,6 +17,9 @@ export default function QuranSurahDetailScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
+  const [fontsLoaded] = useFonts({
+    QuranArabic: require("../../assets/fonts/NotoNaskhArabic-Regular.ttf")
+  });
 
   const surahId = useMemo(() => {
     const value = Array.isArray(params.surahId) ? params.surahId[0] : params.surahId;
@@ -175,7 +179,9 @@ export default function QuranSurahDetailScreen() {
 
         {surah ? (
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {surah.nameArabic} • {t("quran.ayah_count", { count: surah.ayahCount })}
+            <Text style={fontsLoaded ? styles.quranArabicFont : null}>{surah.nameArabic}</Text>
+            {" • "}
+            {t("quran.ayah_count", { count: surah.ayahCount })}
           </Text>
         ) : null}
 
@@ -220,7 +226,15 @@ export default function QuranSurahDetailScreen() {
             {verses.map((row) => (
               <View key={row.key} style={[styles.ayahCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                 <Text style={[styles.ayahIndex, { color: isLight ? "#1E78D9" : "#8DBEFF" }]}>{row.numberInSurah}</Text>
-                <Text style={[styles.ayahArabic, { color: colors.textPrimary }]}>{row.arabic}</Text>
+                <Text
+                  style={[
+                    styles.ayahArabic,
+                    { color: colors.textPrimary },
+                    fontsLoaded ? styles.quranArabicFont : null
+                  ]}
+                >
+                  {row.arabic}
+                </Text>
                 <Text style={[styles.ayahTranslation, { color: colors.textSecondary }]}>
                   {row.translationTr || "—"}
                 </Text>
@@ -348,5 +362,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: "#8EA4BF"
+  },
+  quranArabicFont: {
+    fontFamily: "QuranArabic",
+    fontWeight: "400"
   }
 });
