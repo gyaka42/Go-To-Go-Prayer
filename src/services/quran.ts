@@ -1,6 +1,7 @@
 import { QuranAudioInfo, QuranAyah, SurahMeta, SurahSummary, VerseRow } from "@/types/quran";
 
 const DEFAULT_DIYANET_PROXY_URL = "https://go-to-go-prayer-production.up.railway.app";
+const UNSUPPORTED_QURAN_MARKS_REGEX = /[\u08D4-\u08FF]/g;
 
 const inFlight = new Map<string, Promise<unknown>>();
 
@@ -23,6 +24,13 @@ function toLocaleLang(localeTag?: string): string {
     return base;
   }
   return "tr";
+}
+
+function sanitizeArabicForRendering(value: string): string {
+  return value
+    .replace(UNSUPPORTED_QURAN_MARKS_REGEX, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 async function safeJson(response: Response): Promise<unknown> {
@@ -76,7 +84,7 @@ function assertSurahSummaryRows(raw: unknown): SurahSummary[] {
   return (raw as any).items
     .map((item: any) => ({
       id: Number(item?.id),
-      nameArabic: String(item?.nameArabic || "").trim(),
+      nameArabic: sanitizeArabicForRendering(String(item?.nameArabic || "").trim()),
       nameLatin: String(item?.nameLatin || "").trim(),
       ayahCount: Number(item?.ayahCount || 0)
     }))
@@ -98,7 +106,7 @@ function assertSurahDetail(raw: unknown): { surah: SurahMeta; verses: VerseRow[]
 
   const surah: SurahMeta = {
     id: Number(surahRaw.id),
-    nameArabic: String(surahRaw.nameArabic || "").trim(),
+    nameArabic: sanitizeArabicForRendering(String(surahRaw.nameArabic || "").trim()),
     nameLatin: String(surahRaw.nameLatin || "").trim(),
     ayahCount: Number(surahRaw.ayahCount || 0)
   };
@@ -107,7 +115,7 @@ function assertSurahDetail(raw: unknown): { surah: SurahMeta; verses: VerseRow[]
     .map((row: any) => ({
       key: String(row?.key || "").trim(),
       numberInSurah: Number(row?.numberInSurah || 0),
-      arabic: String(row?.arabic || "").trim(),
+      arabic: sanitizeArabicForRendering(String(row?.arabic || "").trim()),
       translationTr: String(row?.translationTr || "").trim()
     }))
     .filter((row: VerseRow) => row.key.length > 0 && row.numberInSurah > 0 && row.arabic.length > 0)
@@ -129,7 +137,7 @@ function assertAyah(raw: unknown): QuranAyah {
     key: String(payload.key || "").trim(),
     surahId: Number(payload.surahId || 0),
     numberInSurah: Number(payload.numberInSurah || 0),
-    arabic: String(payload.arabic || "").trim(),
+    arabic: sanitizeArabicForRendering(String(payload.arabic || "").trim()),
     translationTr: String(payload.translationTr || "").trim()
   };
   if (
