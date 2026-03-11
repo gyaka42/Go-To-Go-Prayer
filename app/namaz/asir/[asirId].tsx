@@ -8,9 +8,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getAsirItem } from "@/services/namazContent";
-import { getQuranSurahAudio, getQuranSurahDetail } from "@/services/quran";
+import { getQuranAyah, getQuranSurahDetail } from "@/services/quran";
 import { useAppTheme } from "@/theme/ThemeProvider";
-import { QuranAudioInfo, SurahMeta, VerseRow } from "@/types/quran";
+import { SurahMeta, VerseRow } from "@/types/quran";
 
 export default function NamazAsirDetailScreen() {
   const router = useRouter();
@@ -31,7 +31,8 @@ export default function NamazAsirDetailScreen() {
 
   const [surah, setSurah] = useState<SurahMeta | null>(null);
   const [verses, setVerses] = useState<VerseRow[]>([]);
-  const [audioInfo, setAudioInfo] = useState<QuranAudioInfo>({ available: false });
+  const [audioUrls, setAudioUrls] = useState<string[]>([]);
+  const [currentAudioIndex, setCurrentAudioIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -77,6 +78,23 @@ export default function NamazAsirDetailScreen() {
     };
   }, [cleanupSound]);
 
+  const fetchAyahAudioUrl = useCallback(async (verseKey: string): Promise<string | null> => {
+    try {
+      const response = await fetch(`https://api.alquran.cloud/v1/ayah/${encodeURIComponent(verseKey)}/ar.alafasy`, {
+        method: "GET",
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) {
+        return null;
+      }
+      const payload = await response.json();
+      const url = String(payload?.data?.audio || "").trim();
+      return /^https?:\/\//.test(url) ? url : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const load = useCallback(async () => {
     if (!asir) {
       setError(t("namaz.invalid_item"));
@@ -87,32 +105,95 @@ export default function NamazAsirDetailScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [detail, audio] = await Promise.all([
-        getQuranSurahDetail(asir.surahId, localeTag),
-        getQuranSurahAudio(asir.surahId, undefined, localeTag)
-      ]);
-      const filtered = detail.verses.filter(
+      const detail = await getQuranSurahDetail(asir.surahId, localeTag);
+      const directRange = detail.verses.filter(
         (row) => row.numberInSurah >= asir.fromAyah && row.numberInSurah <= asir.toAyah
       );
+
+      let filtered = directRange;
+      if (filtered.length === 0) {
+        const count = asir.toAyah - asir.fromAyah + 1;
+        const fallbackAyahs = await Promise.all(
+          Array.from({ length: count }).map((_, idx) =>
+            getQuranAyah(`${asir.surahId}:${asir.fromAyah + idx}`, localeTag).catch(() => null)
+          )
+        );
+        filtered = fallbackAyahs
+          .filter((item): item is NonNullable<typeof item> => Boolean(item))
+          .map((item) => ({
+            key: item.key,
+            numberInSurah: item.numberInSurah,
+            arabic: item.arabic,
+            translationTr: item.translationTr
+          }))
+          .sort((a, b) => a.numberInSurah - b.numberInSurah);
+      }
+
       setSurah(detail.surah);
       setVerses(filtered);
-      setAudioInfo(audio);
+      setCurrentAudioIndex(0);
+      void cleanupSound();
+
+      const keys = filtered.map((row) => row.key);
+      const urls = (await Promise.all(keys.map((key) => fetchAyahAudioUrl(key)))).filter(
+        (value): value is string => Boolean(value)
+      );
+      setAudioUrls(urls);
     } catch (err) {
       setError(String(err));
     } finally {
       setLoading(false);
     }
-  }, [asir, localeTag, t]);
+  }, [asir, cleanupSound, fetchAyahAudioUrl, localeTag, t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  const playAudioIndex = useCallback(
+    async (index: number) => {
+      if (index < 0 || index >= audioUrls.length) {
+        setPlaying(false);
+        setCurrentAudioIndex(0);
+        return;
+      }
+
+      setCurrentAudioIndex(index);
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false
+      });
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioUrls[index] },
+        { shouldPlay: true }
+      );
+      soundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+        if (!status.isLoaded) return;
+        if (status.didJustFinish) {
+          void queueAudioAction(async () => {
+            await cleanupSound();
+            const next = index + 1;
+            if (next < audioUrls.length) {
+              await playAudioIndex(next);
+            } else {
+              setPlaying(false);
+              setCurrentAudioIndex(0);
+            }
+          });
+          return;
+        }
+        setPlaying(status.isPlaying);
+      });
+      setPlaying(true);
+    },
+    [audioUrls, cleanupSound, queueAudioAction]
+  );
+
   const toggleAudio = useCallback(async () => {
-    if (!audioInfo.available || !audioInfo.audio?.url) {
+    if (audioUrls.length === 0) {
       return;
     }
-    const audioUrl = audioInfo.audio.url;
     await queueAudioAction(async () => {
       const existing = soundRef.current;
       if (existing) {
@@ -126,38 +207,18 @@ export default function NamazAsirDetailScreen() {
           setPlaying(false);
           return;
         }
-        const duration = status.durationMillis ?? 0;
-        const position = status.positionMillis ?? 0;
-        if (duration > 0 && position >= duration - 400) {
-          await existing.setPositionAsync(0);
-        }
         await existing.playAsync();
         setPlaying(true);
         return;
       }
 
-      try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false
-        });
-        const { sound } = await Audio.Sound.createAsync({ uri: audioUrl }, { shouldPlay: false });
-        soundRef.current = sound;
-        sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
-          if (!status.isLoaded) return;
-          if (status.didJustFinish) {
-            setPlaying(false);
-            return;
-          }
-          setPlaying(status.isPlaying);
-        });
-        await sound.playAsync();
-        setPlaying(true);
-      } catch {
-        await cleanupSound();
-      }
+      const startAt =
+        currentAudioIndex >= 0 && currentAudioIndex < audioUrls.length
+          ? currentAudioIndex
+          : 0;
+      await playAudioIndex(startAt);
     });
-  }, [audioInfo.audio, audioInfo.available, cleanupSound, queueAudioAction]);
+  }, [audioUrls, cleanupSound, currentAudioIndex, playAudioIndex, queueAudioAction]);
 
   const title = asir ? t(asir.titleKey) : t("namaz.invalid_item");
 
@@ -174,14 +235,18 @@ export default function NamazAsirDetailScreen() {
         </View>
 
         {surah && asir ? (
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            <Text style={fontsLoaded ? styles.quranArabicFont : null}>{surah.nameArabic}</Text>
-            {" • "}
-            {t("quran.ayah_range", { from: asir.fromAyah, to: asir.toAyah })}
-          </Text>
+          <View style={styles.subtitleRow}>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              {`\u200E${t("quran.ayah_range", { from: asir.fromAyah, to: asir.toAyah })}\u200E`}
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{" • "}</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }, fontsLoaded ? styles.quranArabicFont : null]}>
+              {surah.nameArabic}
+            </Text>
+          </View>
         ) : null}
 
-        {audioInfo.available ? (
+        {audioUrls.length > 0 ? (
           <View style={styles.audioWrap}>
             <Pressable
               style={[
@@ -197,7 +262,12 @@ export default function NamazAsirDetailScreen() {
                 {playing ? t("quran.audio_pause") : t("quran.audio_play")}
               </Text>
             </Pressable>
-            <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>{t("namaz.asir_audio_hint")}</Text>
+            <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>
+              {t("namaz.asir_audio_hint", {
+                current: Math.min(currentAudioIndex + 1, Math.max(audioUrls.length, 1)),
+                total: audioUrls.length
+              })}
+            </Text>
           </View>
         ) : null}
 
@@ -265,9 +335,14 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#EDF4FF"
   },
-  subtitle: {
+  subtitleRow: {
     marginTop: 8,
     marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  subtitle: {
     fontSize: 14,
     color: "#8EA4BF",
     textAlign: "center"
