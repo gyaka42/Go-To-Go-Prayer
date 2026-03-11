@@ -1745,8 +1745,21 @@ async function fetchAlQuranCloudData(path) {
   }
 }
 
+function normalizeTranslationForComparison(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[“”„‟"''`´]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function hasSingleRepeatedTranslation(verses) {
-  const values = verses.map((row) => String(row.translationTr || "").trim()).filter(Boolean);
+  const values = verses
+    .map((row) => normalizeTranslationForComparison(row.translationTr || ""))
+    .filter(Boolean);
   if (values.length < 2) {
     return false;
   }
