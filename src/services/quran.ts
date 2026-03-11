@@ -33,6 +33,27 @@ function sanitizeArabicForRendering(value: string): string {
     .trim();
 }
 
+function normalizeTranslationForComparison(value: string): string {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[“”„‟"''`´]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasRepeatedTranslation(detail: { verses: VerseRow[] }): boolean {
+  const values = detail.verses
+    .map((row) => normalizeTranslationForComparison(row.translationTr))
+    .filter((value) => value.length > 0);
+  if (values.length < 2) {
+    return false;
+  }
+  return new Set(values).size === 1;
+}
+
 async function safeJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
@@ -205,7 +226,26 @@ export async function getQuranSurahDetail(surahId: number, localeTag?: string): 
     if (!response.ok) {
       throw new Error((payload as any)?.error || `HTTP ${response.status}`);
     }
-    return assertSurahDetail(payload);
+    const detail = assertSurahDetail(payload);
+    if (!hasRepeatedTranslation(detail)) {
+      return detail;
+    }
+
+    const repaired = await Promise.all(
+      detail.verses.map(async (row) => {
+        try {
+          const ayah = await getQuranAyah(row.key, localeTag);
+          if (ayah.translationTr.trim().length > 0) {
+            return { ...row, translationTr: ayah.translationTr };
+          }
+          return row;
+        } catch {
+          return row;
+        }
+      })
+    );
+
+    return { ...detail, verses: repaired };
   });
 }
 

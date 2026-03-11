@@ -10,6 +10,7 @@ const QURAN_AUDIO_FALLBACK_BITRATE = Number(process.env.QURAN_AUDIO_FALLBACK_BIT
 const PORT = Number(process.env.PORT || 3000);
 const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 * 60 * 1000);
 const QURAN_CACHE_TTL_MS = Number(process.env.QURAN_CACHE_TTL_MS || 24 * 60 * 60 * 1000);
+const QURAN_CACHE_SCHEMA_VERSION = "v3";
 const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 8000);
 
 let tokenState = null; // { token: string, expMs: number }
@@ -1428,7 +1429,7 @@ async function fetchQuranCandidateJson(config, candidates, query) {
   const bases = Array.isArray(config.baseUrls) && config.baseUrls.length > 0 ? config.baseUrls : [config.baseUrl];
   for (const baseUrl of bases) {
     for (const path of candidates) {
-      const cacheKey = `quran:${baseUrl}:${path}|${JSON.stringify(query || {})}`;
+      const cacheKey = `quran:${QURAN_CACHE_SCHEMA_VERSION}:${baseUrl}:${path}|${JSON.stringify(query || {})}`;
       const cached = getCachedQuranResponse(cacheKey);
       if (cached) {
         return cached;
