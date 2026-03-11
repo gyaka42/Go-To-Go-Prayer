@@ -54,6 +54,23 @@ function hasRepeatedTranslation(detail: { verses: VerseRow[] }): boolean {
   return new Set(values).size === 1;
 }
 
+async function fetchAyahTranslationFromAlQuranCloud(verseKey: string): Promise<string | null> {
+  try {
+    const response = await fetch(`https://api.alquran.cloud/v1/ayah/${encodeURIComponent(verseKey)}/tr.diyanet`, {
+      method: "GET",
+      headers: { Accept: "application/json" }
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const payload = await safeJson(response);
+    const text = String((payload as any)?.data?.text || "").trim();
+    return text.length > 0 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
 async function safeJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
@@ -233,6 +250,10 @@ export async function getQuranSurahDetail(surahId: number, localeTag?: string): 
 
     const repaired = await Promise.all(
       detail.verses.map(async (row) => {
+        const cloud = await fetchAyahTranslationFromAlQuranCloud(row.key);
+        if (cloud && cloud.length > 0) {
+          return { ...row, translationTr: cloud };
+        }
         try {
           const ayah = await getQuranAyah(row.key, localeTag);
           if (ayah.translationTr.trim().length > 0) {
