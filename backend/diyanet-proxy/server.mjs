@@ -1727,6 +1727,7 @@ function buildSurahAudioFallback(surahId, reciterOverride) {
 }
 
 const ALQURAN_CLOUD_BASE = "https://api.alquran.cloud/v1";
+const ALQURAN_TURKISH_EDITIONS = ["tr.ozturk", "tr.golpinarli", "tr.yazir", "tr.diyanet"];
 
 async function fetchAlQuranCloudData(path) {
   try {
@@ -1768,13 +1769,9 @@ function hasSingleRepeatedTranslation(verses) {
 }
 
 async function fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId) {
-  const [arabicData, trData] = await Promise.all([
-    fetchAlQuranCloudData(`/surah/${surahId}/quran-uthmani`),
-    fetchAlQuranCloudData(`/surah/${surahId}/tr.diyanet`)
-  ]);
+  const arabicData = await fetchAlQuranCloudData(`/surah/${surahId}/quran-uthmani`);
   const arabicRows = Array.isArray(arabicData?.ayahs) ? arabicData.ayahs : [];
-  const trRows = Array.isArray(trData?.ayahs) ? trData.ayahs : [];
-  if (arabicRows.length === 0 || trRows.length === 0) {
+  if (arabicRows.length === 0) {
     return null;
   }
 
@@ -1786,12 +1783,28 @@ async function fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId) {
     arabicByNumber.set(numberInSurah, text);
   }
 
-  const trByNumber = new Map();
-  for (const row of trRows) {
-    const numberInSurah = toPositiveNumber(row?.numberInSurah);
-    const text = String(row?.text || "").trim();
-    if (!numberInSurah || !text) continue;
-    trByNumber.set(numberInSurah, text);
+  let trByNumber = new Map();
+  for (const edition of ALQURAN_TURKISH_EDITIONS) {
+    const trData = await fetchAlQuranCloudData(`/surah/${surahId}/${edition}`);
+    const trRows = Array.isArray(trData?.ayahs) ? trData.ayahs : [];
+    const map = new Map();
+    for (const row of trRows) {
+      const numberInSurah = toPositiveNumber(row?.numberInSurah);
+      const text = String(row?.text || "").trim();
+      if (!numberInSurah || !text) continue;
+      map.set(numberInSurah, text);
+    }
+    if (map.size === 0) {
+      continue;
+    }
+    const uniq = new Set(Array.from(map.values()).map((value) => normalizeTranslationForComparison(value)));
+    if (uniq.size > 1 || map.size === 1) {
+      trByNumber = map;
+      break;
+    }
+  }
+  if (trByNumber.size === 0) {
+    return null;
   }
 
   const upper = Math.max(arabicByNumber.size, trByNumber.size);
@@ -1815,8 +1828,8 @@ async function fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId) {
   return {
     surah: {
       id: surahId,
-      nameArabic: String(arabicData?.name || trData?.name || `Surah ${surahId}`),
-      nameLatin: String(arabicData?.englishName || trData?.englishName || `Surah ${surahId}`),
+      nameArabic: String(arabicData?.name || `Surah ${surahId}`),
+      nameLatin: String(arabicData?.englishName || `Surah ${surahId}`),
       ayahCount: Number.isFinite(Number(arabicData?.numberOfAyahs))
         ? Number(arabicData.numberOfAyahs)
         : verses.length
@@ -1826,10 +1839,14 @@ async function fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId) {
 }
 
 async function fetchQuranAyahFallbackFromAlQuranCloud(parsed) {
-  const [arabicData, trData] = await Promise.all([
-    fetchAlQuranCloudData(`/ayah/${parsed.surahId}:${parsed.ayahNumber}/quran-uthmani`),
-    fetchAlQuranCloudData(`/ayah/${parsed.surahId}:${parsed.ayahNumber}/tr.diyanet`)
-  ]);
+  const arabicData = await fetchAlQuranCloudData(`/ayah/${parsed.surahId}:${parsed.ayahNumber}/quran-uthmani`);
+  let trData = null;
+  for (const edition of ALQURAN_TURKISH_EDITIONS) {
+    trData = await fetchAlQuranCloudData(`/ayah/${parsed.surahId}:${parsed.ayahNumber}/${edition}`);
+    if (String(trData?.text || "").trim().length > 0) {
+      break;
+    }
+  }
   const arabic = String(arabicData?.text || "").trim();
   const translationTr = String(trData?.text || "").trim();
   const numberInSurah = toPositiveNumber(arabicData?.numberInSurah) || toPositiveNumber(trData?.numberInSurah) || parsed.ayahNumber;

@@ -55,20 +55,29 @@ function hasRepeatedTranslation(detail: { verses: VerseRow[] }): boolean {
 }
 
 async function fetchAyahTranslationFromAlQuranCloud(verseKey: string): Promise<string | null> {
-  try {
-    const response = await fetch(`https://api.alquran.cloud/v1/ayah/${encodeURIComponent(verseKey)}/tr.diyanet`, {
-      method: "GET",
-      headers: { Accept: "application/json" }
-    });
-    if (!response.ok) {
-      return null;
+  const editions = ["tr.ozturk", "tr.golpinarli", "tr.yazir", "tr.diyanet"];
+  for (const edition of editions) {
+    try {
+      const response = await fetch(
+        `https://api.alquran.cloud/v1/ayah/${encodeURIComponent(verseKey)}/${edition}`,
+        {
+          method: "GET",
+          headers: { Accept: "application/json" }
+        }
+      );
+      if (!response.ok) {
+        continue;
+      }
+      const payload = await safeJson(response);
+      const text = String((payload as any)?.data?.text || "").trim();
+      if (text.length > 0) {
+        return text;
+      }
+    } catch {
+      // Try next edition.
     }
-    const payload = await safeJson(response);
-    const text = String((payload as any)?.data?.text || "").trim();
-    return text.length > 0 ? text : null;
-  } catch {
-    return null;
   }
+  return null;
 }
 
 async function safeJson(response: Response): Promise<unknown> {
