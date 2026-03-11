@@ -7,42 +7,27 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
+import { getAsirItem } from "@/services/namazContent";
 import { getQuranSurahAudio, getQuranSurahDetail } from "@/services/quran";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { QuranAudioInfo, SurahMeta, VerseRow } from "@/types/quran";
 
-export default function QuranSurahDetailScreen() {
+export default function NamazAsirDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ surahId?: string; fromAyah?: string; toAyah?: string; titleOverride?: string }>();
+  const params = useLocalSearchParams<{ asirId?: string }>();
   const { colors, resolvedTheme } = useAppTheme();
   const { t, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
   const [fontsLoaded] = useFonts({
-    QuranArabic: require("../../assets/fonts/NotoNaskhArabic-Regular.ttf")
+    QuranArabic: require("../../../assets/fonts/NotoNaskhArabic-Regular.ttf")
   });
 
-  const surahId = useMemo(() => {
-    const value = Array.isArray(params.surahId) ? params.surahId[0] : params.surahId;
-    const n = Number(value || 0);
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  }, [params.surahId]);
-
-  const fromAyah = useMemo(() => {
-    const value = Array.isArray(params.fromAyah) ? params.fromAyah[0] : params.fromAyah;
-    const n = Number(value || 0);
-    return Number.isFinite(n) && n > 0 ? n : null;
-  }, [params.fromAyah]);
-
-  const toAyah = useMemo(() => {
-    const value = Array.isArray(params.toAyah) ? params.toAyah[0] : params.toAyah;
-    const n = Number(value || 0);
-    return Number.isFinite(n) && n > 0 ? n : null;
-  }, [params.toAyah]);
-
-  const titleOverride = useMemo(() => {
-    const value = Array.isArray(params.titleOverride) ? params.titleOverride[0] : params.titleOverride;
+  const asirId = useMemo(() => {
+    const value = Array.isArray(params.asirId) ? params.asirId[0] : params.asirId;
     return String(value || "").trim();
-  }, [params.titleOverride]);
+  }, [params.asirId]);
+
+  const asir = useMemo(() => getAsirItem(asirId), [asirId]);
 
   const [surah, setSurah] = useState<SurahMeta | null>(null);
   const [verses, setVerses] = useState<VerseRow[]>([]);
@@ -62,14 +47,10 @@ export default function QuranSurahDetailScreen() {
     }
     try {
       await sound.stopAsync();
-    } catch {
-      // Ignore cleanup errors.
-    }
+    } catch {}
     try {
       await sound.unloadAsync();
-    } catch {
-      // Ignore cleanup errors.
-    }
+    } catch {}
     soundRef.current = null;
     setPlaying(false);
   }, []);
@@ -97,8 +78,8 @@ export default function QuranSurahDetailScreen() {
   }, [cleanupSound]);
 
   const load = useCallback(async () => {
-    if (!(surahId > 0)) {
-      setError(t("quran.invalid_surah"));
+    if (!asir) {
+      setError(t("namaz.invalid_item"));
       setLoading(false);
       return;
     }
@@ -107,32 +88,21 @@ export default function QuranSurahDetailScreen() {
     setError(null);
     try {
       const [detail, audio] = await Promise.all([
-        getQuranSurahDetail(surahId, localeTag),
-        getQuranSurahAudio(surahId, undefined, localeTag)
+        getQuranSurahDetail(asir.surahId, localeTag),
+        getQuranSurahAudio(asir.surahId, undefined, localeTag)
       ]);
-      const filteredVerses =
-        fromAyah && toAyah && fromAyah <= toAyah
-          ? detail.verses.filter((row) => row.numberInSurah >= fromAyah && row.numberInSurah <= toAyah)
-          : detail.verses;
+      const filtered = detail.verses.filter(
+        (row) => row.numberInSurah >= asir.fromAyah && row.numberInSurah <= asir.toAyah
+      );
       setSurah(detail.surah);
-      setVerses(filteredVerses.length > 0 ? filteredVerses : detail.verses);
+      setVerses(filtered);
       setAudioInfo(audio);
     } catch (err) {
       setError(String(err));
     } finally {
       setLoading(false);
     }
-  }, [fromAyah, localeTag, surahId, t, toAyah]);
-
-  const subtitleMeta = useMemo(() => {
-    if (!surah) {
-      return null;
-    }
-    if (fromAyah && toAyah) {
-      return t("quran.ayah_range", { from: fromAyah, to: toAyah });
-    }
-    return t("quran.ayah_count", { count: surah.ayahCount });
-  }, [fromAyah, surah, t, toAyah]);
+  }, [asir, localeTag, t]);
 
   useEffect(() => {
     void load();
@@ -151,13 +121,11 @@ export default function QuranSurahDetailScreen() {
           await cleanupSound();
           return;
         }
-
         if (status.isPlaying) {
           await existing.pauseAsync();
           setPlaying(false);
           return;
         }
-
         const duration = status.durationMillis ?? 0;
         const position = status.positionMillis ?? 0;
         if (duration > 0 && position >= duration - 400) {
@@ -173,15 +141,10 @@ export default function QuranSurahDetailScreen() {
           playsInSilentModeIOS: true,
           staysActiveInBackground: false
         });
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: audioUrl },
-          { shouldPlay: false }
-        );
+        const { sound } = await Audio.Sound.createAsync({ uri: audioUrl }, { shouldPlay: false });
         soundRef.current = sound;
         sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
-          if (!status.isLoaded) {
-            return;
-          }
+          if (!status.isLoaded) return;
           if (status.didJustFinish) {
             setPlaying(false);
             return;
@@ -196,6 +159,8 @@ export default function QuranSurahDetailScreen() {
     });
   }, [audioInfo.audio, audioInfo.available, cleanupSound, queueAudioAction]);
 
+  const title = asir ? t(asir.titleKey) : t("namaz.invalid_item");
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
@@ -204,15 +169,15 @@ export default function QuranSurahDetailScreen() {
           <Pressable onPress={() => router.back()} style={styles.headerButton}>
             <Ionicons name="chevron-back" size={24} color={isLight ? "#1E3D5C" : "#EAF2FF"} />
           </Pressable>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>{titleOverride || surah?.nameLatin || t("quran.title")}</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
           <View style={styles.headerButtonPlaceholder} />
         </View>
 
-        {surah && subtitleMeta ? (
+        {surah && asir ? (
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             <Text style={fontsLoaded ? styles.quranArabicFont : null}>{surah.nameArabic}</Text>
             {" • "}
-            {subtitleMeta}
+            {t("quran.ayah_range", { from: asir.fromAyah, to: asir.toAyah })}
           </Text>
         ) : null}
 
@@ -232,11 +197,7 @@ export default function QuranSurahDetailScreen() {
                 {playing ? t("quran.audio_pause") : t("quran.audio_play")}
               </Text>
             </Pressable>
-            {audioInfo.source === "fallback" ? (
-              <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>
-                {t("quran.audio_fallback_hint")}
-              </Text>
-            ) : null}
+            <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>{t("namaz.asir_audio_hint")}</Text>
           </View>
         ) : null}
 
@@ -257,18 +218,10 @@ export default function QuranSurahDetailScreen() {
             {verses.map((row) => (
               <View key={row.key} style={[styles.ayahCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                 <Text style={[styles.ayahIndex, { color: isLight ? "#1E78D9" : "#8DBEFF" }]}>{row.numberInSurah}</Text>
-                <Text
-                  style={[
-                    styles.ayahArabic,
-                    { color: colors.textPrimary },
-                    fontsLoaded ? styles.quranArabicFont : null
-                  ]}
-                >
+                <Text style={[styles.ayahArabic, { color: colors.textPrimary }, fontsLoaded ? styles.quranArabicFont : null]}>
                   {row.arabic}
                 </Text>
-                <Text style={[styles.ayahTranslation, { color: colors.textSecondary }]}>
-                  {row.translationTr || "—"}
-                </Text>
+                <Text style={[styles.ayahTranslation, { color: colors.textSecondary }]}>{row.translationTr || "—"}</Text>
               </View>
             ))}
           </ScrollView>
@@ -323,7 +276,7 @@ const styles = StyleSheet.create({
     minHeight: 40,
     borderRadius: 12,
     paddingHorizontal: 14,
-    marginBottom: 10,
+    marginBottom: 6,
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",

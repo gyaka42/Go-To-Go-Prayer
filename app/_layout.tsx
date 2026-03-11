@@ -66,6 +66,9 @@ function RootNavigation() {
         <Stack.Screen name="zikr" options={{ headerShown: false }} />
         <Stack.Screen name="qaza" options={{ headerShown: false }} />
         <Stack.Screen name="qaza-history" options={{ headerShown: false }} />
+        <Stack.Screen name="namaz/index" options={{ headerShown: false }} />
+        <Stack.Screen name="namaz/asir/[asirId]" options={{ headerShown: false }} />
+        <Stack.Screen name="namaz/dua/[duaId]" options={{ headerShown: false }} />
         <Stack.Screen name="quran/index" options={{ headerShown: false }} />
         <Stack.Screen name="quran/[surahId]" options={{ headerShown: false }} />
         <Stack.Screen name="monthly" options={{ headerShown: false }} />

@@ -1739,24 +1739,44 @@ async function fetchQuranSurahs(config, lang) {
 }
 
 async function fetchQuranSurahDetail(config, surahId, lang) {
-  const payload = await fetchQuranCandidateJson(
-    config,
-    [
-      `/api/v1/chapters/${surahId}`,
-      `/api/surahs/${surahId}`,
-      `/api/surah/${surahId}`,
-      `/api/chapters/${surahId}`,
-      `/api/verses/by-surah/${surahId}`,
-      `/quran/surahs/${surahId}`,
-      `/quran/surah/${surahId}`
-    ],
-    { lang, translation: "tr" }
-  );
-  const verses = normalizeVerseRows(payload, surahId);
-  let surah = normalizeSurahMeta(payload, surahId, verses);
+  const candidates = [
+    `/api/verses/by-surah/${surahId}`,
+    `/api/v1/chapters/${surahId}`,
+    `/api/surahs/${surahId}`,
+    `/api/surah/${surahId}`,
+    `/api/chapters/${surahId}`,
+    `/quran/surahs/${surahId}`,
+    `/quran/surah/${surahId}`
+  ];
+
+  let expectedAyahCount = 0;
+  let fromList = null;
   try {
     const allSurahs = await fetchQuranSurahs(config, lang);
-    const fromList = allSurahs.find((item) => item.id === surahId);
+    fromList = allSurahs.find((item) => item.id === surahId) || null;
+    expectedAyahCount = fromList?.ayahCount > 0 ? fromList.ayahCount : 0;
+  } catch {
+    // Keep probing endpoints without list metadata.
+  }
+
+  let best = null;
+  for (const candidate of candidates) {
+    let payload = null;
+    try {
+      payload = await fetchQuranCandidateJson(config, [candidate], { lang, translation: "tr" });
+    } catch {
+      continue;
+    }
+    if (!payload || typeof payload !== "object") {
+      continue;
+    }
+
+    const verses = normalizeVerseRows(payload, surahId);
+    if (!Array.isArray(verses) || verses.length === 0) {
+      continue;
+    }
+
+    let surah = normalizeSurahMeta(payload, surahId, verses);
     if (fromList) {
       surah = {
         id: surahId,
@@ -1765,10 +1785,22 @@ async function fetchQuranSurahDetail(config, surahId, lang) {
         ayahCount: fromList.ayahCount > 0 ? fromList.ayahCount : surah.ayahCount
       };
     }
-  } catch {
-    // Keep fallback metadata when list merge is unavailable.
+
+    const current = { surah, verses };
+    if (!best || current.verses.length > best.verses.length) {
+      best = current;
+    }
+
+    if (expectedAyahCount > 0 && current.verses.length >= expectedAyahCount) {
+      return current;
+    }
   }
-  return { surah, verses };
+
+  if (best) {
+    return best;
+  }
+
+  throw new Error("Surah not found");
 }
 
 async function fetchQuranAyah(config, verseKey, lang) {
@@ -1777,30 +1809,57 @@ async function fetchQuranAyah(config, verseKey, lang) {
     return null;
   }
 
-  const payload = await fetchQuranCandidateJson(
-    config,
-    [
-      `/api/v1/chapters/${parsed.surahId}`,
-      `/api/ayah/${parsed.key}`,
-      `/api/ayah/${parsed.surahId}/${parsed.ayahNumber}`,
-      `/api/verses/${parsed.key}`,
-      `/api/verses/${parsed.surahId}/${parsed.ayahNumber}`,
-      `/quran/ayah/${parsed.key}`
-    ],
-    { lang, translation: "tr" }
-  );
-  const verses = normalizeVerseRows(payload, parsed.surahId);
-  const hit = verses.find((row) => row.numberInSurah === parsed.ayahNumber) || verses[0] || null;
-  if (!hit) {
-    return null;
+  const candidates = [
+    `/api/ayah/${parsed.key}`,
+    `/api/ayah/${parsed.surahId}/${parsed.ayahNumber}`,
+    `/api/verses/${parsed.key}`,
+    `/api/verses/${parsed.surahId}/${parsed.ayahNumber}`,
+    `/quran/ayah/${parsed.key}`,
+    `/api/v1/chapters/${parsed.surahId}`,
+    `/api/verses/by-surah/${parsed.surahId}`
+  ];
+
+  for (const candidate of candidates) {
+    let payload = null;
+    try {
+      payload = await fetchQuranCandidateJson(config, [candidate], { lang, translation: "tr" });
+    } catch {
+      continue;
+    }
+    if (!payload || typeof payload !== "object") {
+      continue;
+    }
+    const verses = normalizeVerseRows(payload, parsed.surahId);
+    const hit = verses.find((row) => row.numberInSurah === parsed.ayahNumber) || null;
+    if (!hit) {
+      continue;
+    }
+    return {
+      key: `${parsed.surahId}:${hit.numberInSurah}`,
+      surahId: parsed.surahId,
+      numberInSurah: hit.numberInSurah,
+      arabic: hit.arabic,
+      translationTr: hit.translationTr
+    };
   }
-  return {
-    key: `${parsed.surahId}:${hit.numberInSurah}`,
-    surahId: parsed.surahId,
-    numberInSurah: hit.numberInSurah,
-    arabic: hit.arabic,
-    translationTr: hit.translationTr
-  };
+
+  try {
+    const detail = await fetchQuranSurahDetail(config, parsed.surahId, lang);
+    const hit = detail.verses.find((row) => row.numberInSurah === parsed.ayahNumber) || null;
+    if (hit) {
+      return {
+        key: `${parsed.surahId}:${hit.numberInSurah}`,
+        surahId: parsed.surahId,
+        numberInSurah: hit.numberInSurah,
+        arabic: hit.arabic,
+        translationTr: hit.translationTr
+      };
+    }
+  } catch {
+    // Ignore fallback errors.
+  }
+
+  return null;
 }
 
 async function fetchQuranAudio(config, surahId, reciter, lang) {
