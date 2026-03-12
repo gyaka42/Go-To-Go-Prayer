@@ -3,7 +3,7 @@ import { useFonts } from "expo-font";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getQuranSurahs } from "@/services/quran";
@@ -28,6 +28,7 @@ export default function QuranScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
+  const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<SurahSummary> | null>(null);
   const scrollRestoredRef = useRef(false);
   const [fontsLoaded] = useFonts({
@@ -104,7 +105,7 @@ export default function QuranScreen() {
   }, [query, rows]);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+    <SafeAreaView edges={["top", "left", "right"]} style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <AppBackground />
         <View style={styles.header}>
@@ -147,8 +148,10 @@ export default function QuranScreen() {
             ref={listRef}
             data={filtered}
             keyExtractor={(item) => String(item.id)}
+            style={styles.list}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
+            ListFooterComponent={<View style={{ height: insets.bottom + 120 }} />}
             onScroll={(event) => {
               quranListScrollOffset = event.nativeEvent.contentOffset.y;
             }}
@@ -267,9 +270,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700"
   },
+  list: {
+    flex: 1
+  },
   listContent: {
     paddingTop: 12,
-    paddingBottom: 20,
     gap: 10
   },
   row: {
