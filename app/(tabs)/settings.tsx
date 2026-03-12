@@ -398,7 +398,10 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 112 }]}
+        >
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t("settings.appearance")}</Text>
 
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -870,8 +873,7 @@ const styles = StyleSheet.create({
     color: "#EDF4FF"
   },
   scrollContent: {
-    paddingTop: 10,
-    paddingBottom: 48
+    paddingTop: 10
   },
   sectionLabel: {
     fontSize: 14,
