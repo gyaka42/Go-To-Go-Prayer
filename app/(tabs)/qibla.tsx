@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EaseView } from "react-native-ease";
 import {
   ActivityIndicator,
   Image,
@@ -12,6 +13,8 @@ import {
   Vibration
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { easeEnterTransition, easeInitialFade, easeInitialLift, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import * as Location from "expo-location";
 import { AppBackground } from "@/components/AppBackground";
 import { QiblaCompass } from "@/components/QiblaCompass";
@@ -44,6 +47,8 @@ export default function QiblaScreen() {
   const { t } = useI18n();
   const isFocused = useIsFocused();
   const isLight = resolvedTheme === "light";
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const stateTransition = useMotionTransition(easeStateTransition);
   const [bearing, setBearing] = useState<number | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationName, setLocationName] = useState(t("common.current_location"));
@@ -270,57 +275,69 @@ export default function QiblaScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <AppBackground />
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>{t("qibla.title")}</Text>
-            <Text style={[styles.locationText, { color: colors.textSecondary }]}>{locationName}</Text>
-            <Text style={styles.statusText}>{statusText}</Text>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={[styles.title, { color: colors.textPrimary }]}>{t("qibla.title")}</Text>
+              <Text style={[styles.locationText, { color: colors.textSecondary }]}>{locationName}</Text>
+              <Text style={styles.statusText}>{statusText}</Text>
+            </View>
+            <Pressable
+              style={[
+                styles.refreshButton,
+                isLight ? { backgroundColor: "#E4EFFB" } : null
+              ]}
+              onPress={() => void refresh()}
+            >
+              <Ionicons name="refresh" size={20} color={isLight ? "#1E5FA3" : "#D9E8FA"} />
+            </Pressable>
           </View>
-          <Pressable
-            style={[
-              styles.refreshButton,
-              isLight ? { backgroundColor: "#E4EFFB" } : null
-            ]}
-            onPress={() => void refresh()}
-          >
-            <Ionicons name="refresh" size={20} color={isLight ? "#1E5FA3" : "#D9E8FA"} />
-          </Pressable>
-        </View>
+        </EaseView>
 
         {bearing !== null ? (
-          <Text style={[styles.qiblaText, { color: colors.accent }]}>
-            {t("qibla.bearing", { deg: Math.round(bearing) })}
-          </Text>
+          <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+            <Text style={[styles.qiblaText, { color: colors.accent }]}>
+              {t("qibla.bearing", { deg: Math.round(bearing) })}
+            </Text>
+          </EaseView>
         ) : null}
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {loadState === "loading" ? (
-            <View style={styles.loaderWrap}>
+            <EaseView
+              initialAnimate={easeInitialFade}
+              animate={easeVisibleFade}
+              transition={stateTransition}
+              style={styles.loaderWrap}
+            >
               <ActivityIndicator color="#2B8CEE" size="large" />
-            </View>
+            </EaseView>
           ) : null}
 
           {loadState === "error" ? (
-            <View
-              style={[
-                styles.errorCard,
-                isLight
-                  ? { borderColor: "#E8C7D0", backgroundColor: "#FFF1F4" }
-                  : null
-              ]}
-            >
-              <Text style={[styles.errorTitle, isLight ? { color: "#B13D57" } : null]}>
-                {t("qibla.permission_needed")}
-              </Text>
-              <Text style={[styles.errorText, isLight ? { color: "#8D4153" } : null]}>{errorText}</Text>
-              <Pressable style={styles.retryButton} onPress={() => void refresh()}>
-                <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
-              </Pressable>
-            </View>
+            <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+              <View
+                style={[
+                  styles.errorCard,
+                  isLight
+                    ? { borderColor: "#E8C7D0", backgroundColor: "#FFF1F4" }
+                    : null
+                ]}
+              >
+                <Text style={[styles.errorTitle, isLight ? { color: "#B13D57" } : null]}>
+                  {t("qibla.permission_needed")}
+                </Text>
+                <Text style={[styles.errorText, isLight ? { color: "#8D4153" } : null]}>{errorText}</Text>
+                <Pressable style={styles.retryButton} onPress={() => void refresh()}>
+                  <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
+                </Pressable>
+              </View>
+            </EaseView>
           ) : null}
 
           {loadState === "ready" && bearing !== null ? (
-            <View style={styles.contentWrap}>
+            <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
+              <View style={styles.contentWrap}>
               <QiblaCompass
                 qiblaBearingDeg={bearing}
                 deviceHeadingDeg={deviceHeading}
@@ -437,7 +454,8 @@ export default function QiblaScreen() {
                   {t("qibla.tip3")}
                 </Text>
               </View>
-            </View>
+              </View>
+            </EaseView>
           ) : null}
         </ScrollView>
       </View>

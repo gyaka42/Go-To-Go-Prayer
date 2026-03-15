@@ -3,6 +3,7 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EaseView } from "react-native-ease";
 import {
   ActivityIndicator,
   FlatList,
@@ -14,6 +15,8 @@ import {
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { easeEnterTransition, easeInitialFade, easeInitialLift, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
@@ -62,6 +65,8 @@ export default function HomeScreen() {
   const { t, prayerName, localeTag } = useI18n();
   const { width } = useWindowDimensions();
   const tabBarHeight = useBottomTabBarHeight();
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const stateTransition = useMotionTransition(easeStateTransition);
   const isCompact = width <= 390;
   const [timings, setTimings] = useState<Timings | null>(null);
   const [tomorrowTimings, setTomorrowTimings] = useState<Timings | null>(null);
@@ -424,76 +429,89 @@ export default function HomeScreen() {
       <View style={styles.container}>
         <AppBackground />
 
-        <View style={styles.headerRow}>
-          <View style={styles.headerLocationBlock}>
-            <View style={styles.locationRow}>
-              <Ionicons name="location" size={18} color="#2B8CEE" />
-              <View style={styles.locationTextWrap}>
-                <Text style={[styles.locationCityText, { color: colors.textPrimary }]} numberOfLines={1}>
-                  {locationParts.city}
-                </Text>
-                {locationParts.country ? (
-                  <Text style={[styles.locationCountryText, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {locationParts.country}
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerLocationBlock}>
+              <View style={styles.locationRow}>
+                <Ionicons name="location" size={18} color="#2B8CEE" />
+                <View style={styles.locationTextWrap}>
+                  <Text style={[styles.locationCityText, { color: colors.textPrimary }]} numberOfLines={1}>
+                    {locationParts.city}
                   </Text>
-                ) : null}
+                  {locationParts.country ? (
+                    <Text style={[styles.locationCountryText, { color: colors.textSecondary }]} numberOfLines={1}>
+                      {locationParts.country}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
+              <Pressable onPress={() => void toggleHomeDateMode()}>
+                <Text style={[styles.dateText, { color: colors.textSecondary }]}>{todaysDateLabel}</Text>
+              </Pressable>
             </View>
-            <Pressable onPress={() => void toggleHomeDateMode()}>
-              <Text style={[styles.dateText, { color: colors.textSecondary }]}>{todaysDateLabel}</Text>
+            <Pressable style={styles.refreshCircle} onPress={() => void onRefresh()}>
+              <Ionicons name="refresh" size={24} color="#A7B7CC" />
             </Pressable>
           </View>
-          <Pressable style={styles.refreshCircle} onPress={() => void onRefresh()}>
-            <Ionicons name="refresh" size={24} color="#A7B7CC" />
-          </Pressable>
-        </View>
+        </EaseView>
 
-        <View style={[styles.heroCard, isCompact && styles.heroCardCompact]}>
-          <Text style={styles.heroLabel}>{t("home.next_prayer")}</Text>
-          <View style={styles.heroMainRow}>
-            <Text
-              style={[styles.heroPrayer, isCompact && styles.heroPrayerCompact]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.55}
-            >
-              {nextPrayerLabel}
-            </Text>
-            <Text style={[styles.heroCountdown, isCompact && styles.heroCountdownCompact]}>
-              {t("home.in", { time: countdown })}
-            </Text>
-          </View>
-
-          <View style={[styles.heroBottomRow, isCompact && styles.heroBottomRowCompact]}>
-            <View style={styles.heroScheduleBlock}>
-              <Text style={styles.heroScheduledLabel}>{t("home.scheduled_time")}</Text>
-              <Text style={styles.heroTime}>{nextPrayerTime}</Text>
-            </View>
-
-            <Pressable
-              style={[styles.reminderButton, isCompact && styles.reminderButtonCompact]}
-              onPress={() => router.push("/notifications" as never)}
-            >
-              <Ionicons name="notifications-outline" size={18} color="#1F7FE1" />
-              <Text style={[styles.reminderButtonText, isCompact && styles.reminderButtonTextCompact]} numberOfLines={1}>
-                {t("home.set_reminder")}
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <View style={[styles.heroCard, isCompact && styles.heroCardCompact]}>
+            <Text style={styles.heroLabel}>{t("home.next_prayer")}</Text>
+            <View style={styles.heroMainRow}>
+              <Text
+                style={[styles.heroPrayer, isCompact && styles.heroPrayerCompact]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.55}
+              >
+                {nextPrayerLabel}
               </Text>
-            </Pressable>
-          </View>
-        </View>
+              <Text style={[styles.heroCountdown, isCompact && styles.heroCountdownCompact]}>
+                {t("home.in", { time: countdown })}
+              </Text>
+            </View>
 
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("home.todays_schedule")}</Text>
-        <Text style={[styles.metaLine, { color: colors.textSecondary }]}>
-          {t("home.source_updated", {
-            source: sourceLabel,
-            updated: lastUpdated ? formatDateTime(lastUpdated, localeTag) : t("home.source_unknown")
-          })}
-        </Text>
+            <View style={[styles.heroBottomRow, isCompact && styles.heroBottomRowCompact]}>
+              <View style={styles.heroScheduleBlock}>
+                <Text style={styles.heroScheduledLabel}>{t("home.scheduled_time")}</Text>
+                <Text style={styles.heroTime}>{nextPrayerTime}</Text>
+              </View>
+
+              <Pressable
+                style={[styles.reminderButton, isCompact && styles.reminderButtonCompact]}
+                onPress={() => router.push("/notifications" as never)}
+              >
+                <Ionicons name="notifications-outline" size={18} color="#1F7FE1" />
+                <Text style={[styles.reminderButtonText, isCompact && styles.reminderButtonTextCompact]} numberOfLines={1}>
+                  {t("home.set_reminder")}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </EaseView>
+
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("home.todays_schedule")}</Text>
+        </EaseView>
+        <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+          <Text style={[styles.metaLine, { color: colors.textSecondary }]}>
+            {t("home.source_updated", {
+              source: sourceLabel,
+              updated: lastUpdated ? formatDateTime(lastUpdated, localeTag) : t("home.source_unknown")
+            })}
+          </Text>
+        </EaseView>
 
         {loadState === "loading" && !timings ? (
-          <View style={styles.loaderWrap}>
+          <EaseView
+            initialAnimate={easeInitialFade}
+            animate={easeVisibleFade}
+            transition={stateTransition}
+            style={styles.loaderWrap}
+          >
             <ActivityIndicator size="large" color="#2B8CEE" />
-          </View>
+          </EaseView>
         ) : (
           <FlatList
             ref={scheduleListRef}

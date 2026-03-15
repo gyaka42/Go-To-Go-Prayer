@@ -22,6 +22,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { easeEnterTransition, easeInitialLift, easePressTransition } from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import {
   geocodeCityQuery,
   getCurrentLocationDetails,
@@ -87,6 +88,8 @@ export default function SettingsScreen() {
   const { colors, mode: themeMode, setMode: setThemeMode, resolvedTheme } = useAppTheme();
   const { t, prayerName, mode: languageMode, setMode: setLanguageMode, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const pressTransition = useMotionTransition(easePressTransition);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [locationStatus, setLocationStatus] = useState(t("common.current_location"));
@@ -394,7 +397,7 @@ export default function SettingsScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <AppBackground />
-        <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={easeEnterTransition}>
+        <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
           <View style={styles.headerRow}>
             <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>{t("settings.title")}</Text>
             <Pressable onPress={() => setShowAppInfo(true)} hitSlop={8}>
@@ -686,7 +689,7 @@ export default function SettingsScreen() {
 
           <EaseView
             animate={{ scale: savePressed ? 0.985 : 1 }}
-            transition={savePressed ? easePressTransition : easeEnterTransition}
+            transition={savePressed ? pressTransition : enterTransition}
           >
             <Pressable
               style={[styles.saveButton, { backgroundColor: colors.accent }]}

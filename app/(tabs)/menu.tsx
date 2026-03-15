@@ -1,158 +1,153 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { easeEnterTransition, easeInitialLift, easePressTransition, easeVisibleLift } from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useAppTheme } from "@/theme/ThemeProvider";
+import { useState } from "react";
 
 export default function MenuScreen() {
   const router = useRouter();
   const { colors, resolvedTheme } = useAppTheme();
   const { t } = useI18n();
   const isLight = resolvedTheme === "light";
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const pressTransition = useMotionTransition(easePressTransition);
+  const [pressedCard, setPressedCard] = useState<string | null>(null);
+
+  const menuItems = [
+    {
+      id: "mosques",
+      onPress: () => router.push("/mosques" as never),
+      title: t("menu.mosques_title"),
+      subtitle: t("menu.mosques_subtitle"),
+      icon: (
+        <Image
+          source={require("../../assets/images/mosque.png")}
+          style={[styles.menuPngIcon, { tintColor: "#2B8CEE" }]}
+          resizeMode="contain"
+        />
+      )
+    },
+    {
+      id: "favorites",
+      onPress: () => router.push("/mosques?filter=favorites" as never),
+      title: t("menu.favorites_title"),
+      subtitle: t("menu.favorites_subtitle"),
+      icon: <Ionicons name="star-outline" size={20} color="#2B8CEE" />
+    },
+    {
+      id: "zikr",
+      onPress: () => router.push("/zikr" as never),
+      title: t("menu.zikr.title"),
+      subtitle: t("menu.zikr.subtitle"),
+      icon: (
+        <Image
+          source={require("../../assets/images/zikir.png")}
+          style={[styles.menuPngIcon, { tintColor: "#2B8CEE" }]}
+          resizeMode="contain"
+        />
+      )
+    },
+    {
+      id: "qaza",
+      onPress: () => router.push("/qaza" as never),
+      title: t("menu.qaza.title"),
+      subtitle: t("menu.qaza.subtitle"),
+      icon: (
+        <Image
+          source={require("../../assets/images/praying.png")}
+          style={[styles.menuPngIcon, { tintColor: "#2B8CEE" }]}
+          resizeMode="contain"
+        />
+      )
+    },
+    {
+      id: "quran",
+      onPress: () => router.push("/quran" as never),
+      title: t("menu.quran.title"),
+      subtitle: t("menu.quran.subtitle"),
+      icon: (
+        <Image
+          source={require("../../assets/images/quran.png")}
+          style={[styles.menuPngIcon, styles.quranPngIcon, { tintColor: "#2B8CEE" }]}
+          resizeMode="contain"
+        />
+      )
+    },
+    {
+      id: "namaz",
+      onPress: () => router.push("/namaz" as never),
+      title: t("menu.namaz.title"),
+      subtitle: t("menu.namaz.subtitle"),
+      icon: (
+        <Image
+          source={require("../../assets/images/dua.png")}
+          style={[styles.menuPngIcon, styles.duaPngIcon, { tintColor: "#2B8CEE" }]}
+          resizeMode="contain"
+        />
+      )
+    },
+    {
+      id: "monthly",
+      onPress: () => router.push("/monthly" as never),
+      title: t("menu.monthly.title"),
+      subtitle: t("menu.monthly.subtitle"),
+      icon: (
+        <Image
+          source={require("../../assets/images/islamic.png")}
+          style={[styles.menuPngIcon, styles.monthlyPngIcon, { tintColor: "#2B8CEE" }]}
+          resizeMode="contain"
+        />
+      )
+    }
+  ];
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <AppBackground />
-        <Text style={[styles.title, { color: colors.textPrimary }]}>{t("menu.title")}</Text>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{t("menu.title")}</Text>
+        </EaseView>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          <Pressable
-            style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-            onPress={() => router.push("/mosques" as never)}
-          >
-            <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-              <Image
-                source={require("../../assets/images/mosque.png")}
-                style={[styles.menuPngIcon, { tintColor: "#2B8CEE" }]}
-                resizeMode="contain"
-              />
-            </View>
-            <View style={styles.cardTextWrap}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.mosques_title")}</Text>
-              <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-                {t("menu.mosques_subtitle")}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
-          </Pressable>
-
-          <Pressable
-            style={[styles.menuCard, styles.menuCardSpaced, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-            onPress={() => router.push("/mosques?filter=favorites" as never)}
-          >
-            <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-              <Ionicons name="star-outline" size={20} color="#2B8CEE" />
-            </View>
-            <View style={styles.cardTextWrap}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.favorites_title")}</Text>
-              <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-                {t("menu.favorites_subtitle")}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
-          </Pressable>
-
-          <Pressable
-            style={[styles.menuCard, styles.menuCardSpaced, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-            onPress={() => router.push("/zikr" as never)}
-          >
-          <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-            <Image
-              source={require("../../assets/images/zikir.png")}
-              style={[styles.menuPngIcon, { tintColor: "#2B8CEE" }]}
-              resizeMode="contain"
-            />
-          </View>
-          <View style={styles.cardTextWrap}>
-            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.zikr.title")}</Text>
-            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-              {t("menu.zikr.subtitle")}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
-          </Pressable>
-
-          <Pressable
-            style={[styles.menuCard, styles.menuCardSpaced, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-            onPress={() => router.push("/qaza" as never)}
-          >
-          <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-            <Image
-              source={require("../../assets/images/praying.png")}
-              style={[styles.menuPngIcon, { tintColor: "#2B8CEE" }]}
-              resizeMode="contain"
-            />
-          </View>
-          <View style={styles.cardTextWrap}>
-            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.qaza.title")}</Text>
-            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-              {t("menu.qaza.subtitle")}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
-          </Pressable>
-
-          <Pressable
-            style={[styles.menuCard, styles.menuCardSpaced, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-            onPress={() => router.push("/quran" as never)}
-          >
-            <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-              <Image
-                source={require("../../assets/images/quran.png")}
-                style={[styles.menuPngIcon, styles.quranPngIcon, { tintColor: "#2B8CEE" }]}
-                resizeMode="contain"
-              />
-            </View>
-          <View style={styles.cardTextWrap}>
-            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.quran.title")}</Text>
-            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-              {t("menu.quran.subtitle")}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
-          </Pressable>
-
-          <Pressable
-            style={[styles.menuCard, styles.menuCardSpaced, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-            onPress={() => router.push("/namaz" as never)}
-          >
-            <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-              <Image
-                source={require("../../assets/images/dua.png")}
-                style={[styles.menuPngIcon, styles.duaPngIcon, { tintColor: "#2B8CEE" }]}
-                resizeMode="contain"
-              />
-            </View>
-            <View style={styles.cardTextWrap}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.namaz.title")}</Text>
-              <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-                {t("menu.namaz.subtitle")}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
-          </Pressable>
-
-          <Pressable
-            style={[styles.menuCard, styles.menuCardSpaced, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-            onPress={() => router.push("/monthly" as never)}
-          >
-          <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-            <Image
-              source={require("../../assets/images/islamic.png")}
-              style={[styles.menuPngIcon, styles.monthlyPngIcon, { tintColor: "#2B8CEE" }]}
-              resizeMode="contain"
-            />
-          </View>
-          <View style={styles.cardTextWrap}>
-            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("menu.monthly.title")}</Text>
-            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-              {t("menu.monthly.subtitle")}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
-          </Pressable>
+          {menuItems.map((item, index) => {
+            const pressed = pressedCard === item.id;
+            return (
+              <EaseView
+                key={item.id}
+                initialAnimate={easeInitialLift}
+                animate={{ opacity: 1, translateY: 0, scale: pressed ? 0.985 : 1 }}
+                transition={pressed ? pressTransition : enterTransition}
+              >
+                <Pressable
+                  style={[
+                    styles.menuCard,
+                    index > 0 && styles.menuCardSpaced,
+                    { backgroundColor: colors.card, borderColor: colors.cardBorder }
+                  ]}
+                  onPress={item.onPress}
+                  onPressIn={() => setPressedCard(item.id)}
+                  onPressOut={() => setPressedCard(null)}
+                >
+                  <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
+                    {item.icon}
+                  </View>
+                  <View style={styles.cardTextWrap}>
+                    <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+                    <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+                      {item.subtitle}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
+                </Pressable>
+              </EaseView>
+            );
+          })}
         </ScrollView>
       </View>
     </SafeAreaView>

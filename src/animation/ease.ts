@@ -30,9 +30,34 @@ export const easeStateTransition: Transition = {
   easing: "easeOut"
 };
 
+export const easeFastTransition: Transition = {
+  type: "timing",
+  duration: 140,
+  easing: "easeOut"
+};
+
+export const easeSlowTransition: Transition = {
+  type: "timing",
+  duration: 360,
+  easing: [0.2, 0.8, 0.2, 1]
+};
+
+export const easeStaggerTransition: Transition = {
+  type: "timing",
+  duration: 220,
+  easing: [0.24, 0.82, 0.25, 1]
+};
+
 export const easePressTransition: Transition = {
   type: "spring",
   damping: 18,
   stiffness: 260,
+  mass: 1
+};
+
+export const easeButtonStateTransition: Transition = {
+  type: "spring",
+  damping: 20,
+  stiffness: 300,
   mass: 1
 };
