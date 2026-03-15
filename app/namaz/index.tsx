@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, SectionList, StyleSheet, Text, View } from "react-native";
+import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { easeEnterTransition, easeInitialLift, easePressTransition } from "@/animation/ease";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { namazSections } from "@/services/namazContent";
@@ -14,6 +16,7 @@ export default function NamazScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t } = useI18n();
   const isLight = resolvedTheme === "light";
+  const [pressedId, setPressedId] = useState<string | null>(null);
 
   const sections = useMemo(
     () =>
@@ -51,7 +54,9 @@ export default function NamazScreen() {
           <View style={styles.headerButtonPlaceholder} />
         </View>
 
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("namaz.subtitle")}</Text>
+        <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={easeEnterTransition}>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("namaz.subtitle")}</Text>
+        </EaseView>
 
         <SectionList
           sections={sections}
@@ -60,26 +65,39 @@ export default function NamazScreen() {
           contentContainerStyle={styles.listContent}
           stickySectionHeadersEnabled={false}
           renderSectionHeader={({ section }) => (
-            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{section.title}</Text>
+            <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={easeEnterTransition}>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{section.title}</Text>
+            </EaseView>
           )}
-          renderItem={({ item }) => (
-            <Pressable
-              style={[styles.row, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-              onPress={() => onPressItem(item)}
-            >
-              <View style={styles.rowTextWrap}>
-                <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{t(item.titleKey)}</Text>
-                {item.kind === "asir" ? (
-                  <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
-                    {t("quran.ayah_range", { from: item.fromAyah, to: item.toAyah })}
-                  </Text>
-                ) : item.kind === "dua" ? (
-                  <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>{t("namaz.dua_hint")}</Text>
-                ) : null}
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
-            </Pressable>
-          )}
+          renderItem={({ item }) => {
+            const pressed = pressedId === item.id;
+            return (
+              <EaseView
+                initialAnimate={easeInitialLift}
+                animate={{ opacity: 1, translateY: 0, scale: pressed ? 0.985 : 1 }}
+                transition={pressed ? easePressTransition : easeEnterTransition}
+              >
+                <Pressable
+                  style={[styles.row, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                  onPress={() => onPressItem(item)}
+                  onPressIn={() => setPressedId(item.id)}
+                  onPressOut={() => setPressedId(null)}
+                >
+                  <View style={styles.rowTextWrap}>
+                    <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{t(item.titleKey)}</Text>
+                    {item.kind === "asir" ? (
+                      <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
+                        {t("quran.ayah_range", { from: item.fromAyah, to: item.toAyah })}
+                      </Text>
+                    ) : item.kind === "dua" ? (
+                      <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>{t("namaz.dua_hint")}</Text>
+                    ) : null}
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
+                </Pressable>
+              </EaseView>
+            );
+          }}
         />
       </View>
     </SafeAreaView>

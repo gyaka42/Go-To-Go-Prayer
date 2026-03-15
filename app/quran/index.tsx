@@ -139,20 +139,26 @@ export default function QuranScreen() {
         </EaseView>
 
         {loading ? (
-          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={easeStateTransition}>
-            <View style={styles.centerWrap}>
-              <ActivityIndicator color="#2B8CEE" size="large" />
-              <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.loading")}</Text>
-            </View>
+          <EaseView
+            initialAnimate={easeInitialFade}
+            animate={easeVisibleFade}
+            transition={easeStateTransition}
+            style={styles.centerWrap}
+          >
+            <ActivityIndicator color="#2B8CEE" size="large" />
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.loading")}</Text>
           </EaseView>
         ) : error ? (
-          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={easeStateTransition}>
-            <View style={styles.centerWrap}>
-              <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.error_load")}</Text>
-              <Pressable style={styles.retryButton} onPress={() => void load()}>
-                <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
-              </Pressable>
-            </View>
+          <EaseView
+            initialAnimate={easeInitialFade}
+            animate={easeVisibleFade}
+            transition={easeStateTransition}
+            style={styles.centerWrap}
+          >
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.error_load")}</Text>
+            <Pressable style={styles.retryButton} onPress={() => void load()}>
+              <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
+            </Pressable>
           </EaseView>
         ) : (
           <FlatList

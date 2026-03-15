@@ -3,7 +3,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { easeEnterTransition, easeInitialFade, easeInitialLift, easeStateTransition, easeVisibleFade } from "@/animation/ease";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getDuaDetail } from "@/services/namazContent";
@@ -51,36 +53,49 @@ export default function NamazDuaDetailScreen() {
         </View>
 
         {detail ? (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.arabic_text")}</Text>
-              <Text
-                style={[
-                  styles.arabicText,
-                  { color: colors.textPrimary },
-                  fontsLoaded ? styles.quranArabicFont : null
-                ]}
-              >
-                {detail.arabic}
-              </Text>
-            </View>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={easeEnterTransition} style={styles.scrollWrap}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+              <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={easeEnterTransition}>
+                <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.arabic_text")}</Text>
+                  <Text
+                    style={[
+                      styles.arabicText,
+                      { color: colors.textPrimary },
+                      fontsLoaded ? styles.quranArabicFont : null
+                    ]}
+                  >
+                    {detail.arabic}
+                  </Text>
+                </View>
+              </EaseView>
 
-            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.transliteration")}</Text>
-              <Text style={[styles.bodyText, { color: colors.textPrimary }]}>{detail.transliteration}</Text>
-            </View>
+              <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={easeEnterTransition}>
+                <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.transliteration")}</Text>
+                  <Text style={[styles.bodyText, { color: colors.textPrimary }]}>{detail.transliteration}</Text>
+                </View>
+              </EaseView>
 
-            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.meaning")}</Text>
-              <Text style={[styles.bodyText, { color: colors.textPrimary }]}>{resolveMeaning(detail, localeTag)}</Text>
-            </View>
+              <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={easeEnterTransition}>
+                <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.meaning")}</Text>
+                  <Text style={[styles.bodyText, { color: colors.textPrimary }]}>{resolveMeaning(detail, localeTag)}</Text>
+                </View>
+              </EaseView>
 
-            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("namaz.audio_not_available")}</Text>
-          </ScrollView>
+              <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("namaz.audio_not_available")}</Text>
+            </ScrollView>
+          </EaseView>
         ) : (
-          <View style={styles.centerWrap}>
+          <EaseView
+            initialAnimate={easeInitialFade}
+            animate={easeVisibleFade}
+            transition={easeStateTransition}
+            style={styles.centerWrap}
+          >
             <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("namaz.invalid_item")}</Text>
-          </View>
+          </EaseView>
         )}
       </View>
     </SafeAreaView>
@@ -120,6 +135,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
     color: "#EDF4FF"
+  },
+  scrollWrap: {
+    flex: 1
   },
   scrollContent: {
     paddingTop: 10,
