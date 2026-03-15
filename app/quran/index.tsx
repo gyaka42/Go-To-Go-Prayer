@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { EaseView } from "react-native-ease";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
+import { easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeStaggerTransition, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
+import { useMotionTransition, useReducedMotion } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getQuranSurahs } from "@/services/quran";
@@ -15,6 +16,8 @@ import { SurahSummary } from "@/types/quran";
 let quranListCache: { localeTag: string; rows: SurahSummary[] } | null = null;
 let quranListScrollOffset = 0;
 let quranListQuery = "";
+let quranListStaggerDone = false;
+const QURAN_STAGGER_COUNT = 6;
 
 function normalizeForSearch(value: string): string {
   return value
@@ -31,6 +34,10 @@ export default function QuranScreen() {
   const { t, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
+  const pressTransition = useMotionTransition(easePressTransition);
+  const stateTransition = useMotionTransition(easeStateTransition);
+  const staggerTransition = useMotionTransition(easeStaggerTransition);
   const listRef = useRef<FlatList<SurahSummary> | null>(null);
   const scrollRestoredRef = useRef(false);
   const [fontsLoaded] = useFonts({
@@ -44,6 +51,9 @@ export default function QuranScreen() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState(quranListQuery);
   const [pressedSurahId, setPressedSurahId] = useState<number | null>(null);
+  const [visibleStaggerCount, setVisibleStaggerCount] = useState(
+    quranListStaggerDone || quranListScrollOffset > 0 || reduceMotion ? QURAN_STAGGER_COUNT : 0
+  );
 
   const load = useCallback(async (withLoading: boolean = true) => {
     if (withLoading) {
@@ -85,6 +95,34 @@ export default function QuranScreen() {
       scrollRestoredRef.current = true;
     });
   }, [loading, rows.length]);
+
+  useEffect(() => {
+    if (reduceMotion || quranListStaggerDone || quranListScrollOffset > 0 || rows.length === 0) {
+      setVisibleStaggerCount(QURAN_STAGGER_COUNT);
+      quranListStaggerDone = true;
+      return;
+    }
+
+    let active = true;
+    setVisibleStaggerCount(0);
+
+    const timers = Array.from({ length: Math.min(QURAN_STAGGER_COUNT, rows.length) }).map((_, index) =>
+      setTimeout(() => {
+        if (!active) {
+          return;
+        }
+        setVisibleStaggerCount(index + 1);
+        if (index + 1 >= Math.min(QURAN_STAGGER_COUNT, rows.length)) {
+          quranListStaggerDone = true;
+        }
+      }, index * 55)
+    );
+
+    return () => {
+      active = false;
+      timers.forEach(clearTimeout);
+    };
+  }, [reduceMotion, rows.length]);
 
   const handleQueryChange = useCallback((value: string) => {
     setQuery(value);
@@ -178,11 +216,14 @@ export default function QuranScreen() {
             }
             renderItem={({ item }) => {
               const pressed = pressedSurahId === item.id;
+              const itemIndex = filtered.findIndex((row) => row.id === item.id);
+              const shouldStagger = itemIndex > -1 && itemIndex < QURAN_STAGGER_COUNT && visibleStaggerCount <= QURAN_STAGGER_COUNT;
+              const revealed = !shouldStagger || itemIndex < visibleStaggerCount;
               return (
                 <EaseView
-                  initialAnimate={easeInitialLift}
-                  animate={{ opacity: 1, translateY: 0, scale: pressed ? 0.985 : 1 }}
-                  transition={pressed ? easePressTransition : easeEnterTransition}
+                  initialAnimate={shouldStagger ? { opacity: 0, translateY: 12 } : easeInitialLift}
+                  animate={{ opacity: revealed ? 1 : 0, translateY: revealed ? 0 : 12, scale: pressed ? 0.985 : 1 }}
+                  transition={pressed ? pressTransition : shouldStagger ? staggerTransition : easeEnterTransition}
                 >
                   <Pressable
                     style={[styles.row, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
