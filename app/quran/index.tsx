@@ -3,7 +3,9 @@ import { useFonts } from "expo-font";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { EaseView } from "react-native-ease";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getQuranSurahs } from "@/services/quran";
@@ -41,6 +43,7 @@ export default function QuranScreen() {
   const [loading, setLoading] = useState(!cachedRows);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState(quranListQuery);
+  const [pressedSurahId, setPressedSurahId] = useState<number | null>(null);
 
   const load = useCallback(async (withLoading: boolean = true) => {
     if (withLoading) {
@@ -116,33 +119,41 @@ export default function QuranScreen() {
           <View style={styles.headerButtonPlaceholder} />
         </View>
 
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("quran.subtitle")}</Text>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={easeEnterTransition}>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("quran.subtitle")}</Text>
+        </EaseView>
 
-        <View style={[styles.searchWrap, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
-          <Ionicons name="search" size={16} color={isLight ? "#617990" : "#8EA4BF"} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.textPrimary }]}
-            placeholder={t("quran.search_placeholder")}
-            placeholderTextColor={isLight ? "#617990" : "#8EA4BF"}
-            value={query}
-            onChangeText={handleQueryChange}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={easeEnterTransition}>
+          <View style={[styles.searchWrap, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+            <Ionicons name="search" size={16} color={isLight ? "#617990" : "#8EA4BF"} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.textPrimary }]}
+              placeholder={t("quran.search_placeholder")}
+              placeholderTextColor={isLight ? "#617990" : "#8EA4BF"}
+              value={query}
+              onChangeText={handleQueryChange}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+        </EaseView>
 
         {loading ? (
-          <View style={styles.centerWrap}>
-            <ActivityIndicator color="#2B8CEE" size="large" />
-            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.loading")}</Text>
-          </View>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={easeStateTransition}>
+            <View style={styles.centerWrap}>
+              <ActivityIndicator color="#2B8CEE" size="large" />
+              <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.loading")}</Text>
+            </View>
+          </EaseView>
         ) : error ? (
-          <View style={styles.centerWrap}>
-            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.error_load")}</Text>
-            <Pressable style={styles.retryButton} onPress={() => void load()}>
-              <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
-            </Pressable>
-          </View>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={easeStateTransition}>
+            <View style={styles.centerWrap}>
+              <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.error_load")}</Text>
+              <Pressable style={styles.retryButton} onPress={() => void load()}>
+                <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
+              </Pressable>
+            </View>
+          </EaseView>
         ) : (
           <FlatList
             ref={listRef}
@@ -160,33 +171,42 @@ export default function QuranScreen() {
               <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.empty")}</Text>
             }
             renderItem={({ item }) => {
+              const pressed = pressedSurahId === item.id;
               return (
-                <Pressable
-                  style={[styles.row, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                  onPress={() => router.push(`/quran/${item.id}` as never)}
+                <EaseView
+                  initialAnimate={easeInitialLift}
+                  animate={{ opacity: 1, translateY: 0, scale: pressed ? 0.985 : 1 }}
+                  transition={pressed ? easePressTransition : easeEnterTransition}
                 >
-                  <View style={styles.rowLeft}>
-                    <Text style={[styles.rowIndex, { color: isLight ? "#1E78D9" : "#8DBEFF" }]}>{item.id}</Text>
-                  </View>
-                  <View style={styles.rowCenter}>
-                    <Text style={[styles.rowLatin, { color: colors.textPrimary }]}>{item.nameLatin}</Text>
-                    <Text style={[styles.rowCount, { color: colors.textSecondary }]}>
-                      {t("quran.ayah_count", { count: item.ayahCount })}
-                    </Text>
-                  </View>
-                  <View style={styles.rowRight}>
-                    <Text
-                      style={[
-                        styles.rowArabic,
-                        { color: colors.textPrimary },
-                        fontsLoaded ? styles.quranArabicFont : null
-                      ]}
-                    >
-                      {item.nameArabic}
-                    </Text>
-                    <Ionicons name="chevron-forward" size={16} color={isLight ? "#617990" : "#8EA4BF"} />
-                  </View>
-                </Pressable>
+                  <Pressable
+                    style={[styles.row, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                    onPress={() => router.push(`/quran/${item.id}` as never)}
+                    onPressIn={() => setPressedSurahId(item.id)}
+                    onPressOut={() => setPressedSurahId(null)}
+                  >
+                    <View style={styles.rowLeft}>
+                      <Text style={[styles.rowIndex, { color: isLight ? "#1E78D9" : "#8DBEFF" }]}>{item.id}</Text>
+                    </View>
+                    <View style={styles.rowCenter}>
+                      <Text style={[styles.rowLatin, { color: colors.textPrimary }]}>{item.nameLatin}</Text>
+                      <Text style={[styles.rowCount, { color: colors.textSecondary }]}>
+                        {t("quran.ayah_count", { count: item.ayahCount })}
+                      </Text>
+                    </View>
+                    <View style={styles.rowRight}>
+                      <Text
+                        style={[
+                          styles.rowArabic,
+                          { color: colors.textPrimary },
+                          fontsLoaded ? styles.quranArabicFont : null
+                        ]}
+                      >
+                        {item.nameArabic}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={16} color={isLight ? "#617990" : "#8EA4BF"} />
+                    </View>
+                  </Pressable>
+                </EaseView>
               );
             }}
           />

@@ -4,7 +4,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getQuranSurahAudio, getQuranSurahDetail } from "@/services/quran";
@@ -51,6 +53,7 @@ export default function QuranSurahDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [audioBusy, setAudioBusy] = useState(false);
+  const [audioPressed, setAudioPressed] = useState(false);
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -209,69 +212,85 @@ export default function QuranSurahDetailScreen() {
         </View>
 
         {surah && subtitleMeta ? (
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            <Text style={fontsLoaded ? styles.quranArabicFont : null}>{surah.nameArabic}</Text>
-            {" • "}
-            {subtitleMeta}
-          </Text>
+          <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={easeEnterTransition}>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              <Text style={fontsLoaded ? styles.quranArabicFont : null}>{surah.nameArabic}</Text>
+              {" • "}
+              {subtitleMeta}
+            </Text>
+          </EaseView>
         ) : null}
 
         {audioInfo.available ? (
-          <View style={styles.audioWrap}>
-            <Pressable
-              style={[
-                styles.audioButton,
-                playing ? { backgroundColor: "#D86076" } : { backgroundColor: "#2B8CEE" },
-                audioBusy ? { opacity: 0.65 } : null
-              ]}
-              onPress={() => void toggleAudio()}
-              disabled={audioBusy}
-            >
-              <Ionicons name={playing ? "pause" : "play"} size={16} color="#FFFFFF" />
-              <Text style={styles.audioButtonText}>
-                {playing ? t("quran.audio_pause") : t("quran.audio_play")}
-              </Text>
-            </Pressable>
-            {audioInfo.source === "fallback" ? (
-              <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>
-                {t("quran.audio_fallback_hint")}
-              </Text>
-            ) : null}
-          </View>
+          <EaseView
+            initialAnimate={easeInitialLift}
+            animate={{ opacity: 1, translateY: 0, scale: audioPressed ? 0.98 : 1 }}
+            transition={audioPressed ? easePressTransition : easeEnterTransition}
+          >
+            <View style={styles.audioWrap}>
+              <Pressable
+                style={[
+                  styles.audioButton,
+                  playing ? { backgroundColor: "#D86076" } : { backgroundColor: "#2B8CEE" },
+                  audioBusy ? { opacity: 0.65 } : null
+                ]}
+                onPress={() => void toggleAudio()}
+                onPressIn={() => setAudioPressed(true)}
+                onPressOut={() => setAudioPressed(false)}
+                disabled={audioBusy}
+              >
+                <Ionicons name={playing ? "pause" : "play"} size={16} color="#FFFFFF" />
+                <Text style={styles.audioButtonText}>
+                  {playing ? t("quran.audio_pause") : t("quran.audio_play")}
+                </Text>
+              </Pressable>
+              {audioInfo.source === "fallback" ? (
+                <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>
+                  {t("quran.audio_fallback_hint")}
+                </Text>
+              ) : null}
+            </View>
+          </EaseView>
         ) : null}
 
         {loading ? (
-          <View style={styles.centerWrap}>
-            <ActivityIndicator color="#2B8CEE" size="large" />
-            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.loading")}</Text>
-          </View>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={easeStateTransition}>
+            <View style={styles.centerWrap}>
+              <ActivityIndicator color="#2B8CEE" size="large" />
+              <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.loading")}</Text>
+            </View>
+          </EaseView>
         ) : error ? (
-          <View style={styles.centerWrap}>
-            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.error_load")}</Text>
-            <Pressable style={styles.retryButton} onPress={() => void load()}>
-              <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
-            </Pressable>
-          </View>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={easeStateTransition}>
+            <View style={styles.centerWrap}>
+              <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.error_load")}</Text>
+              <Pressable style={styles.retryButton} onPress={() => void load()}>
+                <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
+              </Pressable>
+            </View>
+          </EaseView>
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            {verses.map((row) => (
-              <View key={row.key} style={[styles.ayahCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                <Text style={[styles.ayahIndex, { color: isLight ? "#1E78D9" : "#8DBEFF" }]}>{row.numberInSurah}</Text>
-                <Text
-                  style={[
-                    styles.ayahArabic,
-                    { color: colors.textPrimary },
-                    fontsLoaded ? styles.quranArabicFont : null
-                  ]}
-                >
-                  {row.arabic}
-                </Text>
-                <Text style={[styles.ayahTranslation, { color: colors.textSecondary }]}>
-                  {row.translationTr || "—"}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={easeEnterTransition} style={styles.scrollWrap}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+              {verses.map((row) => (
+                <View key={row.key} style={[styles.ayahCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                  <Text style={[styles.ayahIndex, { color: isLight ? "#1E78D9" : "#8DBEFF" }]}>{row.numberInSurah}</Text>
+                  <Text
+                    style={[
+                      styles.ayahArabic,
+                      { color: colors.textPrimary },
+                      fontsLoaded ? styles.quranArabicFont : null
+                    ]}
+                  >
+                    {row.arabic}
+                  </Text>
+                  <Text style={[styles.ayahTranslation, { color: colors.textSecondary }]}>
+                    {row.translationTr || "—"}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          </EaseView>
         )}
       </View>
     </SafeAreaView>
@@ -364,6 +383,9 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: "#FFFFFF",
     fontWeight: "700"
+  },
+  scrollWrap: {
+    flex: 1
   },
   scrollContent: {
     paddingBottom: 20,

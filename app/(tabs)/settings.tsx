@@ -4,6 +4,7 @@ import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
+import { EaseView } from "react-native-ease";
 import {
   Alert,
   ActivityIndicator,
@@ -20,6 +21,7 @@ import {
   View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { easeEnterTransition, easeInitialLift, easePressTransition } from "@/animation/ease";
 import {
   geocodeCityQuery,
   getCurrentLocationDetails,
@@ -94,6 +96,7 @@ export default function SettingsScreen() {
   const [citySuggestions, setCitySuggestions] = useState<Array<{ label: string; lat: number; lon: number; query: string }>>([]);
   const [mosquesSettings, setMosquesSettings] = useState<MosquesSettings>({ radiusKm: 5, travelMode: "walk" });
   const [showAppInfo, setShowAppInfo] = useState(false);
+  const [savePressed, setSavePressed] = useState(false);
   const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? "Onbekend";
   const appBuild = Application.nativeBuildVersion ?? Constants.expoConfig?.ios?.buildNumber ?? "-";
 
@@ -391,12 +394,14 @@ export default function SettingsScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <AppBackground />
-        <View style={styles.headerRow}>
-          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>{t("settings.title")}</Text>
-          <Pressable onPress={() => setShowAppInfo(true)} hitSlop={8}>
-            <Ionicons name="help-circle-outline" size={22} color={isLight ? "#617990" : "#B7C7DD"} />
-          </Pressable>
-        </View>
+        <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={easeEnterTransition}>
+          <View style={styles.headerRow}>
+            <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>{t("settings.title")}</Text>
+            <Pressable onPress={() => setShowAppInfo(true)} hitSlop={8}>
+              <Ionicons name="help-circle-outline" size={22} color={isLight ? "#617990" : "#B7C7DD"} />
+            </Pressable>
+          </View>
+        </EaseView>
 
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -679,9 +684,20 @@ export default function SettingsScreen() {
             })}
           </View>
 
-          <Pressable style={[styles.saveButton, { backgroundColor: colors.accent }]} onPress={() => void persistAndReplan()} disabled={saving}>
-            <Text style={styles.saveButtonText}>{saving ? t("settings.saving") : t("settings.save_settings")}</Text>
-          </Pressable>
+          <EaseView
+            animate={{ scale: savePressed ? 0.985 : 1 }}
+            transition={savePressed ? easePressTransition : easeEnterTransition}
+          >
+            <Pressable
+              style={[styles.saveButton, { backgroundColor: colors.accent }]}
+              onPress={() => void persistAndReplan()}
+              onPressIn={() => setSavePressed(true)}
+              onPressOut={() => setSavePressed(false)}
+              disabled={saving}
+            >
+              <Text style={styles.saveButtonText}>{saving ? t("settings.saving") : t("settings.save_settings")}</Text>
+            </Pressable>
+          </EaseView>
         </ScrollView>
 
         <Modal
