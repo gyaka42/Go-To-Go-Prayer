@@ -13,7 +13,16 @@ import {
   Vibration
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { easeEnterTransition, easeInitialFade, easeInitialLift, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
+import {
+  easeButtonStateTransition,
+  easeEnterTransition,
+  easeInitialFade,
+  easeInitialLift,
+  easePressTransition,
+  easeStateTransition,
+  easeVisibleFade,
+  easeVisibleLift
+} from "@/animation/ease";
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import * as Location from "expo-location";
 import { AppBackground } from "@/components/AppBackground";
@@ -49,6 +58,8 @@ export default function QiblaScreen() {
   const isLight = resolvedTheme === "light";
   const enterTransition = useMotionTransition(easeEnterTransition);
   const stateTransition = useMotionTransition(easeStateTransition);
+  const pressTransition = useMotionTransition(easePressTransition);
+  const buttonStateTransition = useMotionTransition(easeButtonStateTransition);
   const [bearing, setBearing] = useState<number | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationName, setLocationName] = useState(t("common.current_location"));
@@ -56,6 +67,8 @@ export default function QiblaScreen() {
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isCached, setIsCached] = useState(false);
+  const [refreshPressed, setRefreshPressed] = useState(false);
+  const [retryPressed, setRetryPressed] = useState(false);
 
   const [deviceHeading, setDeviceHeading] = useState<number | undefined>(undefined);
   const [headingAvailable, setHeadingAvailable] = useState(false);
@@ -288,8 +301,12 @@ export default function QiblaScreen() {
                 isLight ? { backgroundColor: "#E4EFFB" } : null
               ]}
               onPress={() => void refresh()}
+              onPressIn={() => setRefreshPressed(true)}
+              onPressOut={() => setRefreshPressed(false)}
             >
-              <Ionicons name="refresh" size={20} color={isLight ? "#1E5FA3" : "#D9E8FA"} />
+              <EaseView animate={{ scale: refreshPressed ? 0.92 : 1 }} transition={pressTransition}>
+                <Ionicons name="refresh" size={20} color={isLight ? "#1E5FA3" : "#D9E8FA"} />
+              </EaseView>
             </Pressable>
           </View>
         </EaseView>
@@ -328,9 +345,16 @@ export default function QiblaScreen() {
                   {t("qibla.permission_needed")}
                 </Text>
                 <Text style={[styles.errorText, isLight ? { color: "#8D4153" } : null]}>{errorText}</Text>
-                <Pressable style={styles.retryButton} onPress={() => void refresh()}>
-                  <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
-                </Pressable>
+                <EaseView animate={{ scale: retryPressed ? 0.985 : 1 }} transition={pressTransition}>
+                  <Pressable
+                    style={styles.retryButton}
+                    onPress={() => void refresh()}
+                    onPressIn={() => setRetryPressed(true)}
+                    onPressOut={() => setRetryPressed(false)}
+                  >
+                    <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
+                  </Pressable>
+                </EaseView>
               </View>
             </EaseView>
           ) : null}
@@ -345,30 +369,35 @@ export default function QiblaScreen() {
                 lightMode={isLight}
               />
 
-              <View
-                style={[
-                  styles.badge,
-                  mode === "live"
-                    ? isLight
-                      ? { backgroundColor: "#DFF5E8" }
-                      : styles.badgeLive
-                    : isLight
-                      ? { backgroundColor: "#FFF0DB" }
-                      : styles.badgeFallback
-                ]}
+              <EaseView
+                style={styles.badge}
+                animate={{
+                  backgroundColor:
+                    mode === "live"
+                      ? isLight
+                        ? "#DFF5E8"
+                        : "#173F34"
+                      : isLight
+                        ? "#FFF0DB"
+                        : "#3A2F1C"
+                }}
+                transition={buttonStateTransition}
               >
                 <Text style={[styles.badgeText, isLight ? { color: "#274462" } : null]}>
                   {mode === "live" ? t("qibla.live_on") : t("qibla.live_off")}
                 </Text>
-              </View>
+              </EaseView>
 
-              <View
+              <EaseView
                 style={[
                   styles.confidenceCard,
                   isLight
                     ? { borderColor: "#C7DAEE", backgroundColor: "#EEF6FF" }
                     : null
                 ]}
+                initialAnimate={easeInitialFade}
+                animate={easeVisibleFade}
+                transition={stateTransition}
               >
                 <View style={styles.confidenceHeader}>
                   <Text style={[styles.confidenceTitle, isLight ? { color: "#173A59" } : null]}>
@@ -408,40 +437,50 @@ export default function QiblaScreen() {
                       : "--"}
                   </Text>
                 ) : null}
-              </View>
+              </EaseView>
 
               {isCached ? (
-                <Text style={[styles.cachedText, isLight ? { color: "#5B718A" } : null]}>
-                  {t("qibla.using_cache")}
-                </Text>
+                <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+                  <Text style={[styles.cachedText, isLight ? { color: "#5B718A" } : null]}>
+                    {t("qibla.using_cache")}
+                  </Text>
+                </EaseView>
               ) : null}
               {isCached && errorText ? (
-                <Text style={[styles.cachedWarning, isLight ? { color: "#8A6A40" } : null]}>{errorText}</Text>
+                <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+                  <Text style={[styles.cachedWarning, isLight ? { color: "#8A6A40" } : null]}>{errorText}</Text>
+                </EaseView>
               ) : null}
 
               {mode === "fallback" && fallbackImageUrl ? (
-                <View
+                <EaseView
                   style={[
                     styles.fallbackCard,
                     isLight
                       ? { borderColor: "#C7DBEE", backgroundColor: "#F3F9FF" }
                       : null
                   ]}
+                  initialAnimate={easeInitialFade}
+                  animate={easeVisibleFade}
+                  transition={stateTransition}
                 >
                   <Text style={[styles.fallbackTitle, isLight ? { color: "#345677" } : null]}>
                     {t("qibla.fallback_image")}
                   </Text>
                   <Image source={{ uri: fallbackImageUrl }} style={styles.fallbackImage} resizeMode="contain" />
-                </View>
+                </EaseView>
               ) : null}
 
-              <View
+              <EaseView
                 style={[
                   styles.hintsCard,
                   isLight
                     ? { borderColor: "#C4D9ED", backgroundColor: "#EEF6FF" }
                     : null
                 ]}
+                initialAnimate={easeInitialFade}
+                animate={easeVisibleFade}
+                transition={stateTransition}
               >
                 <Text style={[styles.hintsTitle, isLight ? { color: "#1D3D5C" } : null]}>{t("qibla.tips")}</Text>
                 <Text style={[styles.hintItem, isLight ? { color: "#345677" } : null]}>
@@ -453,7 +492,7 @@ export default function QiblaScreen() {
                 <Text style={[styles.hintItem, isLight ? { color: "#345677" } : null]}>
                   {t("qibla.tip3")}
                 </Text>
-              </View>
+              </EaseView>
               </View>
             </EaseView>
           ) : null}
@@ -560,12 +599,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center"
-  },
-  badgeLive: {
-    backgroundColor: "#173F34"
-  },
-  badgeFallback: {
-    backgroundColor: "#3A2F1C"
   },
   badgeText: {
     color: "#E8F2FF",

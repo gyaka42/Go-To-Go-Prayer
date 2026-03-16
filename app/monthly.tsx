@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EaseView } from "react-native-ease";
 import {
   ActivityIndicator,
   Modal,
@@ -13,6 +14,17 @@ import {
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  easeButtonStateTransition,
+  easeEnterTransition,
+  easeInitialFade,
+  easeInitialLift,
+  easePressTransition,
+  easeStateTransition,
+  easeVisibleFade,
+  easeVisibleLift
+} from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
@@ -109,6 +121,10 @@ export default function MonthlyScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const isLight = resolvedTheme === "light";
   const isFocused = useIsFocused();
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const stateTransition = useMotionTransition(easeStateTransition);
+  const pressTransition = useMotionTransition(easePressTransition);
+  const buttonStateTransition = useMotionTransition(easeButtonStateTransition);
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(normalizeMonth(new Date()));
   const [pickerMonth, setPickerMonth] = useState<Date>(normalizeMonth(new Date()));
@@ -120,6 +136,8 @@ export default function MonthlyScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPrefetching, setIsPrefetching] = useState(false);
   const [partialError, setPartialError] = useState(false);
+  const [refreshPressed, setRefreshPressed] = useState(false);
+  const [retryPressed, setRetryPressed] = useState(false);
 
   const loadRequestRef = useRef(0);
   const isLoadingRef = useRef(false);
@@ -371,61 +389,80 @@ export default function MonthlyScreen() {
       <View style={styles.container}>
         <AppBackground />
 
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} hitSlop={8} style={[styles.circleButton, isLight ? styles.circleButtonLight : null]}>
-            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-          </Pressable>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <View style={styles.headerRow}>
+            <Pressable onPress={() => router.back()} hitSlop={8} style={[styles.circleButton, isLight ? styles.circleButtonLight : null]}>
+              <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+            </Pressable>
 
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{t("monthly.title")}</Text>
+            <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{t("monthly.title")}</Text>
 
-          <Pressable
-            onPress={() => {
-              setPickerMonth(selectedMonth);
-              setPickerOpen(true);
-            }}
-            hitSlop={8}
-            style={[styles.circleButton, isLight ? styles.circleButtonLight : null]}
-          >
-            <Ionicons name="calendar-outline" size={22} color={colors.textPrimary} />
-          </Pressable>
-        </View>
+            <Pressable
+              onPress={() => {
+                setPickerMonth(selectedMonth);
+                setPickerOpen(true);
+              }}
+              hitSlop={8}
+              style={[styles.circleButton, isLight ? styles.circleButtonLight : null]}
+            >
+              <Ionicons name="calendar-outline" size={22} color={colors.textPrimary} />
+            </Pressable>
+          </View>
+        </EaseView>
 
-        <View style={styles.subHeaderRow}>
-          <Text style={[styles.monthLabel, { color: colors.textPrimary }]}>{monthTitle}</Text>
-          <Pressable
-            style={styles.refreshBtn}
-            onPress={() => {
-              scheduleLoad(selectedMonth, { forceRefresh: true });
-            }}
-          >
-            <Ionicons name="refresh" size={16} color="#FFFFFF" />
-            <Text style={styles.refreshLabel}>{t("monthly.refresh")}</Text>
-          </Pressable>
-        </View>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <View style={styles.subHeaderRow}>
+            <Text style={[styles.monthLabel, { color: colors.textPrimary }]}>{monthTitle}</Text>
+            <EaseView animate={{ scale: refreshPressed ? 0.98 : 1 }} transition={pressTransition}>
+              <Pressable
+                style={styles.refreshBtn}
+                onPress={() => {
+                  scheduleLoad(selectedMonth, { forceRefresh: true });
+                }}
+                onPressIn={() => setRefreshPressed(true)}
+                onPressOut={() => setRefreshPressed(false)}
+              >
+                <Ionicons name="refresh" size={16} color="#FFFFFF" />
+                <Text style={styles.refreshLabel}>{t("monthly.refresh")}</Text>
+              </Pressable>
+            </EaseView>
+          </View>
+        </EaseView>
 
-        <Text style={[styles.sourceLine, { color: colors.textSecondary }]}>
-          {t("monthly.source", { source: source === "network" ? t("mosques.source_network") : t("mosques.source_cache") })}
-          {isPrefetching ? ` • ${t("monthly.loading")}` : ""}
-        </Text>
+        <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+          <Text style={[styles.sourceLine, { color: colors.textSecondary }]}>
+            {t("monthly.source", { source: source === "network" ? t("mosques.source_network") : t("mosques.source_cache") })}
+            {isPrefetching ? ` • ${t("monthly.loading")}` : ""}
+          </Text>
+        </EaseView>
 
-        <View style={[styles.tableShell, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}> 
+        <EaseView
+          style={[styles.tableShell, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+          initialAnimate={easeInitialFade}
+          animate={easeVisibleFade}
+          transition={buttonStateTransition}
+        > 
           {loadState === "loading" ? (
-            <View style={styles.loadingWrap}>
+            <EaseView style={styles.loadingWrap} initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
               <ActivityIndicator color="#2B8CEE" size="small" />
               <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{t("monthly.loading")}</Text>
-            </View>
+            </EaseView>
           ) : loadState === "error" ? (
-            <View style={styles.loadingWrap}>
+            <EaseView style={styles.loadingWrap} initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
               <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{errorMessage ?? t("monthly.loading")}</Text>
-              <Pressable
-                style={styles.retryBtn}
-                onPress={() => {
-                  scheduleLoad(selectedMonth);
-                }}
-              >
-                <Text style={styles.retryLabel}>{t("common.retry")}</Text>
-              </Pressable>
-            </View>
+              <EaseView animate={{ scale: retryPressed ? 0.985 : 1 }} transition={pressTransition}>
+                <Pressable
+                  style={styles.retryBtn}
+                  onPress={() => {
+                    scheduleLoad(selectedMonth);
+                  }}
+                  onPressIn={() => setRetryPressed(true)}
+                  onPressOut={() => setRetryPressed(false)}
+                >
+                  <Text style={styles.retryLabel}>{t("common.retry")}</Text>
+                </Pressable>
+              </EaseView>
+            </EaseView>
           ) : (
             <>
               <View style={styles.tableWrap}>
@@ -487,11 +524,13 @@ export default function MonthlyScreen() {
               </View>
 
               {partialError ? (
-                <Text style={[styles.partialError, { color: colors.textSecondary }]}>{t("monthly.partialError")}</Text>
+                <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+                  <Text style={[styles.partialError, { color: colors.textSecondary }]}>{t("monthly.partialError")}</Text>
+                </EaseView>
               ) : null}
             </>
           )}
-        </View>
+        </EaseView>
       </View>
 
       <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
