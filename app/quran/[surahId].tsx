@@ -6,13 +6,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { easeButtonStateTransition, easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
+import { easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getQuranSurahAudio, getQuranSurahDetail } from "@/services/quran";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { QuranAudioInfo, SurahMeta, VerseRow } from "@/types/quran";
+
+type AudioUiState = "ready" | "preparing" | "playing" | "paused" | "finished" | "error";
 
 export default function QuranSurahDetailScreen() {
   const router = useRouter();
@@ -23,7 +26,6 @@ export default function QuranSurahDetailScreen() {
   const enterTransition = useMotionTransition(easeEnterTransition);
   const stateTransition = useMotionTransition(easeStateTransition);
   const pressTransition = useMotionTransition(easePressTransition);
-  const buttonStateTransition = useMotionTransition(easeButtonStateTransition);
   const [fontsLoaded] = useFonts({
     QuranArabic: require("../../assets/fonts/NotoNaskhArabic-Regular.ttf")
   });
@@ -56,9 +58,9 @@ export default function QuranSurahDetailScreen() {
   const [audioInfo, setAudioInfo] = useState<QuranAudioInfo>({ available: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [playing, setPlaying] = useState(false);
   const [audioBusy, setAudioBusy] = useState(false);
   const [audioPressed, setAudioPressed] = useState(false);
+  const [audioState, setAudioState] = useState<AudioUiState>("ready");
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -79,7 +81,7 @@ export default function QuranSurahDetailScreen() {
       // Ignore cleanup errors.
     }
     soundRef.current = null;
-    setPlaying(false);
+    setAudioState("ready");
   }, []);
 
   const queueAudioAction = useCallback(async (action: () => Promise<void>) => {
@@ -125,6 +127,7 @@ export default function QuranSurahDetailScreen() {
       setSurah(detail.surah);
       setVerses(filteredVerses.length > 0 ? filteredVerses : detail.verses);
       setAudioInfo(audio);
+      setAudioState("ready");
     } catch (err) {
       setError(String(err));
     } finally {
@@ -143,17 +146,42 @@ export default function QuranSurahDetailScreen() {
   }, [fromAyah, surah, t, toAyah]);
 
   const audioStateLabel = useMemo(() => {
-    if (audioBusy) {
+    if (audioBusy || audioState === "preparing") {
       return t("quran.audio_state_loading");
     }
-    if (playing) {
+    if (audioState === "playing") {
       return t("quran.audio_state_playing");
     }
-    if (soundRef.current) {
+    if (audioState === "paused") {
       return t("quran.audio_state_paused");
     }
+    if (audioState === "finished") {
+      return t("quran.audio_state_finished");
+    }
+    if (audioState === "error") {
+      return t("quran.audio_state_error");
+    }
     return t("quran.audio_state_ready");
-  }, [audioBusy, playing, t]);
+  }, [audioBusy, audioState, t]);
+
+  const audioStateTone = useMemo(() => {
+    if (audioBusy || audioState === "preparing") {
+      return "loading" as const;
+    }
+    if (audioState === "playing") {
+      return "info" as const;
+    }
+    if (audioState === "paused") {
+      return "warning" as const;
+    }
+    if (audioState === "finished") {
+      return "success" as const;
+    }
+    if (audioState === "error") {
+      return "error" as const;
+    }
+    return "success" as const;
+  }, [audioBusy, audioState]);
 
   useEffect(() => {
     void load();
@@ -170,12 +198,13 @@ export default function QuranSurahDetailScreen() {
         const status = await existing.getStatusAsync();
         if (!status.isLoaded) {
           await cleanupSound();
+          setAudioState("error");
           return;
         }
 
         if (status.isPlaying) {
           await existing.pauseAsync();
-          setPlaying(false);
+          setAudioState("paused");
           return;
         }
 
@@ -185,11 +214,12 @@ export default function QuranSurahDetailScreen() {
           await existing.setPositionAsync(0);
         }
         await existing.playAsync();
-        setPlaying(true);
+        setAudioState("playing");
         return;
       }
 
       try {
+        setAudioState("preparing");
         await Audio.setAudioModeAsync({
           playsInSilentModeIOS: true,
           staysActiveInBackground: false
@@ -201,18 +231,34 @@ export default function QuranSurahDetailScreen() {
         soundRef.current = sound;
         sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
           if (!status.isLoaded) {
+            setAudioState("error");
             return;
           }
           if (status.didJustFinish) {
-            setPlaying(false);
+            setAudioState("finished");
             return;
           }
-          setPlaying(status.isPlaying);
+          if (status.isPlaying) {
+            setAudioState("playing");
+            return;
+          }
+          const duration = status.durationMillis ?? 0;
+          const position = status.positionMillis ?? 0;
+          if (duration > 0 && position >= duration - 400) {
+            setAudioState("finished");
+            return;
+          }
+          if (position > 0) {
+            setAudioState("paused");
+            return;
+          }
+          setAudioState("ready");
         });
         await sound.playAsync();
-        setPlaying(true);
+        setAudioState("playing");
       } catch {
         await cleanupSound();
+        setAudioState("error");
       }
     });
   }, [audioInfo.audio, audioInfo.available, cleanupSound, queueAudioAction]);
@@ -249,7 +295,7 @@ export default function QuranSurahDetailScreen() {
               <Pressable
                 style={[
                   styles.audioButton,
-                  playing ? { backgroundColor: "#D86076" } : { backgroundColor: "#2B8CEE" },
+                  audioState === "playing" ? { backgroundColor: "#D86076" } : { backgroundColor: "#2B8CEE" },
                   audioBusy ? { opacity: 0.65 } : null
                 ]}
                 onPress={() => void toggleAudio()}
@@ -257,36 +303,12 @@ export default function QuranSurahDetailScreen() {
                 onPressOut={() => setAudioPressed(false)}
                 disabled={audioBusy}
               >
-                <Ionicons name={playing ? "pause" : "play"} size={16} color="#FFFFFF" />
+                <Ionicons name={audioState === "playing" ? "pause" : "play"} size={16} color="#FFFFFF" />
                 <Text style={styles.audioButtonText}>
-                  {playing ? t("quran.audio_pause") : t("quran.audio_play")}
+                  {audioState === "playing" ? t("quran.audio_pause") : t("quran.audio_play")}
                 </Text>
               </Pressable>
-              <EaseView
-                style={styles.audioStatusChip}
-                animate={{
-                  backgroundColor: audioBusy
-                    ? isLight
-                      ? "#E8F2FD"
-                      : "#17324A"
-                    : playing
-                      ? isLight
-                        ? "#FCE5EA"
-                        : "#3C2230"
-                      : soundRef.current
-                        ? isLight
-                          ? "#EEF1F6"
-                          : "#203142"
-                        : isLight
-                          ? "#E6F6EE"
-                          : "#16362B"
-                }}
-                transition={buttonStateTransition}
-              >
-                <Text style={[styles.audioStatusText, { color: colors.textSecondary }]}>
-                  {audioStateLabel}
-                </Text>
-              </EaseView>
+              <StatusChip label={audioStateLabel} tone={audioStateTone} />
               {audioInfo.source === "fallback" ? (
                 <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
                   <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>
@@ -412,18 +434,6 @@ const styles = StyleSheet.create({
   },
   audioHintText: {
     fontSize: 12,
-    color: "#8EA4BF"
-  },
-  audioStatusChip: {
-    minHeight: 28,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  audioStatusText: {
-    fontSize: 12,
-    fontWeight: "700",
     color: "#8EA4BF"
   },
   centerWrap: {

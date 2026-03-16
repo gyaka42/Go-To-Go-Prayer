@@ -61,3 +61,22 @@ export const easeButtonStateTransition: Transition = {
   stiffness: 300,
   mass: 1
 };
+
+export const easeFeedbackTransition: Transition = {
+  type: "timing",
+  duration: 220,
+  easing: [0.2, 0.8, 0.2, 1]
+};
+
+export const easeStatusChipTransition: Transition = {
+  type: "spring",
+  damping: 22,
+  stiffness: 280,
+  mass: 1
+};
+
+export const easeDisabledTransition: Transition = {
+  type: "timing",
+  duration: 160,
+  easing: "easeOut"
+};
