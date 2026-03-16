@@ -21,7 +21,7 @@ import {
   View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { easeEnterTransition, easeInitialLift, easePressTransition } from "@/animation/ease";
+import { easeButtonStateTransition, easeEnterTransition, easeInitialLift, easePressTransition } from "@/animation/ease";
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import {
   geocodeCityQuery,
@@ -90,6 +90,7 @@ export default function SettingsScreen() {
   const isLight = resolvedTheme === "light";
   const enterTransition = useMotionTransition(easeEnterTransition);
   const pressTransition = useMotionTransition(easePressTransition);
+  const buttonStateTransition = useMotionTransition(easeButtonStateTransition);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [locationStatus, setLocationStatus] = useState(t("common.current_location"));
@@ -100,8 +101,26 @@ export default function SettingsScreen() {
   const [mosquesSettings, setMosquesSettings] = useState<MosquesSettings>({ radiusKm: 5, travelMode: "walk" });
   const [showAppInfo, setShowAppInfo] = useState(false);
   const [savePressed, setSavePressed] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<"idle" | "saved">("idle");
   const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? "Onbekend";
   const appBuild = Application.nativeBuildVersion ?? Constants.expoConfig?.ios?.buildNumber ?? "-";
+  const saveFeedbackTimer = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [saveFeedbackTimeout, setSaveFeedbackTimeout] = saveFeedbackTimer;
+
+  const clearSaveFeedbackTimer = useCallback(() => {
+    if (saveFeedbackTimeout) {
+      clearTimeout(saveFeedbackTimeout);
+      setSaveFeedbackTimeout(null);
+    }
+  }, [saveFeedbackTimeout, setSaveFeedbackTimeout]);
+
+  useEffect(() => {
+    return () => {
+      if (saveFeedbackTimeout) {
+        clearTimeout(saveFeedbackTimeout);
+      }
+    };
+  }, [saveFeedbackTimeout]);
 
   const loadSettings = useCallback(async () => {
     const saved = await getSettings();
@@ -352,6 +371,8 @@ export default function SettingsScreen() {
       return;
     }
 
+    clearSaveFeedbackTimer();
+    setSaveFeedback("idle");
     setSaving(true);
     try {
       await saveSettings(settings);
@@ -366,9 +387,19 @@ export default function SettingsScreen() {
         settings
       });
 
+      setSaveFeedback("saved");
+      setSaveFeedbackTimeout(setTimeout(() => {
+        setSaveFeedback("idle");
+        setSaveFeedbackTimeout(null);
+      }, 1800));
       Alert.alert(t("common.saved"), t("settings.saved_body"));
     } catch (error) {
       if (isMissingProxyError(error)) {
+        setSaveFeedback("saved");
+        setSaveFeedbackTimeout(setTimeout(() => {
+          setSaveFeedback("idle");
+          setSaveFeedbackTimeout(null);
+        }, 1800));
         Alert.alert(t("common.saved"), t("settings.saved_body"));
         return;
       }
@@ -379,7 +410,7 @@ export default function SettingsScreen() {
     } finally {
       setSaving(false);
     }
-  }, [settings, t]);
+  }, [clearSaveFeedbackTimer, settings, setSaveFeedbackTimeout, t]);
 
   if (!settings) {
     return (
@@ -691,15 +722,30 @@ export default function SettingsScreen() {
             animate={{ scale: savePressed ? 0.985 : 1 }}
             transition={savePressed ? pressTransition : enterTransition}
           >
-            <Pressable
-              style={[styles.saveButton, { backgroundColor: colors.accent }]}
-              onPress={() => void persistAndReplan()}
-              onPressIn={() => setSavePressed(true)}
-              onPressOut={() => setSavePressed(false)}
-              disabled={saving}
+            <EaseView
+              style={styles.saveButton}
+              animate={{
+                backgroundColor: saveFeedback === "saved" ? "#23B26D" : colors.accent
+              }}
+              transition={buttonStateTransition}
             >
-              <Text style={styles.saveButtonText}>{saving ? t("settings.saving") : t("settings.save_settings")}</Text>
-            </Pressable>
+              <Pressable
+                style={styles.saveButtonPressable}
+                onPress={() => void persistAndReplan()}
+                onPressIn={() => setSavePressed(true)}
+                onPressOut={() => setSavePressed(false)}
+                disabled={saving}
+              >
+                <View style={styles.saveButtonContent}>
+                  {saveFeedback === "saved" && !saving ? (
+                    <Ionicons name="checkmark-circle" size={20} color="#F2F8FF" />
+                  ) : null}
+                  <Text style={styles.saveButtonText}>
+                    {saving ? t("settings.saving") : saveFeedback === "saved" ? t("common.saved") : t("settings.save_settings")}
+                  </Text>
+                </View>
+              </Pressable>
+            </EaseView>
           </EaseView>
         </ScrollView>
 
@@ -1265,13 +1311,24 @@ const styles = StyleSheet.create({
     marginTop: 2,
     height: 62,
     borderRadius: 16,
-    backgroundColor: "#2B8CEE",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#2B8CEE",
     shadowOpacity: 0.3,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 8 }
+  },
+  saveButtonPressable: {
+    flex: 1,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  saveButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8
   },
   saveButtonText: {
     fontSize: 18,

@@ -372,6 +372,9 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "zikr.hapticEnabled": "Haptic feedback enabled",
     "zikr.hapticDisabled": "Haptic feedback disabled",
     "zikr.comingSoon": "Target options coming soon",
+    "zikr.statusReady": "Ready to continue",
+    "zikr.statusInProgress": "{{remaining}} left to reach your goal",
+    "zikr.statusCompleted": "Goal reached",
 
     "qaza.title": "Qaza Tracker",
     "qaza.totalMissed": "Total Missed Prayers",
@@ -764,6 +767,9 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "zikr.hapticEnabled": "Haptische feedback ingeschakeld",
     "zikr.hapticDisabled": "Haptische feedback uitgeschakeld",
     "zikr.comingSoon": "Doelopties komen binnenkort",
+    "zikr.statusReady": "Klaar om verder te tellen",
+    "zikr.statusInProgress": "Nog {{remaining}} tot je doel",
+    "zikr.statusCompleted": "Doel bereikt",
 
     "qaza.title": "Qaza Tracker",
     "qaza.totalMissed": "Totaal gemiste gebeden",
@@ -1156,6 +1162,9 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "zikr.hapticEnabled": "Haptik geri bildirim açık",
     "zikr.hapticDisabled": "Haptik geri bildirim kapalı",
     "zikr.comingSoon": "Hedef seçenekleri yakında",
+    "zikr.statusReady": "Devam etmeye hazır",
+    "zikr.statusInProgress": "Hedefe {{remaining}} kaldı",
+    "zikr.statusCompleted": "Hedefe ulaşıldı",
 
     "qaza.title": "Kaza Takibi",
     "qaza.totalMissed": "Toplam Kaçırılan Namaz",

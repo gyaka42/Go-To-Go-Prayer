@@ -1,8 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
+import { EaseView } from "react-native-ease";
 import { Image, Modal, Pressable, StyleSheet, Text, TextInput, Vibration, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { easeButtonStateTransition, easeEnterTransition, easeInitialLift, easePressTransition, easeVisibleLift } from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
@@ -54,6 +57,9 @@ export default function ZikrScreen() {
   const { t } = useI18n();
   const { colors, resolvedTheme } = useAppTheme();
   const isLight = resolvedTheme === "light";
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const pressTransition = useMotionTransition(easePressTransition);
+  const stateTransition = useMotionTransition(easeButtonStateTransition);
 
   const [state, setState] = useState<ZikrState | null>(null);
   const [zikrSettings, setZikrSettings] = useState<ZikrSettings>({ hapticsEnabled: true });
@@ -67,6 +73,9 @@ export default function ZikrScreen() {
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customLabelInput, setCustomLabelInput] = useState("");
   const [customSubtitleInput, setCustomSubtitleInput] = useState("");
+  const [ringPressed, setRingPressed] = useState(false);
+  const [resetPressed, setResetPressed] = useState(false);
+  const [targetPressed, setTargetPressed] = useState(false);
 
   const activeEntry: ZikrEntry =
     state?.entries[state.activeKey] ?? { count: 0, target: 100, updatedAt: Date.now(), subtitle: "" };
@@ -106,6 +115,17 @@ export default function ZikrScreen() {
     }
     return Math.max(0, Math.min(activeEntry.count / activeEntry.target, 1));
   }, [activeEntry.count, activeEntry.target]);
+
+  const remaining = Math.max(activeEntry.target - activeEntry.count, 0);
+  const statusLabel = useMemo(() => {
+    if (activeEntry.count >= activeEntry.target && activeEntry.target > 0) {
+      return t("zikr.statusCompleted");
+    }
+    if (activeEntry.count > 0) {
+      return t("zikr.statusInProgress", { remaining });
+    }
+    return t("zikr.statusReady");
+  }, [activeEntry.count, activeEntry.target, remaining, t]);
 
   useEffect(() => {
     let mounted = true;
@@ -275,145 +295,215 @@ export default function ZikrScreen() {
           <Text style={[styles.title, { color: colors.textPrimary }]}>{t("zikr.title")}</Text>
         </View>
 
-        <View style={[styles.goalCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}> 
-          <Text style={[styles.goalLabel, { color: colors.textSecondary }]}>{t("zikr.currentGoal")}</Text>
-          <Text style={[styles.goalValue, { color: colors.textPrimary }]}> 
-            {activeEntry.count} / {activeEntry.target}
-          </Text>
-        </View>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <View style={[styles.goalCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}> 
+            <Text style={[styles.goalLabel, { color: colors.textSecondary }]}>{t("zikr.currentGoal")}</Text>
+            <Text style={[styles.goalValue, { color: colors.textPrimary }]}> 
+              {activeEntry.count} / {activeEntry.target}
+            </Text>
+          </View>
+        </EaseView>
 
-        <Pressable
-          style={[
-            styles.ring,
-            {
-              borderColor: isLight ? "#88B9EC" : "#2C8DEE",
-              backgroundColor: isLight ? "#E9F3FF" : "#10253A"
-            }
-          ]}
-          onPress={handleIncrement}
-          disabled={loading || !state}
+        <EaseView
+          initialAnimate={easeInitialLift}
+          animate={{ opacity: 1, translateY: 0, scale: ringPressed ? 0.975 : 1 }}
+          transition={ringPressed ? pressTransition : enterTransition}
         >
-          <Text style={[styles.ringCount, { color: colors.textPrimary }]}>{activeEntry.count}</Text>
-          <Text style={[styles.ringHint, { color: colors.textSecondary }]}>{loading ? t("common.loading") : "+1"}</Text>
-        </Pressable>
+          <Pressable
+            style={styles.ringPressable}
+            onPress={handleIncrement}
+            onPressIn={() => setRingPressed(true)}
+            onPressOut={() => setRingPressed(false)}
+            disabled={loading || !state}
+          >
+            <View
+              style={[
+                styles.ring,
+                {
+                  borderColor: isLight ? "#88B9EC" : "#2C8DEE",
+                  backgroundColor: isLight ? "#E9F3FF" : "#10253A"
+                }
+              ]}
+            >
+              <Text style={[styles.ringCount, { color: colors.textPrimary }]}>{activeEntry.count}</Text>
+              <Text style={[styles.ringHint, { color: colors.textSecondary }]}>{loading ? t("common.loading") : "+1"}</Text>
+            </View>
+          </Pressable>
+        </EaseView>
         <View
           style={[
             styles.progressTrack,
             { borderColor: colors.cardBorder, backgroundColor: isLight ? "#E4EEF9" : "#122334" }
           ]}
         >
-          <View
-            style={[
-              styles.progressFill,
-              {
-                width: `${Math.round(progressRatio * 100)}%`,
-                backgroundColor: colors.accent
-              }
-            ]}
+          <EaseView
+            animate={{
+              scaleX: progressRatio,
+              backgroundColor:
+                activeEntry.count >= activeEntry.target && activeEntry.target > 0
+                  ? isLight
+                    ? "#29B36A"
+                    : "#1FA75D"
+                  : colors.accent
+            }}
+            transition={stateTransition}
+            style={styles.progressFill}
+            transformOrigin={{ x: 0, y: 0.5 }}
           />
         </View>
-
-        <Pressable
-          style={[
-            styles.zikrTextWrap,
-            {
-              borderColor: colors.cardBorder,
-              borderWidth: 1,
-              backgroundColor: isLight ? "#EFF5FC" : "#1A2D42"
-            }
-          ]}
-          onPress={() => setShowSelectorModal(true)}
-          disabled={!state}
+        <EaseView
+          style={styles.statusWrap}
+          animate={{
+            backgroundColor:
+              activeEntry.count >= activeEntry.target && activeEntry.target > 0
+                ? isLight
+                  ? "#E4F7EA"
+                  : "#17362B"
+                : activeEntry.count > 0
+                  ? isLight
+                    ? "#EEF4FB"
+                    : "#1C2F44"
+                  : isLight
+                    ? "#F4F7FB"
+                    : "#172534"
+          }}
+          transition={stateTransition}
         >
-          <View style={styles.zikrSelectHeader}>
-            <Image
-              source={require("../assets/images/list.png")}
-              style={[styles.zikrSelectIcon, { tintColor: colors.accent }]}
-              resizeMode="contain"
-            />
-            <Text style={[styles.zikrSelectHint, { color: colors.textSecondary }]}>{t("zikr.selectTitle")}</Text>
-            <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
-          </View>
+          <Text style={[styles.statusText, { color: colors.textSecondary }]}>{statusLabel}</Text>
+        </EaseView>
 
-          <Text style={[styles.zikrName, { color: colors.textPrimary }]}>{activeLabel}</Text>
-          {activeSubtitle ? <Text style={[styles.zikrSubtitle, { color: colors.textSecondary }]}>{activeSubtitle}</Text> : null}
-        </Pressable>
-
-        <View style={styles.buttonRow}>
-          <Pressable
-            style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-            onPress={handleReset}
-            disabled={!state}
-          >
-            <View style={styles.actionButtonContent}>
-              <Ionicons name="refresh-outline" size={18} color={colors.textPrimary} />
-              <Text style={[styles.actionButtonText, { color: colors.textPrimary }]}>{t("zikr.reset")}</Text>
-            </View>
-          </Pressable>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
           <Pressable
             style={[
-              styles.actionButton,
+              styles.zikrTextWrap,
               {
-                backgroundColor: colors.card,
-                borderColor: colors.cardBorder
+                borderColor: colors.cardBorder,
+                borderWidth: 1,
+                backgroundColor: isLight ? "#EFF5FC" : "#1A2D42"
               }
             ]}
+            onPress={() => setShowSelectorModal(true)}
             disabled={!state}
-            onPress={() => {
-              if (!state) {
-                return;
-              }
-              setTargetError(null);
-              setTargetInput(String(state.entries[state.activeKey].target));
-              setShowTargetModal(true);
-            }}
           >
-            <View style={styles.actionButtonContent}>
+            <View style={styles.zikrSelectHeader}>
               <Image
-                source={require("../assets/images/target.png")}
-                style={[styles.actionPngIcon, { tintColor: colors.textPrimary }]}
+                source={require("../assets/images/list.png")}
+                style={[styles.zikrSelectIcon, { tintColor: colors.accent }]}
                 resizeMode="contain"
               />
-              <Text style={[styles.actionButtonText, { color: colors.textPrimary }]}>{t("zikr.target")}</Text>
+              <Text style={[styles.zikrSelectHint, { color: colors.textSecondary }]}>{t("zikr.selectTitle")}</Text>
+              <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
             </View>
-          </Pressable>
-        </View>
 
-        <Pressable style={styles.hapticsRow} onPress={toggleHaptics}>
-          <View
-            style={[
-              styles.hapticIconWrap,
-              {
-                borderColor: isLight ? "#BFD2E7" : "#284766",
-                backgroundColor: "transparent"
-              },
-              !zikrSettings.hapticsEnabled
-                ? {
-                    backgroundColor: isLight ? "#5D7690" : "#7E9BB9",
-                    borderColor: isLight ? "#5D7690" : "#7E9BB9"
-                  }
-                : null
-            ]}
+            <Text style={[styles.zikrName, { color: colors.textPrimary }]}>{activeLabel}</Text>
+            {activeSubtitle ? <Text style={[styles.zikrSubtitle, { color: colors.textSecondary }]}>{activeSubtitle}</Text> : null}
+          </Pressable>
+        </EaseView>
+
+        <View style={styles.buttonRow}>
+          <EaseView
+            style={styles.actionButtonWrap}
+            animate={{ scale: resetPressed ? 0.98 : 1 }}
+            transition={pressTransition}
           >
-            <Image
-              source={require("../assets/images/haptic.png")}
+            <Pressable
+              style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+              onPress={handleReset}
+              onPressIn={() => setResetPressed(true)}
+              onPressOut={() => setResetPressed(false)}
+              disabled={!state}
+            >
+              <View style={styles.actionButtonContent}>
+                <Ionicons name="refresh-outline" size={18} color={colors.textPrimary} />
+                <Text style={[styles.actionButtonText, { color: colors.textPrimary }]}>{t("zikr.reset")}</Text>
+              </View>
+            </Pressable>
+          </EaseView>
+          <EaseView
+            style={styles.actionButtonWrap}
+            animate={{ scale: targetPressed ? 0.98 : 1 }}
+            transition={pressTransition}
+          >
+            <Pressable
               style={[
-                styles.hapticPngIcon,
+                styles.actionButton,
                 {
-                  tintColor: zikrSettings.hapticsEnabled
-                    ? isLight
-                      ? "#587391"
-                      : "#8EA4BF"
-                    : "#FFFFFF"
+                  backgroundColor: colors.card,
+                  borderColor: colors.cardBorder
                 }
               ]}
-              resizeMode="contain"
-            />
-          </View>
-          <Text style={[styles.hapticsText, { color: colors.textSecondary }]}>
-            {zikrSettings.hapticsEnabled ? t("zikr.hapticEnabled") : t("zikr.hapticDisabled")}
-          </Text>
-        </Pressable>
+              disabled={!state}
+              onPress={() => {
+                if (!state) {
+                  return;
+                }
+                setTargetError(null);
+                setTargetInput(String(state.entries[state.activeKey].target));
+                setShowTargetModal(true);
+              }}
+              onPressIn={() => setTargetPressed(true)}
+              onPressOut={() => setTargetPressed(false)}
+            >
+              <View style={styles.actionButtonContent}>
+                <Image
+                  source={require("../assets/images/target.png")}
+                  style={[styles.actionPngIcon, { tintColor: colors.textPrimary }]}
+                  resizeMode="contain"
+                />
+                <Text style={[styles.actionButtonText, { color: colors.textPrimary }]}>{t("zikr.target")}</Text>
+              </View>
+            </Pressable>
+          </EaseView>
+        </View>
+
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <Pressable style={styles.hapticsRow} onPress={toggleHaptics}>
+            <EaseView
+              style={styles.hapticIconWrap}
+              animate={{
+                backgroundColor: !zikrSettings.hapticsEnabled
+                  ? isLight
+                    ? "#5D7690"
+                    : "#7E9BB9"
+                  : "transparent",
+                borderRadius: 11
+              }}
+              transition={stateTransition}
+            >
+              <View
+                style={[
+                  styles.hapticIconInner,
+                  {
+                    borderColor: isLight ? "#BFD2E7" : "#284766"
+                  },
+                  !zikrSettings.hapticsEnabled
+                    ? {
+                        borderColor: isLight ? "#5D7690" : "#7E9BB9"
+                      }
+                    : null
+                ]}
+              >
+                <Image
+                  source={require("../assets/images/haptic.png")}
+                  style={[
+                    styles.hapticPngIcon,
+                    {
+                      tintColor: zikrSettings.hapticsEnabled
+                        ? isLight
+                          ? "#587391"
+                          : "#8EA4BF"
+                        : "#FFFFFF"
+                    }
+                  ]}
+                  resizeMode="contain"
+                />
+              </View>
+            </EaseView>
+            <Text style={[styles.hapticsText, { color: colors.textSecondary }]}>
+              {zikrSettings.hapticsEnabled ? t("zikr.hapticEnabled") : t("zikr.hapticDisabled")}
+            </Text>
+          </Pressable>
+        </EaseView>
       </View>
 
       <Modal visible={showTargetModal} animationType="fade" transparent onRequestClose={() => setShowTargetModal(false)}>
@@ -682,6 +772,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
+  ringPressable: {
+    alignSelf: "center"
+  },
   ringCount: {
     fontSize: 56,
     fontWeight: "800",
@@ -702,8 +795,23 @@ const styles = StyleSheet.create({
     width: "80%"
   },
   progressFill: {
+    width: "100%",
     height: "100%",
     borderRadius: 999
+  },
+  statusWrap: {
+    marginTop: 12,
+    minHeight: 36,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center"
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#8EA4BF"
   },
   zikrTextWrap: {
     marginTop: 18,
@@ -743,8 +851,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10
   },
+  actionButtonWrap: {
+    flex: 1
+  },
   actionButton: {
-    flex: 1,
     height: 48,
     borderRadius: 12,
     borderWidth: 1,
@@ -773,6 +883,11 @@ const styles = StyleSheet.create({
     gap: 8
   },
   hapticIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 11
+  },
+  hapticIconInner: {
     width: 22,
     height: 22,
     borderRadius: 11,

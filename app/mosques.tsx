@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EaseView } from "react-native-ease";
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +17,8 @@ import {
   View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { easeButtonStateTransition, easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getCurrentLocationDetails } from "@/services/location";
@@ -75,6 +78,10 @@ export default function MosquesScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const insets = useSafeAreaInsets();
   const isLight = resolvedTheme === "light";
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const stateTransition = useMotionTransition(easeStateTransition);
+  const pressTransition = useMotionTransition(easePressTransition);
+  const buttonStateTransition = useMotionTransition(easeButtonStateTransition);
 
   const [state, setState] = useState<LoadState>("idle");
   const [refreshing, setRefreshing] = useState(false);
@@ -89,6 +96,8 @@ export default function MosquesScreen() {
   const [defaultMosqueId, setDefaultMosqueIdState] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
+  const [pressedCardId, setPressedCardId] = useState<string | null>(null);
+  const [pressedFilter, setPressedFilter] = useState<ActiveFilter | null>(null);
   const isFocused = useIsFocused();
   const mosquesSettingsRef = useRef<MosquesSettings>({ radiusKm: 5, travelMode: "walk" });
   const mosquesCountRef = useRef(0);
@@ -465,173 +474,223 @@ export default function MosquesScreen() {
 
   const renderCard = useCallback(
     ({ item }: { item: MosqueListItem }) => (
-      <View style={[styles.mosqueCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-        <View style={styles.cardHeader}>
-          <Text style={[styles.mosqueName, { color: colors.textPrimary }]} numberOfLines={2}>
-            {item.name}
-          </Text>
-          <Pressable onPress={() => void toggleFavorite(item.id)} style={styles.favoriteButton} hitSlop={8}>
-            <Ionicons
-              name={item.isFavorite ? "star" : "star-outline"}
-              size={20}
-              color={item.isFavorite ? "#F5C445" : isLight ? "#637D98" : "#9CB3CD"}
-            />
-          </Pressable>
-        </View>
-
-        {item.isDefault ? (
-          <View style={styles.defaultBadge}>
-            <Ionicons name="pin" size={12} color="#F2F8FF" />
-            <Text style={styles.defaultBadgeText}>{t("mosques.default_badge")}</Text>
+      <EaseView
+        animate={{ scale: pressedCardId === item.id ? 0.985 : 1 }}
+        transition={pressTransition}
+      >
+        <View style={[styles.mosqueCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.mosqueName, { color: colors.textPrimary }]} numberOfLines={2}>
+              {item.name}
+            </Text>
+            <Pressable onPress={() => void toggleFavorite(item.id)} style={styles.favoriteButton} hitSlop={8}>
+              <Ionicons
+                name={item.isFavorite ? "star" : "star-outline"}
+                size={20}
+                color={item.isFavorite ? "#F5C445" : isLight ? "#637D98" : "#9CB3CD"}
+              />
+            </Pressable>
           </View>
-        ) : null}
 
-        <Text style={[styles.mosqueDistance, { color: colors.accent }]}>{formatDistance(item.distanceKm)}</Text>
-        <Text style={[styles.mosqueMeta, { color: colors.textSecondary }]}>
-          {t("mosques.last_updated_prefix")}: {formatRelativeUpdated(item.lastUpdated)}
-        </Text>
-        <View style={styles.mosqueEtaRow}>
-          <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}>{t("mosques.eta_prefix", { mins: item.etaMinutes })}</Text>
-          {item.isFeasible === null ? null : (
-            <>
-              <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}> • </Text>
-              {item.isFeasible ? (
-                <View style={styles.feasibleRow}>
-                  <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}>{t("mosques.feasible_yes_plain")}</Text>
-                  <Image source={require("../assets/images/check.png")} style={styles.feasibleCheckIcon} resizeMode="contain" />
-                </View>
-              ) : (
-                <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}>{t("mosques.feasible_no")}</Text>
-              )}
-            </>
-          )}
-        </View>
+          {item.isDefault ? (
+            <EaseView
+              style={styles.defaultBadge}
+              animate={{ backgroundColor: isLight ? "#3972B5" : "#2B8CEE" }}
+              transition={buttonStateTransition}
+            >
+              <Ionicons name="pin" size={12} color="#F2F8FF" />
+              <Text style={styles.defaultBadgeText}>{t("mosques.default_badge")}</Text>
+            </EaseView>
+          ) : null}
 
-        <View style={styles.cardActionRow}>
-          <Pressable style={[styles.cardActionButton, { borderColor: colors.cardBorder }]} onPress={() => void openRoute(item)}>
-            <Ionicons name="navigate-outline" size={16} color={isLight ? "#4A6A8E" : "#A8BDD7"} />
-            <Text style={[styles.cardActionText, { color: colors.textPrimary }]}>{t("mosques.route_action")}</Text>
-          </Pressable>
-          <Pressable style={[styles.cardActionButton, { borderColor: colors.cardBorder }]} onPress={() => void openInMaps(item)}>
-            <Ionicons name="map-outline" size={16} color={isLight ? "#4A6A8E" : "#A8BDD7"} />
-            <Text style={[styles.cardActionText, { color: colors.textPrimary }]}>{t("mosques.open_maps_action")}</Text>
-          </Pressable>
-        </View>
-
-        <Pressable style={[styles.defaultButton, { borderColor: colors.cardBorder }]} onPress={() => void toggleDefaultMosque(item.id)}>
-          <Text style={[styles.defaultButtonText, { color: colors.textPrimary }]}>
-            {item.isDefault ? t("mosques.default_remove") : t("mosques.default_make")}
+          <Text style={[styles.mosqueDistance, { color: colors.accent }]}>{formatDistance(item.distanceKm)}</Text>
+          <Text style={[styles.mosqueMeta, { color: colors.textSecondary }]}>
+            {t("mosques.last_updated_prefix")}: {formatRelativeUpdated(item.lastUpdated)}
           </Text>
-        </Pressable>
-      </View>
+          <View style={styles.mosqueEtaRow}>
+            <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}>{t("mosques.eta_prefix", { mins: item.etaMinutes })}</Text>
+            {item.isFeasible === null ? null : (
+              <>
+                <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}> • </Text>
+                {item.isFeasible ? (
+                  <View style={styles.feasibleRow}>
+                    <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}>{t("mosques.feasible_yes_plain")}</Text>
+                    <Image source={require("../assets/images/check.png")} style={styles.feasibleCheckIcon} resizeMode="contain" />
+                  </View>
+                ) : (
+                  <Text style={[styles.mosqueEta, { color: colors.textSecondary }]}>{t("mosques.feasible_no")}</Text>
+                )}
+              </>
+            )}
+          </View>
+
+          <View style={styles.cardActionRow}>
+            <Pressable
+              style={[styles.cardActionButton, { borderColor: colors.cardBorder }]}
+              onPress={() => void openRoute(item)}
+              onPressIn={() => setPressedCardId(item.id)}
+              onPressOut={() => setPressedCardId(null)}
+            >
+              <Ionicons name="navigate-outline" size={16} color={isLight ? "#4A6A8E" : "#A8BDD7"} />
+              <Text style={[styles.cardActionText, { color: colors.textPrimary }]}>{t("mosques.route_action")}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.cardActionButton, { borderColor: colors.cardBorder }]}
+              onPress={() => void openInMaps(item)}
+              onPressIn={() => setPressedCardId(item.id)}
+              onPressOut={() => setPressedCardId(null)}
+            >
+              <Ionicons name="map-outline" size={16} color={isLight ? "#4A6A8E" : "#A8BDD7"} />
+              <Text style={[styles.cardActionText, { color: colors.textPrimary }]}>{t("mosques.open_maps_action")}</Text>
+            </Pressable>
+          </View>
+
+          <Pressable
+            style={[styles.defaultButton, { borderColor: colors.cardBorder }]}
+            onPress={() => void toggleDefaultMosque(item.id)}
+            onPressIn={() => setPressedCardId(item.id)}
+            onPressOut={() => setPressedCardId(null)}
+          >
+            <Text style={[styles.defaultButtonText, { color: colors.textPrimary }]}>
+              {item.isDefault ? t("mosques.default_remove") : t("mosques.default_make")}
+            </Text>
+          </Pressable>
+        </View>
+      </EaseView>
     ),
-    [colors.card, colors.cardBorder, colors.textPrimary, colors.textSecondary, colors.accent, formatDistance, formatRelativeUpdated, isLight, openInMaps, openRoute, t, toggleDefaultMosque, toggleFavorite]
+    [buttonStateTransition, colors.accent, colors.card, colors.cardBorder, colors.textPrimary, colors.textSecondary, formatDistance, formatRelativeUpdated, isLight, openInMaps, openRoute, pressTransition, pressedCardId, t, toggleDefaultMosque, toggleFavorite]
   );
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <AppBackground />
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} hitSlop={8} style={[styles.backButton, isLight ? styles.backButtonLight : null]}>
-            <Ionicons name="chevron-back" size={20} color={isLight ? "#5B7490" : "#B7C7DD"} />
-          </Pressable>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>{t("mosques.title")}</Text>
-        </View>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <View style={styles.headerRow}>
+            <Pressable onPress={() => router.back()} hitSlop={8} style={[styles.backButton, isLight ? styles.backButtonLight : null]}>
+              <Ionicons name="chevron-back" size={20} color={isLight ? "#5B7490" : "#B7C7DD"} />
+            </Pressable>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{t("mosques.title")}</Text>
+          </View>
+        </EaseView>
 
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("mosques.subtitle")}</Text>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("mosques.subtitle")}</Text>
+        </EaseView>
         {source ? (
-          <Text style={[styles.statusLine, { color: colors.textSecondary }]}>
-            {t("mosques.status_line", {
-              radius: mosquesSettings.radiusKm,
-              mode: modeLabel,
-              source: source === "cache" ? t("mosques.source_cache") : t("mosques.source_network")
-            })}
-            {locationLabel ? ` • ${t("mosques.location_prefix")}: ${locationLabel}` : ""}
-          </Text>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+            <Text style={[styles.statusLine, { color: colors.textSecondary }]}>
+              {t("mosques.status_line", {
+                radius: mosquesSettings.radiusKm,
+                mode: modeLabel,
+                source: source === "cache" ? t("mosques.source_cache") : t("mosques.source_network")
+              })}
+              {locationLabel ? ` • ${t("mosques.location_prefix")}: ${locationLabel}` : ""}
+            </Text>
+          </EaseView>
         ) : null}
-        {warningMessage ? <Text style={[styles.warningLine, { color: colors.textSecondary }]}>{warningMessage}</Text> : null}
+        {warningMessage ? (
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+            <Text style={[styles.warningLine, { color: colors.textSecondary }]}>{warningMessage}</Text>
+          </EaseView>
+        ) : null}
         {timeLeftMinutes === null ? (
-          <Text style={[styles.timingsHint, { color: colors.textSecondary }]}>{t("mosques.timings_unavailable")}</Text>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+            <Text style={[styles.timingsHint, { color: colors.textSecondary }]}>{t("mosques.timings_unavailable")}</Text>
+          </EaseView>
         ) : null}
 
         {state === "loading" ? (
-          <View style={styles.centerWrap}>
+          <EaseView
+            initialAnimate={easeInitialFade}
+            animate={easeVisibleFade}
+            transition={stateTransition}
+            style={styles.centerWrap}
+          >
             <ActivityIndicator size="large" color="#2B8CEE" />
             <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("mosques.loading")}</Text>
-          </View>
+          </EaseView>
         ) : null}
 
         {state === "permission_denied" ? (
-          <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>{t("mosques.permission_title")}</Text>
-            <Text style={[styles.infoBody, { color: colors.textSecondary }]}>{t("mosques.permission_body")}</Text>
-            <View style={styles.infoActions}>
-              <Pressable style={[styles.infoActionButton, { backgroundColor: colors.accent }]} onPress={() => void Linking.openSettings()}>
-                <Text style={styles.infoActionText}>{t("mosques.permission_action")}</Text>
-              </Pressable>
-              <Pressable style={[styles.infoActionGhost, { borderColor: colors.cardBorder }]} onPress={() => void loadMosques(false)}>
-                <Text style={[styles.infoActionGhostText, { color: colors.textPrimary }]}>{t("common.retry")}</Text>
-              </Pressable>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+            <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>{t("mosques.permission_title")}</Text>
+              <Text style={[styles.infoBody, { color: colors.textSecondary }]}>{t("mosques.permission_body")}</Text>
+              <View style={styles.infoActions}>
+                <Pressable style={[styles.infoActionButton, { backgroundColor: colors.accent }]} onPress={() => void Linking.openSettings()}>
+                  <Text style={styles.infoActionText}>{t("mosques.permission_action")}</Text>
+                </Pressable>
+                <Pressable style={[styles.infoActionGhost, { borderColor: colors.cardBorder }]} onPress={() => void loadMosques(false)}>
+                  <Text style={[styles.infoActionGhostText, { color: colors.textPrimary }]}>{t("common.retry")}</Text>
+                </Pressable>
+              </View>
             </View>
-          </View>
+          </EaseView>
         ) : null}
 
         {state === "error" ? (
-          <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>{t("mosques.fetch_failed_title")}</Text>
-            <Text style={[styles.infoBody, { color: colors.textSecondary }]}>{error || t("mosques.fetch_failed_body")}</Text>
-            <Pressable style={[styles.infoActionButton, { backgroundColor: colors.accent }]} onPress={() => void loadMosques(false)}>
-              <Text style={styles.infoActionText}>{t("common.retry")}</Text>
-            </Pressable>
-          </View>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+            <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>{t("mosques.fetch_failed_title")}</Text>
+              <Text style={[styles.infoBody, { color: colors.textSecondary }]}>{error || t("mosques.fetch_failed_body")}</Text>
+              <Pressable style={[styles.infoActionButton, { backgroundColor: colors.accent }]} onPress={() => void loadMosques(false)}>
+                <Text style={styles.infoActionText}>{t("common.retry")}</Text>
+              </Pressable>
+            </View>
+          </EaseView>
         ) : null}
 
         {state === "ready" ? (
           <>
-            <View style={styles.stickyControls}>
-              <View style={[styles.searchWrap, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
-                <Ionicons name="search" size={18} color={isLight ? "#5E7894" : "#8AA1BC"} />
-                <TextInput
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  placeholder={t("mosques.search_placeholder")}
-                  placeholderTextColor={isLight ? "#7A8EA5" : "#7D93AE"}
-                  style={[styles.searchInput, { color: colors.textPrimary }]}
-                />
-                {searchQuery.length > 0 ? (
-                  <Pressable onPress={() => setSearchQuery("")}>
-                    <Ionicons name="close-circle" size={20} color={isLight ? "#768CA5" : "#8EA5C1"} />
-                  </Pressable>
-                ) : null}
+            <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+              <View style={styles.stickyControls}>
+                <View style={[styles.searchWrap, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+                  <Ionicons name="search" size={18} color={isLight ? "#5E7894" : "#8AA1BC"} />
+                  <TextInput
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder={t("mosques.search_placeholder")}
+                    placeholderTextColor={isLight ? "#7A8EA5" : "#7D93AE"}
+                    style={[styles.searchInput, { color: colors.textPrimary }]}
+                  />
+                  {searchQuery.length > 0 ? (
+                    <Pressable onPress={() => setSearchQuery("")}>
+                      <Ionicons name="close-circle" size={20} color={isLight ? "#768CA5" : "#8EA5C1"} />
+                    </Pressable>
+                  ) : null}
+                </View>
+                <View style={styles.filterRow}>
+                  {(["all", "favorites"] as ActiveFilter[]).map((filter) => {
+                    const active = activeFilter === filter;
+                    const pressed = pressedFilter === filter;
+                    return (
+                      <EaseView
+                        key={filter}
+                        animate={{ scale: pressed ? 0.98 : 1 }}
+                        transition={pressTransition}
+                        style={styles.filterChipWrap}
+                      >
+                        <Pressable
+                          style={[
+                            styles.filterChip,
+                            { borderColor: colors.cardBorder, backgroundColor: colors.card },
+                            active ? { backgroundColor: colors.accent, borderColor: colors.accent } : null
+                          ]}
+                          onPress={() => setActiveFilter(filter)}
+                          onPressIn={() => setPressedFilter(filter)}
+                          onPressOut={() => setPressedFilter(null)}
+                        >
+                          <Text style={[styles.filterText, { color: active ? "#F2F8FF" : colors.textPrimary }]}>
+                            {filter === "all" ? t("mosques.filter_all") : t("mosques.filter_favorites")}
+                          </Text>
+                        </Pressable>
+                      </EaseView>
+                    );
+                  })}
+                </View>
               </View>
-              <View style={styles.filterRow}>
-                <Pressable
-                  style={[
-                    styles.filterChip,
-                    { borderColor: colors.cardBorder, backgroundColor: colors.card },
-                    activeFilter === "all" ? { backgroundColor: colors.accent, borderColor: colors.accent } : null
-                  ]}
-                  onPress={() => setActiveFilter("all")}
-                >
-                  <Text style={[styles.filterText, { color: activeFilter === "all" ? "#F2F8FF" : colors.textPrimary }]}>
-                    {t("mosques.filter_all")}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.filterChip,
-                    { borderColor: colors.cardBorder, backgroundColor: colors.card },
-                    activeFilter === "favorites" ? { backgroundColor: colors.accent, borderColor: colors.accent } : null
-                  ]}
-                  onPress={() => setActiveFilter("favorites")}
-                >
-                  <Text style={[styles.filterText, { color: activeFilter === "favorites" ? "#F2F8FF" : colors.textPrimary }]}>
-                    {t("mosques.filter_favorites")}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
+            </EaseView>
 
             <View style={styles.listViewport}>
               <FlatList
@@ -641,9 +700,11 @@ export default function MosquesScreen() {
                 contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadMosques(true)} tintColor="#2B8CEE" />}
                 ListEmptyComponent={
-                  <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                    <Text style={[styles.infoBody, { color: colors.textSecondary }]}>{listEmptyText}</Text>
-                  </View>
+                  <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+                    <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                      <Text style={[styles.infoBody, { color: colors.textSecondary }]}>{listEmptyText}</Text>
+                    </View>
+                  </EaseView>
                 }
                 renderItem={renderCard}
               />
@@ -748,6 +809,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
     flexDirection: "row",
     gap: 8
+  },
+  filterChipWrap: {
+    alignSelf: "flex-start"
   },
   filterChip: {
     minHeight: 36,
