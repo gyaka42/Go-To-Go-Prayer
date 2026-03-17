@@ -469,19 +469,6 @@ export default function PrayerAlertPreferencesScreen() {
             </EaseView>
           </View>
 
-          <EaseView animate={{ scale: savePressed ? 0.985 : 1 }} transition={pressTransition}>
-            <Pressable
-              style={styles.saveButton}
-              onPress={() => void onSave()}
-              onPressIn={() => setSavePressed(true)}
-              onPressOut={() => setSavePressed(false)}
-              disabled={saving}
-            >
-              <Text style={styles.saveButtonText}>
-                {saving ? t("settings.saving") : t("alert.save_preferences")}
-              </Text>
-            </Pressable>
-          </EaseView>
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -707,18 +694,4 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FF596F"
   },
-  saveButton: {
-    marginTop: 6,
-    height: 52,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#2B8CEE",
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  saveButtonText: {
-    color: "#2B8CEE",
-    fontSize: 16,
-    fontWeight: "700"
-  }
 });

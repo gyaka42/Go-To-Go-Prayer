@@ -197,7 +197,12 @@ export default function MethodsScreen() {
         <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
         </EaseView>
-        <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
+        <EaseView
+          style={styles.statusChipWrap}
+          initialAnimate={easeInitialFade}
+          animate={easeVisibleFade}
+          transition={enterTransition}
+        >
           <StatusChip label={inlineStatus.label} tone={inlineStatus.tone} />
         </EaseView>
         <EaseView
@@ -339,6 +344,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontSize: 14,
     color: "#8EA4BF"
+  },
+  statusChipWrap: {
+    marginBottom: 10
   },
   searchWrap: {
     minHeight: 44,

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { EaseView } from "react-native-ease";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { easeEnterTransition, easeInitialLift, easePressTransition, easeVisibleLift } from "@/animation/ease";
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
@@ -12,6 +12,7 @@ import { useState } from "react";
 
 export default function MenuScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { colors, resolvedTheme } = useAppTheme();
   const { t } = useI18n();
   const isLight = resolvedTheme === "light";
@@ -114,7 +115,10 @@ export default function MenuScreen() {
         <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{t("menu.title")}</Text>
         </EaseView>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 112 }]}
+        >
           {menuItems.map((item, index) => {
             const pressed = pressedCard === item.id;
             return (
