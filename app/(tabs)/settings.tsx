@@ -23,6 +23,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { easeButtonStateTransition, easeEnterTransition, easeInitialLift, easePressTransition } from "@/animation/ease";
 import { useMotionTransition } from "@/animation/useReducedMotion";
+import { StatusChip } from "@/components/StatusChip";
 import {
   geocodeCityQuery,
   getCurrentLocationDetails,
@@ -82,6 +83,10 @@ function isMissingProxyError(error: unknown): boolean {
   return String(error).toLowerCase().includes("diyanet proxy missing");
 }
 
+type SaveInlineFeedback =
+  | { tone: "loading" | "success" | "warning"; label: string }
+  | null;
+
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -102,6 +107,7 @@ export default function SettingsScreen() {
   const [showAppInfo, setShowAppInfo] = useState(false);
   const [savePressed, setSavePressed] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<"idle" | "saved">("idle");
+  const [saveInlineFeedback, setSaveInlineFeedback] = useState<SaveInlineFeedback>(null);
   const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? "Onbekend";
   const appBuild = Application.nativeBuildVersion ?? Constants.expoConfig?.ios?.buildNumber ?? "-";
   const saveFeedbackTimer = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -113,6 +119,14 @@ export default function SettingsScreen() {
       setSaveFeedbackTimeout(null);
     }
   }, [saveFeedbackTimeout, setSaveFeedbackTimeout]);
+
+  const queueSaveFeedbackReset = useCallback((delayMs = 2200) => {
+    setSaveFeedbackTimeout(setTimeout(() => {
+      setSaveFeedback("idle");
+      setSaveInlineFeedback(null);
+      setSaveFeedbackTimeout(null);
+    }, delayMs));
+  }, [setSaveFeedbackTimeout]);
 
   useEffect(() => {
     return () => {
@@ -373,6 +387,7 @@ export default function SettingsScreen() {
 
     clearSaveFeedbackTimer();
     setSaveFeedback("idle");
+    setSaveInlineFeedback({ tone: "loading", label: t("settings.inline_saving") });
     setSaving(true);
     try {
       await saveSettings(settings);
@@ -388,21 +403,19 @@ export default function SettingsScreen() {
       });
 
       setSaveFeedback("saved");
-      setSaveFeedbackTimeout(setTimeout(() => {
-        setSaveFeedback("idle");
-        setSaveFeedbackTimeout(null);
-      }, 1800));
+      setSaveInlineFeedback({ tone: "success", label: t("settings.inline_saved") });
+      queueSaveFeedbackReset();
       Alert.alert(t("common.saved"), t("settings.saved_body"));
     } catch (error) {
       if (isMissingProxyError(error)) {
         setSaveFeedback("saved");
-        setSaveFeedbackTimeout(setTimeout(() => {
-          setSaveFeedback("idle");
-          setSaveFeedbackTimeout(null);
-        }, 1800));
+        setSaveInlineFeedback({ tone: "success", label: t("settings.inline_saved_proxy") });
+        queueSaveFeedbackReset();
         Alert.alert(t("common.saved"), t("settings.saved_body"));
         return;
       }
+      setSaveInlineFeedback({ tone: "warning", label: t("settings.inline_save_warning") });
+      queueSaveFeedbackReset(3200);
       Alert.alert(
         t("common.warning"),
         t("settings.replan_failed", { error: String(error) })
@@ -410,7 +423,7 @@ export default function SettingsScreen() {
     } finally {
       setSaving(false);
     }
-  }, [clearSaveFeedbackTimer, settings, setSaveFeedbackTimeout, t]);
+  }, [clearSaveFeedbackTimer, queueSaveFeedbackReset, settings, t]);
 
   if (!settings) {
     return (
@@ -722,6 +735,13 @@ export default function SettingsScreen() {
             animate={{ scale: savePressed ? 0.985 : 1 }}
             transition={savePressed ? pressTransition : enterTransition}
           >
+            <View style={styles.saveFeedbackWrap}>
+              <StatusChip
+                label={saveInlineFeedback?.label ?? ""}
+                tone={saveInlineFeedback?.tone ?? "info"}
+                visible={Boolean(saveInlineFeedback)}
+              />
+            </View>
             <EaseView
               style={styles.saveButton}
               animate={{
@@ -1317,6 +1337,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 8 }
+  },
+  saveFeedbackWrap: {
+    minHeight: 32,
+    marginBottom: 10
   },
   saveButtonPressable: {
     flex: 1,

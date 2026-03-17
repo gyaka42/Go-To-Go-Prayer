@@ -20,6 +20,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { easeButtonStateTransition, easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getCurrentLocationDetails } from "@/services/location";
 import { getMosques } from "@/services/mosqueService";
@@ -472,6 +473,40 @@ export default function MosquesScreen() {
     return t("mosques.empty_default");
   }, [activeFilter, mosques.length, mosquesSettings.radiusKm, searchQuery, t]);
 
+  const primaryStatus = useMemo(() => {
+    if (state === "loading" || refreshing) {
+      return {
+        tone: "loading" as const,
+        label: t("mosques.status_loading")
+      };
+    }
+    if (state === "error") {
+      return {
+        tone: "error" as const,
+        label: t("mosques.status_error")
+      };
+    }
+    if (state === "permission_denied") {
+      return {
+        tone: "warning" as const,
+        label: t("mosques.status_permission")
+      };
+    }
+    if (source === "network") {
+      return {
+        tone: "success" as const,
+        label: t("mosques.status_network")
+      };
+    }
+    if (source === "cache") {
+      return {
+        tone: "info" as const,
+        label: t("mosques.status_cache")
+      };
+    }
+    return null;
+  }, [refreshing, source, state, t]);
+
   const renderCard = useCallback(
     ({ item }: { item: MosqueListItem }) => (
       <EaseView
@@ -589,14 +624,27 @@ export default function MosquesScreen() {
             </Text>
           </EaseView>
         ) : null}
+        <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+          <View style={styles.statusChipWrap}>
+            <StatusChip
+              label={primaryStatus?.label ?? ""}
+              tone={primaryStatus?.tone ?? "info"}
+              visible={Boolean(primaryStatus)}
+            />
+          </View>
+        </EaseView>
         {warningMessage ? (
           <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
-            <Text style={[styles.warningLine, { color: colors.textSecondary }]}>{warningMessage}</Text>
+            <View style={styles.secondaryChipWrap}>
+              <StatusChip label={warningMessage} tone="warning" />
+            </View>
           </EaseView>
         ) : null}
         {timeLeftMinutes === null ? (
           <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
-            <Text style={[styles.timingsHint, { color: colors.textSecondary }]}>{t("mosques.timings_unavailable")}</Text>
+            <View style={styles.secondaryChipWrap}>
+              <StatusChip label={t("mosques.timings_unavailable")} tone="info" />
+            </View>
           </EaseView>
         ) : null}
 
@@ -767,6 +815,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12
   },
+  statusChipWrap: {
+    minHeight: 32,
+    marginTop: 8
+  },
   warningLine: {
     marginTop: 6,
     fontSize: 12
@@ -774,6 +826,10 @@ const styles = StyleSheet.create({
   timingsHint: {
     marginTop: 6,
     fontSize: 12
+  },
+  secondaryChipWrap: {
+    minHeight: 32,
+    marginTop: 6
   },
   centerWrap: {
     marginTop: 24,

@@ -26,6 +26,7 @@ import {
 } from "@/animation/ease";
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
 import {
@@ -155,6 +156,45 @@ export default function MonthlyScreen() {
 
   const todayDate = useMemo(() => new Date(), []);
   const shouldHighlightToday = sameMonth(selectedMonth, todayDate);
+  const monthlyStatus = useMemo(() => {
+    if (loadState === "loading") {
+      return {
+        tone: "loading" as const,
+        label: t("monthly.status_loading")
+      };
+    }
+    if (loadState === "error") {
+      return {
+        tone: "error" as const,
+        label: t("monthly.status_error")
+      };
+    }
+    if (isPrefetching) {
+      return {
+        tone: "loading" as const,
+        label: t("monthly.status_refreshing")
+      };
+    }
+    if (partialError) {
+      return {
+        tone: "warning" as const,
+        label: t("monthly.status_partial")
+      };
+    }
+    if (source === "network") {
+      return {
+        tone: "success" as const,
+        label: t("monthly.status_network")
+      };
+    }
+    if (source === "cache") {
+      return {
+        tone: "info" as const,
+        label: t("monthly.status_cache")
+      };
+    }
+    return null;
+  }, [isPrefetching, loadState, partialError, source, t]);
 
   const getContext = useCallback(async (): Promise<ResolvedMonthlyContext> => {
     const settings = await getSettings();
@@ -435,6 +475,15 @@ export default function MonthlyScreen() {
             {isPrefetching ? ` • ${t("monthly.loading")}` : ""}
           </Text>
         </EaseView>
+        <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+          <View style={styles.statusChipWrap}>
+            <StatusChip
+              label={monthlyStatus?.label ?? ""}
+              tone={monthlyStatus?.tone ?? "info"}
+              visible={Boolean(monthlyStatus)}
+            />
+          </View>
+        </EaseView>
 
         <EaseView
           style={[styles.tableShell, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
@@ -640,9 +689,13 @@ const styles = StyleSheet.create({
   },
   sourceLine: {
     marginTop: 8,
-    marginBottom: 10,
+    marginBottom: 8,
     fontSize: 13,
     fontWeight: "600"
+  },
+  statusChipWrap: {
+    minHeight: 32,
+    marginBottom: 10
   },
   tableShell: {
     flex: 1,

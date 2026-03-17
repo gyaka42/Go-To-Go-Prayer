@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  easeButtonStateTransition,
   easeEnterTransition,
   easeInitialFade,
   easeInitialLift,
@@ -27,6 +26,7 @@ import { useMotionTransition } from "@/animation/useReducedMotion";
 import * as Location from "expo-location";
 import { AppBackground } from "@/components/AppBackground";
 import { QiblaCompass } from "@/components/QiblaCompass";
+import { StatusChip } from "@/components/StatusChip";
 import { useCompassConfidence } from "@/hooks/useCompassConfidence";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getCurrentLocationDetails } from "@/services/location";
@@ -59,7 +59,6 @@ export default function QiblaScreen() {
   const enterTransition = useMotionTransition(easeEnterTransition);
   const stateTransition = useMotionTransition(easeStateTransition);
   const pressTransition = useMotionTransition(easePressTransition);
-  const buttonStateTransition = useMotionTransition(easeButtonStateTransition);
   const [bearing, setBearing] = useState<number | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationName, setLocationName] = useState(t("common.current_location"));
@@ -238,6 +237,16 @@ export default function QiblaScreen() {
     return t("qibla.confidence.mehLabel");
   }, [confidence.status, t]);
 
+  const confidenceTone = useMemo(() => {
+    if (confidence.status === "good") {
+      return "success" as const;
+    }
+    if (confidence.status === "bad") {
+      return "error" as const;
+    }
+    return "warning" as const;
+  }, [confidence.status]);
+
   const fallbackImageUrl = useMemo(() => {
     if (!coords) {
       return null;
@@ -369,24 +378,12 @@ export default function QiblaScreen() {
                 lightMode={isLight}
               />
 
-              <EaseView
-                style={styles.badge}
-                animate={{
-                  backgroundColor:
-                    mode === "live"
-                      ? isLight
-                        ? "#DFF5E8"
-                        : "#173F34"
-                      : isLight
-                        ? "#FFF0DB"
-                        : "#3A2F1C"
-                }}
-                transition={buttonStateTransition}
-              >
-                <Text style={[styles.badgeText, isLight ? { color: "#274462" } : null]}>
-                  {mode === "live" ? t("qibla.live_on") : t("qibla.live_off")}
-                </Text>
-              </EaseView>
+              <View style={styles.badge}>
+                <StatusChip
+                  label={mode === "live" ? t("qibla.live_on") : t("qibla.live_off")}
+                  tone={mode === "live" ? "success" : "warning"}
+                />
+              </View>
 
               <EaseView
                 style={[
@@ -403,24 +400,7 @@ export default function QiblaScreen() {
                   <Text style={[styles.confidenceTitle, isLight ? { color: "#173A59" } : null]}>
                     {t("qibla.confidence.title")}
                   </Text>
-                  <Text
-                    style={[
-                      styles.confidenceLabel,
-                      confidence.status === "good"
-                        ? isLight
-                          ? { color: "#1D7A48" }
-                          : { color: "#8CE2B1" }
-                        : confidence.status === "bad"
-                          ? isLight
-                            ? { color: "#AD334D" }
-                            : { color: "#FF9AB0" }
-                          : isLight
-                            ? { color: "#8A6A2B" }
-                            : { color: "#FFD89A" }
-                    ]}
-                  >
-                    {confidenceLabel}
-                  </Text>
+                  <StatusChip label={confidenceLabel} tone={confidenceTone} />
                 </View>
                 <Text style={[styles.confidenceTip, isLight ? { color: "#355777" } : null]}>
                   {t(confidence.messageKey)}
@@ -441,14 +421,16 @@ export default function QiblaScreen() {
 
               {isCached ? (
                 <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
-                  <Text style={[styles.cachedText, isLight ? { color: "#5B718A" } : null]}>
-                    {t("qibla.using_cache")}
-                  </Text>
+                  <View style={styles.cacheChipWrap}>
+                    <StatusChip label={t("qibla.using_cache")} tone="info" />
+                  </View>
                 </EaseView>
               ) : null}
               {isCached && errorText ? (
                 <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
-                  <Text style={[styles.cachedWarning, isLight ? { color: "#8A6A40" } : null]}>{errorText}</Text>
+                  <View style={styles.cacheChipWrap}>
+                    <StatusChip label={errorText} tone="warning" />
+                  </View>
                 </EaseView>
               ) : null}
 
@@ -594,16 +576,7 @@ const styles = StyleSheet.create({
   },
   badge: {
     marginTop: 14,
-    minHeight: 34,
-    borderRadius: 17,
-    paddingHorizontal: 14,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  badgeText: {
-    color: "#E8F2FF",
-    fontSize: 13,
-    fontWeight: "700"
+    minHeight: 34
   },
   confidenceCard: {
     marginTop: 12,
@@ -625,10 +598,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 15
   },
-  confidenceLabel: {
-    fontSize: 13,
-    fontWeight: "800"
-  },
   confidenceTip: {
     marginTop: 8,
     color: "#B8CCE2",
@@ -640,16 +609,9 @@ const styles = StyleSheet.create({
     color: "#8FA9C5",
     fontSize: 11
   },
-  cachedText: {
+  cacheChipWrap: {
     marginTop: 8,
-    fontSize: 12,
-    color: "#9FB3CC"
-  },
-  cachedWarning: {
-    marginTop: 6,
-    fontSize: 12,
-    color: "#D9B88F",
-    textAlign: "center"
+    alignSelf: "stretch"
   },
   fallbackCard: {
     marginTop: 16,
