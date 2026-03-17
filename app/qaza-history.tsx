@@ -2,8 +2,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  easeEnterTransition,
+  easeInitialFade,
+  easeInitialLift,
+  easePressTransition,
+  easeVisibleFade,
+  easeVisibleLift
+} from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { QazaEvent, QazaKey, getQazaState } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
@@ -34,6 +45,9 @@ export default function QazaHistoryScreen() {
 
   const [events, setEvents] = useState<QazaEvent[]>([]);
   const [filter, setFilter] = useState<"all" | "month">("all");
+  const [pressedFilter, setPressedFilter] = useState<"all" | "month" | null>(null);
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const pressTransition = useMotionTransition(easePressTransition);
 
   useEffect(() => {
     let mounted = true;
@@ -59,6 +73,22 @@ export default function QazaHistoryScreen() {
     return events.filter((event) => event.at >= monthStart);
   }, [events, filter]);
 
+  const historyStatus = useMemo(() => {
+    if (events.length === 0) {
+      return { label: t("qaza.history_empty_state"), tone: "info" as const };
+    }
+    if (filter === "month") {
+      return {
+        label: t("qaza.history_month_count", { count: filtered.length }),
+        tone: "success" as const
+      };
+    }
+    return {
+      label: t("qaza.history_all_count", { count: filtered.length }),
+      tone: "info" as const
+    };
+  }, [events.length, filter, filtered.length, t]);
+
   const describeEvent = (event: QazaEvent): string => {
     if (event.type === "quick_add") {
       return t("qaza.actionQuickAdd");
@@ -82,7 +112,7 @@ export default function QazaHistoryScreen() {
       <View style={styles.container}>
         <AppBackground />
 
-        <View style={styles.headerRow}>
+        <EaseView style={styles.headerRow} initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
           <Pressable
             style={[
               styles.headerIconButton,
@@ -94,52 +124,75 @@ export default function QazaHistoryScreen() {
           </Pressable>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{t("qaza.historyTitle")}</Text>
           <View style={styles.headerSpacer} />
-        </View>
+        </EaseView>
 
-        <View style={styles.filterRow}>
-          <Pressable
-            style={[
-              styles.filterChip,
-              {
-                backgroundColor: filter === "all" ? colors.accent : colors.card,
-                borderColor: colors.cardBorder
-              }
-            ]}
-            onPress={() => setFilter("all")}
-          >
-            <Text style={[styles.filterText, { color: filter === "all" ? "#FFFFFF" : colors.textPrimary }]}>
-              {t("qaza.all")}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.filterChip,
-              {
-                backgroundColor: filter === "month" ? colors.accent : colors.card,
-                borderColor: colors.cardBorder
-              }
-            ]}
-            onPress={() => setFilter("month")}
-          >
-            <Text style={[styles.filterText, { color: filter === "month" ? "#FFFFFF" : colors.textPrimary }]}>
-              {t("qaza.thisMonth")}
-            </Text>
-          </Pressable>
-        </View>
+        <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
+          <StatusChip label={historyStatus.label} tone={historyStatus.tone} />
+        </EaseView>
+
+        <EaseView style={styles.filterRow} initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
+          <EaseView animate={{ scale: pressedFilter === "all" ? 0.96 : 1 }} transition={pressTransition}>
+            <Pressable
+              style={[
+                styles.filterChip,
+                {
+                  backgroundColor: filter === "all" ? colors.accent : colors.card,
+                  borderColor: colors.cardBorder
+                }
+              ]}
+              onPress={() => setFilter("all")}
+              onPressIn={() => setPressedFilter("all")}
+              onPressOut={() => setPressedFilter(null)}
+            >
+              <Text style={[styles.filterText, { color: filter === "all" ? "#FFFFFF" : colors.textPrimary }]}>
+                {t("qaza.all")}
+              </Text>
+            </Pressable>
+          </EaseView>
+          <EaseView animate={{ scale: pressedFilter === "month" ? 0.96 : 1 }} transition={pressTransition}>
+            <Pressable
+              style={[
+                styles.filterChip,
+                {
+                  backgroundColor: filter === "month" ? colors.accent : colors.card,
+                  borderColor: colors.cardBorder
+                }
+              ]}
+              onPress={() => setFilter("month")}
+              onPressIn={() => setPressedFilter("month")}
+              onPressOut={() => setPressedFilter(null)}
+            >
+              <Text style={[styles.filterText, { color: filter === "month" ? "#FFFFFF" : colors.textPrimary }]}>
+                {t("qaza.thisMonth")}
+              </Text>
+            </Pressable>
+          </EaseView>
+        </EaseView>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {filtered.length === 0 ? (
-            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}> 
+            <EaseView
+              style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+              initialAnimate={easeInitialFade}
+              animate={easeVisibleFade}
+              transition={enterTransition}
+            > 
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("qaza.noHistory")}</Text>
-            </View>
+            </EaseView>
           ) : (
             filtered.map((event) => (
-              <View key={event.id} style={[styles.eventCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}> 
+              <EaseView
+                key={event.id}
+                style={[styles.eventCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                initialAnimate={easeInitialFade}
+                animate={easeVisibleFade}
+                transition={enterTransition}
+              > 
                 <Text style={[styles.eventTitle, { color: colors.textPrimary }]}>{describeEvent(event)}</Text>
                 <Text style={[styles.eventMeta, { color: colors.textSecondary }]}>
                   {formatDateTime(event.at, localeTag)}
                 </Text>
-              </View>
+              </EaseView>
             ))
           )}
         </ScrollView>

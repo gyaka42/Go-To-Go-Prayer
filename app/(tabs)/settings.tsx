@@ -405,13 +405,11 @@ export default function SettingsScreen() {
       setSaveFeedback("saved");
       setSaveInlineFeedback({ tone: "success", label: t("settings.inline_saved") });
       queueSaveFeedbackReset();
-      Alert.alert(t("common.saved"), t("settings.saved_body"));
     } catch (error) {
       if (isMissingProxyError(error)) {
         setSaveFeedback("saved");
         setSaveInlineFeedback({ tone: "success", label: t("settings.inline_saved_proxy") });
         queueSaveFeedbackReset();
-        Alert.alert(t("common.saved"), t("settings.saved_body"));
         return;
       }
       setSaveInlineFeedback({ tone: "warning", label: t("settings.inline_save_warning") });

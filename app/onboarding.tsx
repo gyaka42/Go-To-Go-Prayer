@@ -4,8 +4,19 @@ import * as ExpoLocation from "expo-location";
 import { Magnetometer } from "expo-sensors";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { EaseView } from "react-native-ease";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  easeEnterTransition,
+  easeInitialFade,
+  easeInitialLift,
+  easePressTransition,
+  easeVisibleFade,
+  easeVisibleLift
+} from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getCurrentLocationDetails } from "@/services/location";
 import { registerForLocalNotifications } from "@/services/notifications";
@@ -29,6 +40,9 @@ export default function OnboardingScreen() {
   const [busy, setBusy] = useState(false);
   const [locationState, setLocationState] = useState<PermissionState>("idle");
   const [notificationState, setNotificationState] = useState<PermissionState>("idle");
+  const [pressedAction, setPressedAction] = useState<string | null>(null);
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const pressTransition = useMotionTransition(easePressTransition);
 
   const step = STEP_ORDER[index];
 
@@ -46,6 +60,19 @@ export default function OnboardingScreen() {
     }
     return "";
   }, [locationState, notificationState, step, t]);
+
+  const statusTone = useMemo(() => {
+    if (!statusText) {
+      return "info" as const;
+    }
+    if (locationState === "denied" || notificationState === "denied") {
+      return "warning" as const;
+    }
+    if (locationState === "granted" || notificationState === "granted") {
+      return "success" as const;
+    }
+    return "info" as const;
+  }, [locationState, notificationState, statusText]);
 
   const nextStep = () => {
     if (index >= STEP_ORDER.length - 1) {
@@ -192,21 +219,36 @@ export default function OnboardingScreen() {
       <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <AppBackground />
 
-        <View style={styles.topRow}>
-          <Pressable onPress={prevStep} disabled={index === 0} style={styles.backButton}>
-            <Ionicons
-              name="arrow-back"
-              size={24}
-              color={index === 0 ? colors.textSecondary : colors.textPrimary}
-            />
-          </Pressable>
+        <EaseView style={styles.topRow} initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <EaseView animate={{ scale: pressedAction === "back" ? 0.92 : 1, opacity: index === 0 ? 0.55 : 1 }} transition={pressTransition}>
+            <Pressable
+              onPress={prevStep}
+              disabled={index === 0}
+              style={styles.backButton}
+              onPressIn={() => setPressedAction("back")}
+              onPressOut={() => setPressedAction(null)}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={24}
+                color={index === 0 ? colors.textSecondary : colors.textPrimary}
+              />
+            </Pressable>
+          </EaseView>
           <Text style={[styles.topTitle, { color: colors.textPrimary }]}>{t("onboarding.header")}</Text>
-          <Pressable onPress={() => void finishOnboarding()} style={styles.closeButton}>
-            <Ionicons name="close" size={24} color={colors.textSecondary} />
-          </Pressable>
-        </View>
+          <EaseView animate={{ scale: pressedAction === "close" ? 0.92 : 1 }} transition={pressTransition}>
+            <Pressable
+              onPress={() => void finishOnboarding()}
+              style={styles.closeButton}
+              onPressIn={() => setPressedAction("close")}
+              onPressOut={() => setPressedAction(null)}
+            >
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
+            </Pressable>
+          </EaseView>
+        </EaseView>
 
-        <View style={styles.stepDots}>
+        <EaseView style={styles.stepDots} initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
           {STEP_ORDER.map((_, dotIndex) => (
             <View
               key={`dot-${dotIndex}`}
@@ -219,62 +261,118 @@ export default function OnboardingScreen() {
               ]}
             />
           ))}
-        </View>
+        </EaseView>
 
-        {renderIllustration()}
+        <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
+          {renderIllustration()}
+        </EaseView>
 
-        <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
-        <Text style={[styles.description, { color: colors.textSecondary }]}>{description}</Text>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+        </EaseView>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <Text style={[styles.description, { color: colors.textSecondary }]}>{description}</Text>
+        </EaseView>
 
         {statusText ? (
-          <Text style={[styles.statusText, { color: locationState === "denied" || notificationState === "denied" ? "#D86076" : "#2B8CEE" }]}>
-            {statusText}
-          </Text>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
+            <StatusChip label={statusText} tone={statusTone} />
+          </EaseView>
         ) : null}
 
         {step === "qibla" ? (
-          <View style={[styles.tipCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
-            <Ionicons name="bulb-outline" size={18} color="#2B8CEE" />
-            <Text style={[styles.tipText, { color: colors.textSecondary }]}>{t("onboarding.qibla_tip")}</Text>
-          </View>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
+            <View style={[styles.tipCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+              <Ionicons name="bulb-outline" size={18} color="#2B8CEE" />
+              <Text style={[styles.tipText, { color: colors.textSecondary }]}>{t("onboarding.qibla_tip")}</Text>
+            </View>
+          </EaseView>
         ) : null}
 
         <View style={styles.actions}>
           {step === "location" ? (
             <>
-              <Pressable style={styles.primaryButton} onPress={() => void handleLocationPermission()} disabled={busy}>
-                {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryLabel}>{t("onboarding.location_primary")}</Text>}
-              </Pressable>
-              <Pressable style={[styles.secondaryButton, { borderColor: colors.cardBorder }]} onPress={nextStep} disabled={busy}>
-                <Text style={[styles.secondaryLabel, { color: colors.textPrimary }]}>{t("onboarding.location_secondary")}</Text>
-              </Pressable>
+              <EaseView animate={{ scale: pressedAction === "location-primary" ? 0.985 : 1, opacity: busy ? 0.8 : 1 }} transition={pressTransition}>
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={() => void handleLocationPermission()}
+                  disabled={busy}
+                  onPressIn={() => setPressedAction("location-primary")}
+                  onPressOut={() => setPressedAction(null)}
+                >
+                  {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryLabel}>{t("onboarding.location_primary")}</Text>}
+                </Pressable>
+              </EaseView>
+              <EaseView animate={{ scale: pressedAction === "location-secondary" ? 0.985 : 1, opacity: busy ? 0.8 : 1 }} transition={pressTransition}>
+                <Pressable
+                  style={[styles.secondaryButton, { borderColor: colors.cardBorder }]}
+                  onPress={nextStep}
+                  disabled={busy}
+                  onPressIn={() => setPressedAction("location-secondary")}
+                  onPressOut={() => setPressedAction(null)}
+                >
+                  <Text style={[styles.secondaryLabel, { color: colors.textPrimary }]}>{t("onboarding.location_secondary")}</Text>
+                </Pressable>
+              </EaseView>
             </>
           ) : null}
 
           {step === "notifications" ? (
             <>
-              <Pressable style={styles.primaryButton} onPress={() => void handleNotificationsPermission()} disabled={busy}>
-                {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryLabel}>{t("onboarding.notifications_primary")}</Text>}
-              </Pressable>
-              <Pressable style={[styles.textButton]} onPress={nextStep} disabled={busy}>
-                <Text style={[styles.textButtonLabel, { color: colors.textSecondary }]}>{t("onboarding.skip_for_now")}</Text>
-              </Pressable>
+              <EaseView animate={{ scale: pressedAction === "notifications-primary" ? 0.985 : 1, opacity: busy ? 0.8 : 1 }} transition={pressTransition}>
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={() => void handleNotificationsPermission()}
+                  disabled={busy}
+                  onPressIn={() => setPressedAction("notifications-primary")}
+                  onPressOut={() => setPressedAction(null)}
+                >
+                  {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryLabel}>{t("onboarding.notifications_primary")}</Text>}
+                </Pressable>
+              </EaseView>
+              <EaseView animate={{ scale: pressedAction === "notifications-skip" ? 0.985 : 1, opacity: busy ? 0.8 : 1 }} transition={pressTransition}>
+                <Pressable
+                  style={[styles.textButton]}
+                  onPress={nextStep}
+                  disabled={busy}
+                  onPressIn={() => setPressedAction("notifications-skip")}
+                  onPressOut={() => setPressedAction(null)}
+                >
+                  <Text style={[styles.textButtonLabel, { color: colors.textSecondary }]}>{t("onboarding.skip_for_now")}</Text>
+                </Pressable>
+              </EaseView>
             </>
           ) : null}
 
           {step === "qibla" ? (
             <>
-              <Pressable style={styles.primaryButton} onPress={() => void goNextFromQibla()} disabled={busy}>
-                {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryLabel}>{t("onboarding.next")}</Text>}
-              </Pressable>
+              <EaseView animate={{ scale: pressedAction === "qibla-next" ? 0.985 : 1, opacity: busy ? 0.8 : 1 }} transition={pressTransition}>
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={() => void goNextFromQibla()}
+                  disabled={busy}
+                  onPressIn={() => setPressedAction("qibla-next")}
+                  onPressOut={() => setPressedAction(null)}
+                >
+                  {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryLabel}>{t("onboarding.next")}</Text>}
+                </Pressable>
+              </EaseView>
             </>
           ) : null}
 
           {step === "widgets" ? (
             <>
-              <Pressable style={styles.primaryButton} onPress={() => void finishOnboarding()} disabled={busy}>
-                {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryLabel}>{t("onboarding.widgets_primary")}</Text>}
-              </Pressable>
+              <EaseView animate={{ scale: pressedAction === "widgets-primary" ? 0.985 : 1, opacity: busy ? 0.8 : 1 }} transition={pressTransition}>
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={() => void finishOnboarding()}
+                  disabled={busy}
+                  onPressIn={() => setPressedAction("widgets-primary")}
+                  onPressOut={() => setPressedAction(null)}
+                >
+                  {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryLabel}>{t("onboarding.widgets_primary")}</Text>}
+                </Pressable>
+              </EaseView>
               <Text style={[styles.footnote, { color: colors.textSecondary }]}>{t("onboarding.widgets_footnote")}</Text>
             </>
           ) : null}

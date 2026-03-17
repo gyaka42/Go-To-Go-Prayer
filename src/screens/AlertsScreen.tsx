@@ -1,10 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { EaseView } from "react-native-ease";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { easeEnterTransition, easeInitialLift, easePressTransition, easeVisibleLift } from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
@@ -19,7 +23,34 @@ export default function AlertsScreen({ showBackButton = false }: AlertsScreenPro
   const { colors, resolvedTheme } = useAppTheme();
   const { t, prayerName } = useI18n();
   const isLight = resolvedTheme === "light";
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const pressTransition = useMotionTransition(easePressTransition);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [pressedPrayer, setPressedPrayer] = useState<PrayerName | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearFeedbackTimer = useCallback(() => {
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = null;
+    }
+  }, []);
+
+  const showFeedback = useCallback((label: string, delayMs = 1800) => {
+    clearFeedbackTimer();
+    setFeedback(label);
+    feedbackTimerRef.current = setTimeout(() => {
+      setFeedback(null);
+      feedbackTimerRef.current = null;
+    }, delayMs);
+  }, [clearFeedbackTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearFeedbackTimer();
+    };
+  }, [clearFeedbackTimer]);
 
   const load = useCallback(async () => {
     const saved = await getSettings();
@@ -49,66 +80,84 @@ export default function AlertsScreen({ showBackButton = false }: AlertsScreenPro
         }
       };
       void saveSettings(next);
+      showFeedback(t("alerts.inline_updated", { prayer: prayerName(prayer) }));
       return next;
     });
-  }, []);
+  }, [prayerName, showFeedback, t]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <AppBackground />
         {showBackButton ? (
-          <View style={styles.headerRow}>
-            <Pressable
-              onPress={() => router.back()}
-              hitSlop={8}
-              style={[styles.backButton, isLight ? styles.backButtonLight : null]}
-            >
-              <Ionicons name="chevron-back" size={20} color={isLight ? "#5B7490" : "#B7C7DD"} />
-            </Pressable>
-          </View>
+          <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+            <View style={styles.headerRow}>
+              <Pressable
+                onPress={() => router.back()}
+                hitSlop={8}
+                style={[styles.backButton, isLight ? styles.backButtonLight : null]}
+              >
+                <Ionicons name="chevron-back" size={20} color={isLight ? "#5B7490" : "#B7C7DD"} />
+              </Pressable>
+            </View>
+          </EaseView>
         ) : null}
-        <Text style={[styles.title, { color: colors.textPrimary }]}>{t("alerts.title")}</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          {t("alerts.subtitle")}
-        </Text>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{t("alerts.title")}</Text>
+        </EaseView>
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {t("alerts.subtitle")}
+          </Text>
+        </EaseView>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
+          <View style={styles.feedbackWrap}>
+            <StatusChip label={feedback ?? ""} tone="success" visible={Boolean(feedback)} />
+            <StatusChip label={t("alerts.loading")} tone="loading" visible={!settings} />
+          </View>
           {PRAYER_NAMES.map((prayer) => {
             const item = settings?.prayerNotifications[prayer];
             return (
-              <Pressable
+              <EaseView
                 key={prayer}
-                style={[styles.row, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                onPress={() => router.push(`/alert/${prayer}`)}
+                animate={{ scale: pressedPrayer === prayer ? 0.985 : 1 }}
+                transition={pressTransition}
               >
-                <View style={styles.left}>
-                  <View
-                    style={[
-                      styles.iconWrap,
-                      isLight ? { backgroundColor: "#EAF2FC" } : null
-                    ]}
-                  >
-                    <Ionicons name="notifications" size={18} color="#2B8CEE" />
+                <Pressable
+                  style={[styles.row, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                  onPress={() => router.push(`/alert/${prayer}`)}
+                  onPressIn={() => setPressedPrayer(prayer)}
+                  onPressOut={() => setPressedPrayer(null)}
+                >
+                  <View style={styles.left}>
+                    <View
+                      style={[
+                        styles.iconWrap,
+                        isLight ? { backgroundColor: "#EAF2FC" } : null
+                      ]}
+                    >
+                      <Ionicons name="notifications" size={18} color="#2B8CEE" />
+                    </View>
+                    <View>
+                      <Text style={[styles.prayer, isLight ? { color: "#1A2E45" } : null]}>{prayerName(prayer)}</Text>
+                      <Text style={[styles.meta, isLight ? { color: "#4E647C" } : null]}>
+                        {item
+                          ? t("alerts.mins_before", { mins: item.minutesBefore })
+                          : t("alerts.loading")}
+                      </Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text style={[styles.prayer, isLight ? { color: "#1A2E45" } : null]}>{prayerName(prayer)}</Text>
-                    <Text style={[styles.meta, isLight ? { color: "#4E647C" } : null]}>
-                      {item
-                        ? t("alerts.mins_before", { mins: item.minutesBefore })
-                        : t("alerts.loading")}
-                    </Text>
-                  </View>
-                </View>
 
-                <View style={styles.right}>
-                  <Switch
-                    value={item?.enabled ?? false}
-                    onValueChange={(value) => void togglePrayer(prayer, value)}
-                  />
-                  <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
-                </View>
-              </Pressable>
+                  <View style={styles.right}>
+                    <Switch
+                      value={item?.enabled ?? false}
+                      onValueChange={(value) => void togglePrayer(prayer, value)}
+                    />
+                    <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
+                  </View>
+                </Pressable>
+              </EaseView>
             );
           })}
         </ScrollView>
@@ -163,6 +212,10 @@ const styles = StyleSheet.create({
   list: {
     gap: 12,
     paddingBottom: 32
+  },
+  feedbackWrap: {
+    minHeight: 32,
+    marginBottom: 4
   },
   row: {
     minHeight: 84,

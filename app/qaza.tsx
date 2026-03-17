@@ -2,8 +2,19 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View, Vibration } from "react-native";
+import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  easeEnterTransition,
+  easeInitialFade,
+  easeInitialLift,
+  easePressTransition,
+  easeVisibleFade,
+  easeVisibleLift
+} from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { QazaEvent, QazaKey, QazaState, getQazaState, saveQazaState } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
@@ -86,7 +97,12 @@ export default function QazaScreen() {
 
   const [state, setState] = useState<QazaState | null>(null);
   const [undoPayload, setUndoPayload] = useState<UndoPayload | null>(null);
+  const [pressedQuickAdd, setPressedQuickAdd] = useState(false);
+  const [pressedReset, setPressedReset] = useState(false);
+  const [pressedStepper, setPressedStepper] = useState<string | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const pressTransition = useMotionTransition(easePressTransition);
 
   useEffect(() => {
     void (async () => {
@@ -339,11 +355,21 @@ export default function QazaScreen() {
     await persistState(next);
   };
 
+  const qazaStatus = useMemo(() => {
+    if (!state) {
+      return { label: t("qaza.inline_loading"), tone: "loading" as const };
+    }
+    if (undoPayload) {
+      return { label: undoPayload.message, tone: "success" as const };
+    }
+    return { label: t("qaza.inline_active"), tone: "info" as const };
+  }, [state, t, undoPayload]);
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}> 
       <View style={styles.container}>
         <AppBackground />
-        <View style={styles.topSection}>
+        <EaseView style={styles.topSection} initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
           <View style={styles.headerRow}>
             <Pressable
               style={[
@@ -366,7 +392,7 @@ export default function QazaScreen() {
             </Pressable>
           </View>
 
-          <View style={[styles.totalCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <EaseView style={[styles.totalCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]} initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
             <View style={styles.totalHeadRow}>
               <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>{t("qaza.totalMissed")}</Text>
               <View style={[styles.trendBadge, { backgroundColor: isLight ? "#E8F8F1" : "#0C3C31" }]}>
@@ -388,31 +414,47 @@ export default function QazaScreen() {
                 {t("qaza.goal")}: {goal}
               </Text>
             </View>
-          </View>
+          </EaseView>
 
-          <Pressable
-            style={[styles.quickAddButton, { backgroundColor: colors.accent }]}
-            onPress={handleQuickAdd}
-            disabled={!state}
-          >
-            <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.quickAddText}>{t("qaza.quickAdd")}</Text>
-          </Pressable>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
+            <StatusChip label={qazaStatus.label} tone={qazaStatus.tone} />
+          </EaseView>
+
+          <EaseView animate={{ scale: pressedQuickAdd ? 0.985 : 1, opacity: state ? 1 : 0.7 }} transition={pressTransition}>
+            <Pressable
+              style={[styles.quickAddButton, { backgroundColor: colors.accent }]}
+              onPress={handleQuickAdd}
+              onPressIn={() => setPressedQuickAdd(true)}
+              onPressOut={() => setPressedQuickAdd(false)}
+              disabled={!state}
+            >
+              <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.quickAddText}>{t("qaza.quickAdd")}</Text>
+            </Pressable>
+          </EaseView>
 
           <View style={styles.logHeaderRow}>
             <Text style={[styles.logHeaderTitle, { color: colors.textPrimary }]}>{t("qaza.prayerLog")}</Text>
-            <Pressable onPress={confirmReset}>
-              <Text style={[styles.logHeaderReset, { color: colors.accent }]}>{t("qaza.resetCounts")}</Text>
-            </Pressable>
+            <EaseView animate={{ scale: pressedReset ? 0.96 : 1 }} transition={pressTransition}>
+              <Pressable onPress={confirmReset} onPressIn={() => setPressedReset(true)} onPressOut={() => setPressedReset(false)}>
+                <Text style={[styles.logHeaderReset, { color: colors.accent }]}>{t("qaza.resetCounts")}</Text>
+              </Pressable>
+            </EaseView>
           </View>
-        </View>
+        </EaseView>
 
         <ScrollView style={styles.listScroll} contentContainerStyle={styles.listWrap} showsVerticalScrollIndicator={false}>
           <View style={styles.listInner}>
             {QAZA_ORDER.map((key) => {
               const count = state?.remaining[key] ?? 0;
               return (
-                <View key={key} style={[styles.rowCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}> 
+                <EaseView
+                  key={key}
+                  style={[styles.rowCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                  initialAnimate={easeInitialFade}
+                  animate={easeVisibleFade}
+                  transition={enterTransition}
+                > 
                   <View style={[styles.rowIcon, { backgroundColor: isLight ? "#EAF2FC" : "#1B3148" }]}>
                     <MaterialCommunityIcons
                       name={prayerKeyToIconName(key)}
@@ -429,15 +471,29 @@ export default function QazaScreen() {
                   </View>
 
                   <View style={[styles.stepper, { borderColor: colors.cardBorder, backgroundColor: isLight ? "#F7FBFF" : "#102238" }]}> 
-                    <Pressable style={styles.stepperButton} onPress={() => handleStep(key, -1)}>
-                      <Ionicons name="remove" size={18} color={colors.textPrimary} />
-                    </Pressable>
+                    <EaseView animate={{ scale: pressedStepper === `${key}-dec` ? 0.92 : 1 }} transition={pressTransition}>
+                      <Pressable
+                        style={styles.stepperButton}
+                        onPress={() => handleStep(key, -1)}
+                        onPressIn={() => setPressedStepper(`${key}-dec`)}
+                        onPressOut={() => setPressedStepper(null)}
+                      >
+                        <Ionicons name="remove" size={18} color={colors.textPrimary} />
+                      </Pressable>
+                    </EaseView>
                     <Text style={[styles.stepperValue, { color: colors.textPrimary }]}>{count}</Text>
-                    <Pressable style={styles.stepperButton} onPress={() => handleStep(key, 1)}>
-                      <Ionicons name="add" size={18} color={colors.textPrimary} />
-                    </Pressable>
+                    <EaseView animate={{ scale: pressedStepper === `${key}-inc` ? 0.92 : 1 }} transition={pressTransition}>
+                      <Pressable
+                        style={styles.stepperButton}
+                        onPress={() => handleStep(key, 1)}
+                        onPressIn={() => setPressedStepper(`${key}-inc`)}
+                        onPressOut={() => setPressedStepper(null)}
+                      >
+                        <Ionicons name="add" size={18} color={colors.textPrimary} />
+                      </Pressable>
+                    </EaseView>
                   </View>
-                </View>
+                </EaseView>
               );
             })}
           </View>

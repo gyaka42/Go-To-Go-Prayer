@@ -11,8 +11,19 @@ import {
   TextInput,
   View
 } from "react-native";
+import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  easeEnterTransition,
+  easeInitialFade,
+  easeInitialLift,
+  easePressTransition,
+  easeVisibleFade,
+  easeVisibleLift
+} from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
 import { fetchMethods, MethodItem, summarizeMethodParams } from "@/services/methods";
@@ -35,6 +46,9 @@ export default function MethodsScreen() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [pressedMethodId, setPressedMethodId] = useState<number | null>(null);
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const pressTransition = useMotionTransition(easePressTransition);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,6 +99,22 @@ export default function MethodsScreen() {
       return item.name.toLowerCase().includes(q) || item.key.toLowerCase().includes(q) || String(item.id).includes(q);
     });
   }, [methods, providerOptions, searchQuery]);
+
+  const inlineStatus = useMemo(() => {
+    if (loading) {
+      return { label: t("methods.inline_loading"), tone: "loading" as const };
+    }
+    if (savingId !== null) {
+      return { label: t("methods.inline_applying"), tone: "loading" as const };
+    }
+    if (usingDiyanet) {
+      return { label: t("methods.inline_diyanet_selected"), tone: "success" as const };
+    }
+    return {
+      label: t("methods.inline_method_selected", { id: currentMethodId }),
+      tone: "info" as const
+    };
+  }, [currentMethodId, loading, savingId, t, usingDiyanet]);
 
   const onSelectMethod = useCallback(
     async (method: MethodItem) => {
@@ -164,14 +194,22 @@ export default function MethodsScreen() {
           <View style={styles.headerButtonPlaceholder} />
         </View>
 
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
-        <View
+        <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+        </EaseView>
+        <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
+          <StatusChip label={inlineStatus.label} tone={inlineStatus.tone} />
+        </EaseView>
+        <EaseView
           style={[
             styles.searchWrap,
             isLight
               ? { borderColor: "#C8DBEE", backgroundColor: "#F2F7FD" }
               : null
           ]}
+          initialAnimate={easeInitialFade}
+          animate={easeVisibleFade}
+          transition={enterTransition}
         >
           <Ionicons name="search" size={16} color={isLight ? "#617990" : "#8EA4BF"} />
           <TextInput
@@ -188,12 +226,17 @@ export default function MethodsScreen() {
               <Ionicons name="close-circle" size={16} color={isLight ? "#617990" : "#8EA4BF"} />
             </Pressable>
           ) : null}
-        </View>
+        </EaseView>
 
         {loading ? (
-          <View style={styles.loaderWrap}>
+          <EaseView
+            style={styles.loaderWrap}
+            initialAnimate={easeInitialFade}
+            animate={easeVisibleFade}
+            transition={enterTransition}
+          >
             <ActivityIndicator color="#2B8CEE" size="large" />
-          </View>
+          </EaseView>
         ) : (
           <FlatList
             data={filteredMethods}
@@ -212,35 +255,42 @@ export default function MethodsScreen() {
                   : summarizeMethodParams(item.params);
 
               return (
-                <Pressable
-                  style={[
-                    styles.row,
-                    { backgroundColor: colors.card, borderColor: colors.cardBorder },
-                    selected && (isLight ? styles.rowSelectedLight : styles.rowSelected)
-                  ]}
-                  onPress={() => void onSelectMethod(item)}
-                  disabled={savingId !== null}
+                <EaseView
+                  animate={{ scale: pressedMethodId === item.id ? 0.992 : 1 }}
+                  transition={pressTransition}
                 >
-                  <View style={styles.rowLeft}>
-                    <Text
-                      style={[
-                        styles.rowTitle,
-                        isLight ? { color: "#1A2E45" } : null,
-                        selected && (isLight ? styles.rowTitleSelectedLight : styles.rowTitleSelected)
-                      ]}
-                    >
-                      {item.name}
-                    </Text>
-                    <Text style={[styles.rowSub, isLight ? { color: "#4E647C" } : null]}>
-                      {subtitleText}
-                    </Text>
-                  </View>
+                  <Pressable
+                    style={[
+                      styles.row,
+                      { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                      selected && (isLight ? styles.rowSelectedLight : styles.rowSelected)
+                    ]}
+                    onPress={() => void onSelectMethod(item)}
+                    onPressIn={() => setPressedMethodId(item.id)}
+                    onPressOut={() => setPressedMethodId(null)}
+                    disabled={savingId !== null}
+                  >
+                    <View style={styles.rowLeft}>
+                      <Text
+                        style={[
+                          styles.rowTitle,
+                          isLight ? { color: "#1A2E45" } : null,
+                          selected && (isLight ? styles.rowTitleSelectedLight : styles.rowTitleSelected)
+                        ]}
+                      >
+                        {item.name}
+                      </Text>
+                      <Text style={[styles.rowSub, isLight ? { color: "#4E647C" } : null]}>
+                        {subtitleText}
+                      </Text>
+                    </View>
 
-                  <View style={styles.rowRight}>
-                    {rowBusy ? <ActivityIndicator color="#2B8CEE" size="small" /> : null}
-                    {selected ? <Ionicons name="checkmark-circle" size={22} color="#2B8CEE" /> : null}
-                  </View>
-                </Pressable>
+                    <View style={styles.rowRight}>
+                      {rowBusy ? <ActivityIndicator color="#2B8CEE" size="small" /> : null}
+                      {selected ? <Ionicons name="checkmark-circle" size={22} color="#2B8CEE" /> : null}
+                    </View>
+                  </Pressable>
+                </EaseView>
               );
             }}
           />

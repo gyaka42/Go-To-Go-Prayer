@@ -6,7 +6,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { easeEnterTransition, easeInitialFade, easeInitialLift, easeStateTransition, easeVisibleFade } from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getDuaDetail } from "@/services/namazContent";
 import { useAppTheme } from "@/theme/ThemeProvider";
@@ -28,6 +30,8 @@ export default function NamazDuaDetailScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const stateTransition = useMotionTransition(easeStateTransition);
   const [fontsLoaded] = useFonts({
     QuranArabic: require("../../../assets/fonts/NotoNaskhArabic-Regular.ttf")
   });
@@ -53,9 +57,9 @@ export default function NamazDuaDetailScreen() {
         </View>
 
         {detail ? (
-          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={easeEnterTransition} style={styles.scrollWrap}>
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition} style={styles.scrollWrap}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-              <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={easeEnterTransition}>
+              <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
                 <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                   <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.arabic_text")}</Text>
                   <Text
@@ -70,28 +74,30 @@ export default function NamazDuaDetailScreen() {
                 </View>
               </EaseView>
 
-              <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={easeEnterTransition}>
+              <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
                 <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                   <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.transliteration")}</Text>
                   <Text style={[styles.bodyText, { color: colors.textPrimary }]}>{detail.transliteration}</Text>
                 </View>
               </EaseView>
 
-              <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={easeEnterTransition}>
+              <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
                 <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                   <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.meaning")}</Text>
                   <Text style={[styles.bodyText, { color: colors.textPrimary }]}>{resolveMeaning(detail, localeTag)}</Text>
                 </View>
               </EaseView>
 
-              <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("namaz.audio_not_available")}</Text>
+              <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+                <StatusChip label={t("namaz.audio_not_available")} tone="info" />
+              </EaseView>
             </ScrollView>
           </EaseView>
         ) : (
           <EaseView
             initialAnimate={easeInitialFade}
             animate={easeVisibleFade}
-            transition={easeStateTransition}
+            transition={stateTransition}
             style={styles.centerWrap}
           >
             <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("namaz.invalid_item")}</Text>

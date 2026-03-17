@@ -1,7 +1,8 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EaseView } from "react-native-ease";
 import {
   Alert,
   LayoutChangeEvent,
@@ -16,7 +17,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Notifications from "expo-notifications";
+import { easeEnterTransition, easePressTransition } from "@/animation/ease";
+import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
 import { registerForLocalNotifications, replanAll, resolveNotificationSound } from "@/services/notifications";
@@ -25,16 +29,48 @@ import { useAppTheme } from "@/theme/ThemeProvider";
 import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
 
 const MINUTES_OPTIONS: Array<0 | 5 | 10 | 15 | 30> = [0, 5, 10, 15, 30];
+
+type AlertFeedback = { tone: "success" | "warning" | "loading"; label: string } | null;
+
 export default function PrayerAlertPreferencesScreen() {
   const router = useRouter();
   const { colors, resolvedTheme } = useAppTheme();
   const { t, prayerName } = useI18n();
   const isLight = resolvedTheme === "light";
+  const enterTransition = useMotionTransition(easeEnterTransition);
+  const pressTransition = useMotionTransition(easePressTransition);
   const params = useLocalSearchParams<{ prayer?: string }>();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [sliderTrackWidth, setSliderTrackWidth] = useState(0);
   const [isSliding, setIsSliding] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<AlertFeedback>(null);
+  const [savePressed, setSavePressed] = useState(false);
+  const [testPressed, setTestPressed] = useState(false);
+  const [resetPressed, setResetPressed] = useState(false);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearFeedbackTimer = useCallback(() => {
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = null;
+    }
+  }, []);
+
+  const showFeedback = useCallback((feedback: NonNullable<AlertFeedback>, delayMs = 2200) => {
+    clearFeedbackTimer();
+    setActionFeedback(feedback);
+    feedbackTimerRef.current = setTimeout(() => {
+      setActionFeedback(null);
+      feedbackTimerRef.current = null;
+    }, delayMs);
+  }, [clearFeedbackTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearFeedbackTimer();
+    };
+  }, [clearFeedbackTimer]);
 
   const prayer = useMemo<PrayerName | null>(() => {
     if (!params.prayer) {
@@ -131,6 +167,7 @@ export default function PrayerAlertPreferencesScreen() {
       return;
     }
 
+    showFeedback({ tone: "loading", label: t("alert.inline_saving") }, 4000);
     setSaving(true);
     try {
       await saveSettings(settings);
@@ -147,6 +184,7 @@ export default function PrayerAlertPreferencesScreen() {
         // Save should still succeed even if replan cannot run now.
       }
 
+      showFeedback({ tone: "success", label: t("alert.inline_saved") });
       router.back();
     } finally {
       setSaving(false);
@@ -160,6 +198,7 @@ export default function PrayerAlertPreferencesScreen() {
 
     const granted = await registerForLocalNotifications();
     if (!granted) {
+      showFeedback({ tone: "warning", label: t("alert.inline_permission_needed") }, 3200);
       Alert.alert(t("alert.notifications_title"), t("alert.notifications_permission"));
       return;
     }
@@ -201,7 +240,7 @@ export default function PrayerAlertPreferencesScreen() {
         repeats: false
       }
     });
-
+    showFeedback({ tone: "success", label: t("alert.inline_test_sent") });
   };
 
   const onResetToDefault = () => {
@@ -213,32 +252,49 @@ export default function PrayerAlertPreferencesScreen() {
       volume: 75,
       vibration: true
     });
+    showFeedback({ tone: "success", label: t("alert.inline_reset") });
   };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <AppBackground />
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Pressable onPress={() => router.back()} style={styles.headerIconButton}>
-              <Ionicons name="chevron-back" size={24} color={isLight ? "#1E3D5C" : "#EAF2FF"} />
-            </Pressable>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>
-              {t("alert.title", { prayer: prayerLabel })}
-            </Text>
-          </View>
+        <EaseView initialAnimate={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <Pressable onPress={() => router.back()} style={styles.headerIconButton}>
+                <Ionicons name="chevron-back" size={24} color={isLight ? "#1E3D5C" : "#EAF2FF"} />
+              </Pressable>
+              <Text style={[styles.title, { color: colors.textPrimary }]}>
+                {t("alert.title", { prayer: prayerLabel })}
+              </Text>
+            </View>
 
-          <Pressable onPress={() => void onSave()} style={styles.saveLink}>
-            <Text style={styles.saveLinkText}>{t("common.save")}</Text>
-          </Pressable>
-        </View>
+            <EaseView animate={{ scale: savePressed ? 0.98 : 1 }} transition={pressTransition}>
+              <Pressable
+                onPress={() => void onSave()}
+                style={styles.saveLink}
+                onPressIn={() => setSavePressed(true)}
+                onPressOut={() => setSavePressed(false)}
+              >
+                <Text style={styles.saveLinkText}>{t("common.save")}</Text>
+              </Pressable>
+            </EaseView>
+          </View>
+        </EaseView>
 
         <ScrollView
           scrollEnabled={!isSliding}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
+          <View style={styles.feedbackWrap}>
+            <StatusChip
+              label={actionFeedback?.label ?? ""}
+              tone={actionFeedback?.tone ?? "info"}
+              visible={Boolean(actionFeedback)}
+            />
+          </View>
           <View style={styles.alertHeadRow}>
             <View style={[styles.alertHeadIconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
               <Ionicons name="notifications" size={22} color="#2B8CEE" />
@@ -346,10 +402,17 @@ export default function PrayerAlertPreferencesScreen() {
             </View>
           </View>
 
-          <Pressable style={styles.testButton} onPress={() => void onTestNotification()}>
-            <Ionicons name="play-circle" size={18} color="#F2F8FF" />
-            <Text style={styles.testButtonText}>{t("alert.test_notification")}</Text>
-          </Pressable>
+          <EaseView animate={{ scale: testPressed ? 0.985 : 1 }} transition={pressTransition}>
+            <Pressable
+              style={styles.testButton}
+              onPress={() => void onTestNotification()}
+              onPressIn={() => setTestPressed(true)}
+              onPressOut={() => setTestPressed(false)}
+            >
+              <Ionicons name="play-circle" size={18} color="#F2F8FF" />
+              <Text style={styles.testButtonText}>{t("alert.test_notification")}</Text>
+            </Pressable>
+          </EaseView>
 
           <Text style={[styles.helpCenterText, isLight ? { color: "#617990" } : null]}>
             {t("alert.test_help")}
@@ -389,21 +452,36 @@ export default function PrayerAlertPreferencesScreen() {
               </View>
             </Pressable>
 
-            <Pressable style={styles.rowPlain} onPress={onResetToDefault}>
-              <View style={styles.rowLeft}>
-                <View style={[styles.smallIcon, { backgroundColor: isLight ? "#FFE8EE" : "#4B1F2B" }]}>
-                  <Ionicons name="trash" size={18} color="#FF667D" />
+            <EaseView animate={{ scale: resetPressed ? 0.985 : 1 }} transition={pressTransition}>
+              <Pressable
+                style={styles.rowPlain}
+                onPress={onResetToDefault}
+                onPressIn={() => setResetPressed(true)}
+                onPressOut={() => setResetPressed(false)}
+              >
+                <View style={styles.rowLeft}>
+                  <View style={[styles.smallIcon, { backgroundColor: isLight ? "#FFE8EE" : "#4B1F2B" }]}>
+                    <Ionicons name="trash" size={18} color="#FF667D" />
+                  </View>
+                  <Text style={styles.resetText}>{t("alert.reset_default")}</Text>
                 </View>
-                <Text style={styles.resetText}>{t("alert.reset_default")}</Text>
-              </View>
-            </Pressable>
+              </Pressable>
+            </EaseView>
           </View>
 
-          <Pressable style={styles.saveButton} onPress={() => void onSave()} disabled={saving}>
-            <Text style={styles.saveButtonText}>
-              {saving ? t("settings.saving") : t("alert.save_preferences")}
-            </Text>
-          </Pressable>
+          <EaseView animate={{ scale: savePressed ? 0.985 : 1 }} transition={pressTransition}>
+            <Pressable
+              style={styles.saveButton}
+              onPress={() => void onSave()}
+              onPressIn={() => setSavePressed(true)}
+              onPressOut={() => setSavePressed(false)}
+              disabled={saving}
+            >
+              <Text style={styles.saveButtonText}>
+                {saving ? t("settings.saving") : t("alert.save_preferences")}
+              </Text>
+            </Pressable>
+          </EaseView>
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -457,6 +535,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 48
+  },
+  feedbackWrap: {
+    minHeight: 32,
+    marginBottom: 14
   },
   alertHeadRow: {
     marginBottom: 20,
