@@ -16,7 +16,7 @@ export interface VerseRow {
   key: string;
   numberInSurah: number;
   arabic: string;
-  translationTr: string;
+  translation: string;
 }
 
 export interface QuranAyah {
@@ -24,7 +24,7 @@ export interface QuranAyah {
   surahId: number;
   numberInSurah: number;
   arabic: string;
-  translationTr: string;
+  translation: string;
 }
 
 export interface QuranAudioInfo {

@@ -358,7 +358,7 @@ export default function QuranSurahDetailScreen() {
                     {row.arabic}
                   </Text>
                   <Text style={[styles.ayahTranslation, { color: colors.textSecondary }]}>
-                    {row.translationTr || "—"}
+                    {row.translation || "—"}
                   </Text>
                 </View>
               ))}

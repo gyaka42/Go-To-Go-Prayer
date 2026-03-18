@@ -2,6 +2,10 @@ import { QuranAudioInfo, QuranAyah, SurahMeta, SurahSummary, VerseRow } from "@/
 
 const DEFAULT_DIYANET_PROXY_URL = "https://go-to-go-prayer-production.up.railway.app";
 const UNSUPPORTED_QURAN_MARKS_REGEX = /[\u0610-\u061A\u06D6-\u06ED\u08D0-\u08FF\u{10EFD}-\u{10EFF}]/gu;
+const ALQURAN_TRANSLATION_EDITIONS: Record<"tr" | "en", string[]> = {
+  tr: ["tr.ozturk", "tr.golpinarli", "tr.yazir", "tr.diyanet"],
+  en: ["en.asad", "en.sahih", "en.pickthall"]
+};
 
 const inFlight = new Map<string, Promise<unknown>>();
 
@@ -26,6 +30,11 @@ function toLocaleLang(localeTag?: string): string {
   return "tr";
 }
 
+function toTranslationLang(localeTag?: string): "tr" | "en" {
+  const localeLang = toLocaleLang(localeTag);
+  return localeLang === "en" ? "en" : "tr";
+}
+
 function sanitizeArabicForRendering(value: string): string {
   return value
     .replace(UNSUPPORTED_QURAN_MARKS_REGEX, "")
@@ -46,7 +55,7 @@ function normalizeTranslationForComparison(value: string): string {
 
 function hasRepeatedTranslation(detail: { verses: VerseRow[] }): boolean {
   const values = detail.verses
-    .map((row) => normalizeTranslationForComparison(row.translationTr))
+    .map((row) => normalizeTranslationForComparison(row.translation))
     .filter((value) => value.length > 0);
   if (values.length < 2) {
     return false;
@@ -54,8 +63,11 @@ function hasRepeatedTranslation(detail: { verses: VerseRow[] }): boolean {
   return new Set(values).size === 1;
 }
 
-async function fetchAyahTranslationFromAlQuranCloud(verseKey: string): Promise<string | null> {
-  const editions = ["tr.ozturk", "tr.golpinarli", "tr.yazir", "tr.diyanet"];
+async function fetchAyahTranslationFromAlQuranCloud(
+  verseKey: string,
+  translationLang: "tr" | "en"
+): Promise<string | null> {
+  const editions = ALQURAN_TRANSLATION_EDITIONS[translationLang];
   for (const edition of editions) {
     try {
       const response = await fetch(
@@ -78,6 +90,50 @@ async function fetchAyahTranslationFromAlQuranCloud(verseKey: string): Promise<s
     }
   }
   return null;
+}
+
+async function fetchSurahTranslationsFromAlQuranCloud(
+  surahId: number,
+  translationLang: "tr" | "en"
+): Promise<Map<number, string> | null> {
+  const editions = ALQURAN_TRANSLATION_EDITIONS[translationLang];
+  for (const edition of editions) {
+    try {
+      const response = await fetch(
+        `https://api.alquran.cloud/v1/surah/${encodeURIComponent(String(surahId))}/${edition}`,
+        {
+          method: "GET",
+          headers: { Accept: "application/json" }
+        }
+      );
+      if (!response.ok) {
+        continue;
+      }
+      const payload = await safeJson(response);
+      const ayahs = Array.isArray((payload as any)?.data?.ayahs) ? (payload as any).data.ayahs : [];
+      const mapped = new Map<number, string>();
+      for (const ayah of ayahs) {
+        const numberInSurah = Number(ayah?.numberInSurah || 0);
+        const text = String(ayah?.text || "").trim();
+        if (numberInSurah > 0 && text.length > 0) {
+          mapped.set(numberInSurah, text);
+        }
+      }
+      if (mapped.size > 0) {
+        return mapped;
+      }
+    } catch {
+      // Try next edition.
+    }
+  }
+  return null;
+}
+
+async function resolveRemoteTranslation(
+  verseKey: string,
+  translationLang: "tr" | "en"
+): Promise<string | null> {
+  return fetchAyahTranslationFromAlQuranCloud(verseKey, translationLang);
 }
 
 async function safeJson(response: Response): Promise<unknown> {
@@ -163,7 +219,7 @@ function assertSurahDetail(raw: unknown): { surah: SurahMeta; verses: VerseRow[]
       key: String(row?.key || "").trim(),
       numberInSurah: Number(row?.numberInSurah || 0),
       arabic: sanitizeArabicForRendering(String(row?.arabic || "").trim()),
-      translationTr: String(row?.translationTr || "").trim()
+      translation: String(row?.translation || row?.translationTr || "").trim()
     }))
     .filter((row: VerseRow) => row.key.length > 0 && row.numberInSurah > 0 && row.arabic.length > 0)
     .sort((a: VerseRow, b: VerseRow) => a.numberInSurah - b.numberInSurah);
@@ -185,7 +241,7 @@ function assertAyah(raw: unknown): QuranAyah {
     surahId: Number(payload.surahId || 0),
     numberInSurah: Number(payload.numberInSurah || 0),
     arabic: sanitizeArabicForRendering(String(payload.arabic || "").trim()),
-    translationTr: String(payload.translationTr || "").trim()
+    translation: String(payload.translation || payload.translationTr || "").trim()
   };
   if (
     value.key.length === 0 ||
@@ -242,6 +298,7 @@ export async function getQuranSurahs(localeTag?: string): Promise<SurahSummary[]
 
 export async function getQuranSurahDetail(surahId: number, localeTag?: string): Promise<{ surah: SurahMeta; verses: VerseRow[] }> {
   const lang = toLocaleLang(localeTag);
+  const translationLang = toTranslationLang(localeTag);
   const baseUrl = getProxyBaseUrl();
   const url = `${baseUrl}/quran/surahs/${surahId}?lang=${encodeURIComponent(lang)}&translation=tr`;
   const key = `surah:${surahId}:${lang}`;
@@ -253,20 +310,46 @@ export async function getQuranSurahDetail(surahId: number, localeTag?: string): 
       throw new Error((payload as any)?.error || `HTTP ${response.status}`);
     }
     const detail = assertSurahDetail(payload);
+
+    if (translationLang === "en") {
+      const cloudTranslations = await fetchSurahTranslationsFromAlQuranCloud(surahId, "en");
+      if (cloudTranslations) {
+        const translatedVerses = await Promise.all(
+          detail.verses.map(async (row) => {
+            const cloud = cloudTranslations.get(row.numberInSurah)?.trim();
+            if (cloud && cloud.length > 0) {
+              return { ...row, translation: cloud };
+            }
+            const fallback = await resolveRemoteTranslation(row.key, "en");
+            return fallback && fallback.length > 0 ? { ...row, translation: fallback } : row;
+          })
+        );
+        return { ...detail, verses: translatedVerses };
+      }
+
+      const repairedEnglish = await Promise.all(
+        detail.verses.map(async (row) => {
+          const cloud = await resolveRemoteTranslation(row.key, "en");
+          return cloud && cloud.length > 0 ? { ...row, translation: cloud } : row;
+        })
+      );
+      return { ...detail, verses: repairedEnglish };
+    }
+
     if (!hasRepeatedTranslation(detail)) {
       return detail;
     }
 
     const repaired = await Promise.all(
       detail.verses.map(async (row) => {
-        const cloud = await fetchAyahTranslationFromAlQuranCloud(row.key);
+        const cloud = await resolveRemoteTranslation(row.key, "tr");
         if (cloud && cloud.length > 0) {
-          return { ...row, translationTr: cloud };
+          return { ...row, translation: cloud };
         }
         try {
           const ayah = await getQuranAyah(row.key, localeTag);
-          if (ayah.translationTr.trim().length > 0) {
-            return { ...row, translationTr: ayah.translationTr };
+          if (ayah.translation.trim().length > 0) {
+            return { ...row, translation: ayah.translation };
           }
           return row;
         } catch {
@@ -281,6 +364,7 @@ export async function getQuranSurahDetail(surahId: number, localeTag?: string): 
 
 export async function getQuranAyah(verseKey: string, localeTag?: string): Promise<QuranAyah> {
   const lang = toLocaleLang(localeTag);
+  const translationLang = toTranslationLang(localeTag);
   const baseUrl = getProxyBaseUrl();
   const url = `${baseUrl}/quran/ayah/${encodeURIComponent(verseKey)}?lang=${encodeURIComponent(lang)}&translation=tr`;
   const key = `ayah:${verseKey}:${lang}`;
@@ -291,7 +375,12 @@ export async function getQuranAyah(verseKey: string, localeTag?: string): Promis
     if (!response.ok) {
       throw new Error((payload as any)?.error || `HTTP ${response.status}`);
     }
-    return assertAyah(payload);
+    const ayah = assertAyah(payload);
+    if (translationLang !== "en") {
+      return ayah;
+    }
+    const english = await resolveRemoteTranslation(verseKey, "en");
+    return english && english.length > 0 ? { ...ayah, translation: english } : ayah;
   });
 }
 

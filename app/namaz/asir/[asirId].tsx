@@ -134,7 +134,7 @@ export default function NamazAsirDetailScreen() {
             key: item.key,
             numberInSurah: item.numberInSurah,
             arabic: item.arabic,
-            translationTr: item.translationTr
+            translation: item.translation
           }))
           .sort((a, b) => a.numberInSurah - b.numberInSurah);
       }
@@ -382,7 +382,7 @@ export default function NamazAsirDetailScreen() {
                   <Text style={[styles.ayahArabic, { color: colors.textPrimary }, fontsLoaded ? styles.quranArabicFont : null]}>
                     {row.arabic}
                   </Text>
-                  <Text style={[styles.ayahTranslation, { color: colors.textSecondary }]}>{row.translationTr || "—"}</Text>
+                  <Text style={[styles.ayahTranslation, { color: colors.textSecondary }]}>{row.translation || "—"}</Text>
                 </View>
               ))}
             </ScrollView>
