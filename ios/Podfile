@@ -60,6 +60,17 @@ target 'GoToGoPrayer' do
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
 
+    # Xcode 26.4 is stricter about consteval handling in fmt 11.x.
+    # Restrict fmt itself to C++17 to avoid archive failures without
+    # changing the rest of the React Native / Expo pod graph.
+    installer.pods_project.targets.each do |target|
+      if target.name == 'fmt'
+        target.build_configurations.each do |config|
+          config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+        end
+      end
+    end
+
     # Fix Expo Constants script phase for project paths with spaces.
     installer.pods_project.targets.each do |target|
       next unless target.name == 'EXConstants'
