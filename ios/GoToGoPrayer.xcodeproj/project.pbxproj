@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		1D4E2A9C7B134F0BAA100001 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 1D4E2A9C7B134F0BAA100005 /* InfoPlist.strings */; };
 		3E2EC6034DFE735826934BA6 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAD618763944E5A03657B350 /* ExpoModulesProvider.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		4C97D6A31B705CD0FEC29A48 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = EBD115892612D05F54BDA442 /* PrivacyInfo.xcprivacy */; };
@@ -50,6 +51,9 @@
 		13B07F961A680F5B00A75B9A /* GoToGoPrayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GoToGoPrayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = GoToGoPrayer/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = GoToGoPrayer/Info.plist; sourceTree = "<group>"; };
+		1D4E2A9C7B134F0BAA100002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = GoToGoPrayer/en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		1D4E2A9C7B134F0BAA100003 /* nl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nl; path = GoToGoPrayer/nl.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		1D4E2A9C7B134F0BAA100004 /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = GoToGoPrayer/tr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		393BE669A4E2AB9078DEE74D /* Pods-GoToGoPrayer.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GoToGoPrayer.release.xcconfig"; path = "Target Support Files/Pods-GoToGoPrayer/Pods-GoToGoPrayer.release.xcconfig"; sourceTree = "<group>"; };
 		5A43E41B978B1311ED17C01D /* Pods-GoToGoPrayer.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GoToGoPrayer.debug.xcconfig"; path = "Target Support Files/Pods-GoToGoPrayer/Pods-GoToGoPrayer.debug.xcconfig"; sourceTree = "<group>"; };
 		7A439A6B2F3E31E000EA4169 /* PrayerWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PrayerWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -123,6 +127,7 @@
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
+				1D4E2A9C7B134F0BAA100005 /* InfoPlist.strings */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				B800BAE7D7234B22AD2C830D /* adhan_short.wav */,
 				EBD115892612D05F54BDA442 /* PrivacyInfo.xcprivacy */,
@@ -212,6 +217,19 @@
 		};
 /* End PBXGroup section */
 
+/* Begin PBXVariantGroup section */
+		1D4E2A9C7B134F0BAA100005 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				1D4E2A9C7B134F0BAA100002 /* en */,
+				1D4E2A9C7B134F0BAA100003 /* nl */,
+				1D4E2A9C7B134F0BAA100004 /* tr */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
 /* Begin PBXNativeTarget section */
 		13B07F861A680F5B00A75B9A /* GoToGoPrayer */ = {
 			isa = PBXNativeTarget;
@@ -281,6 +299,8 @@
 			knownRegions = (
 				en,
 				Base,
+				nl,
+				tr,
 			);
 			mainGroup = 83CBB9F61A601CBA00E9B192;
 			productRefGroup = 83CBBA001A601CBA00E9B192 /* Products */;
@@ -300,6 +320,7 @@
 			files = (
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				1D4E2A9C7B134F0BAA100001 /* InfoPlist.strings in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				C593CF9E2C944E2BBD24E2E7 /* adhan_short.wav in Resources */,
 				4C97D6A31B705CD0FEC29A48 /* PrivacyInfo.xcprivacy in Resources */,

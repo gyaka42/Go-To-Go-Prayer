@@ -47,14 +47,14 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Je locatie wordt gebruikt om nauwkeurige gebedstijden te berekenen.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Your location is used to calculate accurate prayer times, Qibla direction, and nearby mosques.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
     </array>
-    <key>NSUserNotificationsUsageDescription</key>
-    <string>Meldingen worden gebruikt om je op gebedstijden te attenderen.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Notifications are used to remind you of prayer times.</string>
     <key>RCTNewArchEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>
