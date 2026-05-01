@@ -4,7 +4,7 @@
     "slug": "go-to-go-prayer",
     "scheme": "gotogoprayer",
     "icon": "./assets/images/Light/AppIcon~ios-marketing.png",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

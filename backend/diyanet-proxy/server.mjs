@@ -1898,6 +1898,16 @@ async function fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId, translatio
   };
 }
 
+async function fetchQuranTurkishFallbackMapFromAlQuranCloud(surahId) {
+  const fallback = await fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId, "tr");
+  if (!fallback || !Array.isArray(fallback.verses)) {
+    return new Map();
+  }
+  return new Map(
+    fallback.verses.map((row) => [row.numberInSurah, String(row.translationTr || row.translation || "").trim()])
+  );
+}
+
 async function fetchQuranAyahFallbackFromAlQuranCloud(parsed, translation = "tr") {
   const arabicData = await fetchAlQuranCloudData(`/ayah/${parsed.surahId}:${parsed.ayahNumber}/quran-uthmani`);
   let translationData = null;
@@ -1925,12 +1935,20 @@ async function fetchQuranAyahFallbackFromAlQuranCloud(parsed, translation = "tr"
   };
 }
 
+async function fetchQuranTurkishAyahFallbackFromAlQuranCloud(parsed) {
+  const fallback = await fetchQuranAyahFallbackFromAlQuranCloud(parsed, "tr");
+  return String(fallback?.translationTr || fallback?.translation || "").trim();
+}
+
 async function applyQuranTranslationFallback(detail, surahId, translation) {
   if (translation !== "en") {
     return detail;
   }
 
-  const translated = await fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId, translation);
+  const [translated, turkishTranslations] = await Promise.all([
+    fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId, translation),
+    fetchQuranTurkishFallbackMapFromAlQuranCloud(surahId)
+  ]);
   if (!translated || !Array.isArray(translated.verses) || translated.verses.length === 0) {
     return detail;
   }
@@ -1948,7 +1966,7 @@ async function applyQuranTranslationFallback(detail, surahId, translation) {
       return {
         ...row,
         translation: translationText,
-        translationTr: ""
+        translationTr: turkishTranslations.get(row.numberInSurah) || String(row.translationTr || "").trim()
       };
     })
   };
@@ -2123,6 +2141,9 @@ async function fetchQuranAyah(config, verseKey, lang, translation = "tr") {
 
   const fallback = await fetchQuranAyahFallbackFromAlQuranCloud(parsed, translation);
   if (fallback) {
+    if (translation === "en") {
+      fallback.translationTr = await fetchQuranTurkishAyahFallbackFromAlQuranCloud(parsed);
+    }
     return fallback;
   }
 
