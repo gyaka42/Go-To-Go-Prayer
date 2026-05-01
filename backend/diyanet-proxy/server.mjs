@@ -1771,6 +1771,122 @@ const ALQURAN_TRANSLATION_EDITIONS = {
   tr: ["tr.ozturk", "tr.golpinarli", "tr.yazir", "tr.diyanet"],
   en: ["en.asad", "en.sahih", "en.pickthall"]
 };
+const TURKISH_SURAH_NAMES = [
+  "Fâtiha",
+  "Bakara",
+  "Âl-i İmrân",
+  "Nisâ",
+  "Mâide",
+  "En'âm",
+  "A'râf",
+  "Enfâl",
+  "Tevbe",
+  "Yûnus",
+  "Hûd",
+  "Yûsuf",
+  "Ra'd",
+  "İbrâhîm",
+  "Hicr",
+  "Nahl",
+  "İsrâ",
+  "Kehf",
+  "Meryem",
+  "Tâhâ",
+  "Enbiyâ",
+  "Hac",
+  "Mü'minûn",
+  "Nûr",
+  "Furkân",
+  "Şuarâ",
+  "Neml",
+  "Kasas",
+  "Ankebût",
+  "Rûm",
+  "Lokmân",
+  "Secde",
+  "Ahzâb",
+  "Sebe'",
+  "Fâtır",
+  "Yâsîn",
+  "Sâffât",
+  "Sâd",
+  "Zümer",
+  "Mü'min",
+  "Fussilet",
+  "Şûrâ",
+  "Zuhruf",
+  "Duhân",
+  "Câsiye",
+  "Ahkâf",
+  "Muhammed",
+  "Fetih",
+  "Hucurât",
+  "Kâf",
+  "Zâriyât",
+  "Tûr",
+  "Necm",
+  "Kamer",
+  "Rahmân",
+  "Vâkıa",
+  "Hadîd",
+  "Mücâdele",
+  "Haşr",
+  "Mümtehine",
+  "Saff",
+  "Cuma",
+  "Münâfikûn",
+  "Tegâbün",
+  "Talâk",
+  "Tahrîm",
+  "Mülk",
+  "Kalem",
+  "Hâkka",
+  "Meâric",
+  "Nûh",
+  "Cin",
+  "Müzzemmil",
+  "Müddessir",
+  "Kıyâmet",
+  "İnsân",
+  "Mürselât",
+  "Nebe",
+  "Nâziât",
+  "Abese",
+  "Tekvîr",
+  "İnfitâr",
+  "Mutaffifîn",
+  "İnşikâk",
+  "Burûc",
+  "Târık",
+  "A'lâ",
+  "Gâşiye",
+  "Fecr",
+  "Beled",
+  "Şems",
+  "Leyl",
+  "Duhâ",
+  "İnşirâh",
+  "Tîn",
+  "Alak",
+  "Kadir",
+  "Beyyine",
+  "Zilzâl",
+  "Âdiyât",
+  "Kâria",
+  "Tekâsür",
+  "Asr",
+  "Hümeze",
+  "Fîl",
+  "Kureyş",
+  "Mâûn",
+  "Kevser",
+  "Kâfirûn",
+  "Nasr",
+  "Tebbet",
+  "İhlâs",
+  "Felak",
+  "Nâs"
+];
 
 async function fetchAlQuranCloudData(path) {
   try {
@@ -1788,6 +1904,30 @@ async function fetchAlQuranCloudData(path) {
   } catch {
     return null;
   }
+}
+
+async function fetchQuranSurahsFallbackFromAlQuranCloud(lang) {
+  const rows = await fetchAlQuranCloudData("/surah");
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return [];
+  }
+
+  return rows
+    .map((row) => {
+      const id = toPositiveNumber(row?.number);
+      const nameArabic = String(row?.name || "").trim();
+      const englishName = String(row?.englishName || "").trim();
+      const ayahCount = Number(row?.numberOfAyahs || 0);
+      const nameLatin = lang === "tr" ? TURKISH_SURAH_NAMES[id - 1] || englishName : englishName;
+      return {
+        id,
+        nameArabic: nameArabic || nameLatin || `Surah ${id}`,
+        nameLatin: nameLatin || nameArabic || `Surah ${id}`,
+        ayahCount: Number.isFinite(ayahCount) && ayahCount > 0 ? ayahCount : 0
+      };
+    })
+    .filter((item) => item.id > 0 && item.nameArabic.length > 0 && item.nameLatin.length > 0)
+    .sort((a, b) => a.id - b.id);
 }
 
 function normalizeTranslationForComparison(value) {
@@ -1992,16 +2132,28 @@ async function applyQuranTranslationFallback(detail, surahId, translation) {
 }
 
 async function fetchQuranSurahs(config, lang) {
-  const payload = await fetchQuranCandidateJson(
-    config,
-    ["/api/v1/chapters", "/api/surahs", "/api/surah", "/surahs", "/quran/surahs", "/quran/chapters"],
-    { lang }
-  );
-  const items = normalizeSurahRows(payload);
-  if (!Array.isArray(items) || items.length === 0) {
-    throw new Error("Quran surah list response is empty or not parseable.");
+  let lastError = null;
+  try {
+    const payload = await fetchQuranCandidateJson(
+      config,
+      ["/api/v1/chapters", "/api/surahs", "/api/surah", "/surahs", "/quran/surahs", "/quran/chapters"],
+      { lang }
+    );
+    const items = normalizeSurahRows(payload);
+    if (Array.isArray(items) && items.length > 0) {
+      return items;
+    }
+    lastError = new Error("Quran surah list response is empty or not parseable.");
+  } catch (error) {
+    lastError = error;
   }
-  return items;
+
+  const fallbackItems = await fetchQuranSurahsFallbackFromAlQuranCloud(lang);
+  if (fallbackItems.length > 0) {
+    return fallbackItems;
+  }
+
+  throw lastError || new Error("Quran surah list response is empty or not parseable.");
 }
 
 async function fetchQuranSurahDetail(config, surahId, lang, translation = "tr") {
