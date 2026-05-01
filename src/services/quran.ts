@@ -14,6 +14,13 @@ type CacheEnvelope<T> = {
   value: T;
 };
 
+export type QuranDataSource = "network" | "cache";
+
+export type QuranResult<T> = {
+  data: T;
+  source: QuranDataSource;
+};
+
 function normalizeProxyBaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, "");
 }
@@ -236,7 +243,7 @@ function assertAudioInfo(raw: unknown): QuranAudioInfo {
   };
 }
 
-export async function getQuranSurahs(localeTag?: string): Promise<SurahSummary[]> {
+export async function getQuranSurahsWithSource(localeTag?: string): Promise<QuranResult<SurahSummary[]>> {
   const lang = toLocaleLang(localeTag);
   const baseUrl = getProxyBaseUrl();
   const url = `${baseUrl}/quran/surahs?lang=${encodeURIComponent(lang)}`;
@@ -248,12 +255,12 @@ export async function getQuranSurahs(localeTag?: string): Promise<SurahSummary[]
       const payload = await fetchJson(url, { method: "GET", timeoutMs: 9000, retries: 1 });
       const rows = assertSurahSummaryRows(payload);
       await saveQuranCache(cacheKey, { items: rows });
-      return rows;
+      return { data: rows, source: "network" };
     } catch (error) {
       const cached = await readQuranCache(cacheKey, assertSurahSummaryRows);
       if (cached && cached.length > 0) {
         logDiagnostic("quran.surahs.cache_fallback", error, { lang, rows: cached.length });
-        return cached;
+        return { data: cached, source: "cache" };
       }
       logDiagnostic("quran.surahs.failed", error, { lang });
       throw error;
@@ -261,7 +268,15 @@ export async function getQuranSurahs(localeTag?: string): Promise<SurahSummary[]
   });
 }
 
-export async function getQuranSurahDetail(surahId: number, localeTag?: string): Promise<{ surah: SurahMeta; verses: VerseRow[] }> {
+export async function getQuranSurahs(localeTag?: string): Promise<SurahSummary[]> {
+  const result = await getQuranSurahsWithSource(localeTag);
+  return result.data;
+}
+
+export async function getQuranSurahDetailWithSource(
+  surahId: number,
+  localeTag?: string
+): Promise<QuranResult<{ surah: SurahMeta; verses: VerseRow[] }>> {
   const lang = toLocaleLang(localeTag);
   const translationLang = toTranslationLang(localeTag);
   const baseUrl = getProxyBaseUrl();
@@ -276,7 +291,7 @@ export async function getQuranSurahDetail(surahId: number, localeTag?: string): 
 
       if (translationLang === "en" || !hasRepeatedTranslation(detail)) {
         await saveQuranCache(cacheKey, detail);
-        return detail;
+        return { data: detail, source: "network" };
       }
 
       throw new Error("Quran translation response is repeated and could not be repaired by proxy.");
@@ -289,7 +304,7 @@ export async function getQuranSurahDetail(surahId: number, localeTag?: string): 
           translationLang,
           verses: cached.verses.length
         });
-        return cached;
+        return { data: cached, source: "cache" };
       }
       logDiagnostic("quran.surah.failed", error, { surahId, lang, translationLang });
       throw error;
@@ -297,7 +312,15 @@ export async function getQuranSurahDetail(surahId: number, localeTag?: string): 
   });
 }
 
-export async function getQuranAyah(verseKey: string, localeTag?: string): Promise<QuranAyah> {
+export async function getQuranSurahDetail(
+  surahId: number,
+  localeTag?: string
+): Promise<{ surah: SurahMeta; verses: VerseRow[] }> {
+  const result = await getQuranSurahDetailWithSource(surahId, localeTag);
+  return result.data;
+}
+
+export async function getQuranAyahWithSource(verseKey: string, localeTag?: string): Promise<QuranResult<QuranAyah>> {
   const lang = toLocaleLang(localeTag);
   const translationLang = toTranslationLang(localeTag);
   const baseUrl = getProxyBaseUrl();
@@ -310,17 +333,22 @@ export async function getQuranAyah(verseKey: string, localeTag?: string): Promis
       const payload = await fetchJson(url, { method: "GET", timeoutMs: 9000, retries: 1 });
       const ayah = assertAyah(payload);
       await saveQuranCache(cacheKey, ayah);
-      return ayah;
+      return { data: ayah, source: "network" };
     } catch (error) {
       const cached = await readQuranCache(cacheKey, assertAyah);
       if (cached) {
         logDiagnostic("quran.ayah.cache_fallback", error, { verseKey, lang, translationLang });
-        return cached;
+        return { data: cached, source: "cache" };
       }
       logDiagnostic("quran.ayah.failed", error, { verseKey, lang, translationLang });
       throw error;
     }
   });
+}
+
+export async function getQuranAyah(verseKey: string, localeTag?: string): Promise<QuranAyah> {
+  const result = await getQuranAyahWithSource(verseKey, localeTag);
+  return result.data;
 }
 
 export async function getQuranSurahAudio(

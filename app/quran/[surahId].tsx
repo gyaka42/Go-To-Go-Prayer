@@ -12,7 +12,7 @@ import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
-import { getQuranSurahAudio, getQuranSurahDetail } from "@/services/quran";
+import { getQuranSurahAudio, getQuranSurahDetailWithSource, QuranDataSource } from "@/services/quran";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { QuranAudioInfo, SurahMeta, VerseRow } from "@/types/quran";
 
@@ -59,6 +59,7 @@ export default function QuranSurahDetailScreen() {
   const [audioInfo, setAudioInfo] = useState<QuranAudioInfo>({ available: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dataSource, setDataSource] = useState<QuranDataSource | null>(null);
   const [audioBusy, setAudioBusy] = useState(false);
   const [audioPressed, setAudioPressed] = useState(false);
   const [audioState, setAudioState] = useState<AudioUiState>("ready");
@@ -118,15 +119,17 @@ export default function QuranSurahDetailScreen() {
     setError(null);
     try {
       const [detail, audio] = await Promise.all([
-        getQuranSurahDetail(surahId, localeTag),
+        getQuranSurahDetailWithSource(surahId, localeTag),
         getQuranSurahAudio(surahId, undefined, localeTag)
       ]);
+      const quranDetail = detail.data;
       const filteredVerses =
         fromAyah && toAyah && fromAyah <= toAyah
-          ? detail.verses.filter((row) => row.numberInSurah >= fromAyah && row.numberInSurah <= toAyah)
-          : detail.verses;
-      setSurah(detail.surah);
-      setVerses(filteredVerses.length > 0 ? filteredVerses : detail.verses);
+          ? quranDetail.verses.filter((row) => row.numberInSurah >= fromAyah && row.numberInSurah <= toAyah)
+          : quranDetail.verses;
+      setSurah(quranDetail.surah);
+      setVerses(filteredVerses.length > 0 ? filteredVerses : quranDetail.verses);
+      setDataSource(detail.source);
       setAudioInfo(audio);
       setAudioState("ready");
     } catch (err) {
@@ -287,6 +290,14 @@ export default function QuranSurahDetailScreen() {
           </EaseView>
         ) : null}
 
+        <View style={styles.statusWrap}>
+          <StatusChip
+            visible={!loading && !error && Boolean(dataSource)}
+            label={dataSource === "cache" ? t("quran.status_cache") : t("quran.status_network")}
+            tone={dataSource === "cache" ? "warning" : "success"}
+          />
+        </View>
+
         {audioInfo.available ? (
           <EaseView
             initialAnimate={easeInitialLift}
@@ -428,6 +439,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     alignItems: "center",
     gap: 6
+  },
+  statusWrap: {
+    minHeight: 30,
+    marginBottom: 8,
+    alignItems: "center"
   },
   audioButtonText: {
     color: "#FFFFFF",

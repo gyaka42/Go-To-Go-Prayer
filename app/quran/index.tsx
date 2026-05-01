@@ -8,13 +8,14 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeStaggerTransition, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
 import { useMotionTransition, useReducedMotion } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
-import { getQuranSurahs } from "@/services/quran";
+import { getQuranSurahsWithSource, QuranDataSource } from "@/services/quran";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { SurahSummary } from "@/types/quran";
 
-let quranListCache: { localeTag: string; rows: SurahSummary[] } | null = null;
+let quranListCache: { localeTag: string; rows: SurahSummary[]; source: QuranDataSource } | null = null;
 let quranListScrollOffset = 0;
 let quranListQuery = "";
 let quranListStaggerDone = false;
@@ -46,8 +47,10 @@ export default function QuranScreen() {
   });
 
   const cachedRows = quranListCache?.localeTag === localeTag ? quranListCache.rows : null;
+  const cachedSource = quranListCache?.localeTag === localeTag ? quranListCache.source : null;
 
   const [rows, setRows] = useState<SurahSummary[]>(cachedRows || []);
+  const [dataSource, setDataSource] = useState<QuranDataSource | null>(cachedSource);
   const [loading, setLoading] = useState(!cachedRows);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState(quranListQuery);
@@ -62,9 +65,10 @@ export default function QuranScreen() {
     }
     setError(null);
     try {
-      const data = await getQuranSurahs(localeTag);
-      setRows(data);
-      quranListCache = { localeTag, rows: data };
+      const result = await getQuranSurahsWithSource(localeTag);
+      setRows(result.data);
+      setDataSource(result.source);
+      quranListCache = { localeTag, rows: result.data, source: result.source };
     } catch (err) {
       logDiagnostic("screen.quran.index.load", err, { localeTag });
       setError(t(quranErrorTranslationKey(err)));
@@ -79,6 +83,7 @@ export default function QuranScreen() {
     const hasCache = quranListCache?.localeTag === localeTag && quranListCache.rows.length > 0;
     if (hasCache) {
       setRows(quranListCache?.rows || []);
+      setDataSource(quranListCache?.source || "cache");
       setLoading(false);
       return;
     }
@@ -162,6 +167,14 @@ export default function QuranScreen() {
         <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={easeEnterTransition}>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("quran.subtitle")}</Text>
         </EaseView>
+
+        <View style={styles.statusWrap}>
+          <StatusChip
+            visible={!loading && !error && Boolean(dataSource)}
+            label={dataSource === "cache" ? t("quran.status_cache") : t("quran.status_network")}
+            tone={dataSource === "cache" ? "warning" : "success"}
+          />
+        </View>
 
         <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={easeEnterTransition}>
           <View style={[styles.searchWrap, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
@@ -313,6 +326,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8
+  },
+  statusWrap: {
+    minHeight: 30,
+    marginBottom: 8,
+    alignItems: "flex-start"
   },
   searchInput: {
     flex: 1,

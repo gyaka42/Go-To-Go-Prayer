@@ -7,7 +7,8 @@
     "start": "expo start",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
-    "android": "expo run:android"
+    "android": "expo run:android",
+    "release:check": "node scripts/release-check.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

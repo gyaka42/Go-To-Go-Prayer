@@ -13,7 +13,7 @@ import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getAsirItem } from "@/services/namazContent";
-import { getQuranAyah, getQuranSurahDetail } from "@/services/quran";
+import { getQuranAyahWithSource, getQuranSurahDetailWithSource, QuranDataSource } from "@/services/quran";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { SurahMeta, VerseRow } from "@/types/quran";
 
@@ -45,6 +45,7 @@ export default function NamazAsirDetailScreen() {
   const [currentAudioIndex, setCurrentAudioIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dataSource, setDataSource] = useState<QuranDataSource | null>(null);
   const [audioBusy, setAudioBusy] = useState(false);
   const [audioPressed, setAudioPressed] = useState(false);
   const [audioState, setAudioState] = useState<AudioUiState>("ready");
@@ -116,7 +117,9 @@ export default function NamazAsirDetailScreen() {
     setLoading(true);
     setError(null);
     try {
-      const detail = await getQuranSurahDetail(asir.surahId, localeTag);
+      const detailResult = await getQuranSurahDetailWithSource(asir.surahId, localeTag);
+      const detail = detailResult.data;
+      let nextDataSource = detailResult.source;
       const directRange = detail.verses.filter(
         (row) => row.numberInSurah >= asir.fromAyah && row.numberInSurah <= asir.toAyah
       );
@@ -126,22 +129,26 @@ export default function NamazAsirDetailScreen() {
         const count = asir.toAyah - asir.fromAyah + 1;
         const fallbackAyahs = await Promise.all(
           Array.from({ length: count }).map((_, idx) =>
-            getQuranAyah(`${asir.surahId}:${asir.fromAyah + idx}`, localeTag).catch(() => null)
+            getQuranAyahWithSource(`${asir.surahId}:${asir.fromAyah + idx}`, localeTag).catch(() => null)
           )
         );
+        if (fallbackAyahs.some((item) => item?.source === "cache")) {
+          nextDataSource = "cache";
+        }
         filtered = fallbackAyahs
           .filter((item): item is NonNullable<typeof item> => Boolean(item))
           .map((item) => ({
-            key: item.key,
-            numberInSurah: item.numberInSurah,
-            arabic: item.arabic,
-            translation: item.translation
+            key: item.data.key,
+            numberInSurah: item.data.numberInSurah,
+            arabic: item.data.arabic,
+            translation: item.data.translation
           }))
           .sort((a, b) => a.numberInSurah - b.numberInSurah);
       }
 
       setSurah(detail.surah);
       setVerses(filtered);
+      setDataSource(nextDataSource);
       setCurrentAudioIndex(0);
       void cleanupSound();
       setAudioState("ready");
@@ -317,6 +324,14 @@ export default function NamazAsirDetailScreen() {
           </EaseView>
         ) : null}
 
+        <View style={styles.statusWrap}>
+          <StatusChip
+            visible={!loading && !error && Boolean(dataSource)}
+            label={dataSource === "cache" ? t("quran.status_cache") : t("quran.status_network")}
+            tone={dataSource === "cache" ? "warning" : "success"}
+          />
+        </View>
+
         {audioUrls.length > 0 ? (
           <EaseView
             initialAnimate={easeInitialLift}
@@ -456,6 +471,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     alignItems: "center",
     gap: 6
+  },
+  statusWrap: {
+    minHeight: 30,
+    marginBottom: 8,
+    alignItems: "center"
   },
   audioButtonText: {
     color: "#FFFFFF",
