@@ -11,6 +11,7 @@ import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
+import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getAsirItem } from "@/services/namazContent";
 import { getQuranAyah, getQuranSurahDetail } from "@/services/quran";
 import { useAppTheme } from "@/theme/ThemeProvider";
@@ -151,7 +152,8 @@ export default function NamazAsirDetailScreen() {
       );
       setAudioUrls(urls);
     } catch (err) {
-      setError(String(err));
+      logDiagnostic("screen.namaz.asir.load", err, { asirId, localeTag });
+      setError(t(quranErrorTranslationKey(err)));
     } finally {
       setLoading(false);
     }
@@ -368,7 +370,7 @@ export default function NamazAsirDetailScreen() {
             transition={stateTransition}
             style={styles.centerWrap}
           >
-            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.error_load")}</Text>
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{error || t("quran.error_load")}</Text>
             <Pressable style={styles.retryButton} onPress={() => void load()}>
               <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
             </Pressable>

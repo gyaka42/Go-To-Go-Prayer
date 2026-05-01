@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { QuranAudioInfo, QuranAyah, SurahMeta, SurahSummary, VerseRow } from "@/types/quran";
+import { logDiagnostic } from "@/services/errorDiagnostics";
 import { fetchJson } from "@/services/http";
 
 const DEFAULT_DIYANET_PROXY_URL = "https://go-to-go-prayer-production.up.railway.app";
@@ -251,8 +252,10 @@ export async function getQuranSurahs(localeTag?: string): Promise<SurahSummary[]
     } catch (error) {
       const cached = await readQuranCache(cacheKey, assertSurahSummaryRows);
       if (cached && cached.length > 0) {
+        logDiagnostic("quran.surahs.cache_fallback", error, { lang, rows: cached.length });
         return cached;
       }
+      logDiagnostic("quran.surahs.failed", error, { lang });
       throw error;
     }
   });
@@ -280,8 +283,15 @@ export async function getQuranSurahDetail(surahId: number, localeTag?: string): 
     } catch (error) {
       const cached = await readQuranCache(cacheKey, assertSurahDetail);
       if (cached) {
+        logDiagnostic("quran.surah.cache_fallback", error, {
+          surahId,
+          lang,
+          translationLang,
+          verses: cached.verses.length
+        });
         return cached;
       }
+      logDiagnostic("quran.surah.failed", error, { surahId, lang, translationLang });
       throw error;
     }
   });
@@ -304,8 +314,10 @@ export async function getQuranAyah(verseKey: string, localeTag?: string): Promis
     } catch (error) {
       const cached = await readQuranCache(cacheKey, assertAyah);
       if (cached) {
+        logDiagnostic("quran.ayah.cache_fallback", error, { verseKey, lang, translationLang });
         return cached;
       }
+      logDiagnostic("quran.ayah.failed", error, { verseKey, lang, translationLang });
       throw error;
     }
   });

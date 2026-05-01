@@ -11,6 +11,7 @@ import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
+import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getQuranSurahAudio, getQuranSurahDetail } from "@/services/quran";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { QuranAudioInfo, SurahMeta, VerseRow } from "@/types/quran";
@@ -129,7 +130,8 @@ export default function QuranSurahDetailScreen() {
       setAudioInfo(audio);
       setAudioState("ready");
     } catch (err) {
-      setError(String(err));
+      logDiagnostic("screen.quran.detail.load", err, { surahId, localeTag, fromAyah, toAyah });
+      setError(t(quranErrorTranslationKey(err)));
     } finally {
       setLoading(false);
     }
@@ -337,7 +339,7 @@ export default function QuranSurahDetailScreen() {
             transition={stateTransition}
             style={styles.centerWrap}
           >
-            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.error_load")}</Text>
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{error || t("quran.error_load")}</Text>
             <Pressable style={styles.retryButton} onPress={() => void load()}>
               <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
             </Pressable>

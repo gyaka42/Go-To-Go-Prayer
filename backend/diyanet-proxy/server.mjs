@@ -120,7 +120,7 @@ async function handleRequest(req, res) {
       const items = await fetchQuranSurahs(quranConfig, lang);
       sendJson(res, 200, { items });
     } catch (error) {
-      sendJson(res, 502, { error: "Quran upstream failure", details: String(error) });
+      sendJson(res, 502, { error: "Quran upstream failure", kind: quranUpstreamErrorKind(error), details: String(error) });
     }
     return;
   }
@@ -148,7 +148,7 @@ async function handleRequest(req, res) {
       }
       sendJson(res, 200, detail);
     } catch (error) {
-      sendJson(res, 502, { error: "Quran upstream failure", details: String(error) });
+      sendJson(res, 502, { error: "Quran upstream failure", kind: quranUpstreamErrorKind(error), details: String(error) });
     }
     return;
   }
@@ -176,7 +176,7 @@ async function handleRequest(req, res) {
       }
       sendJson(res, 200, verse);
     } catch (error) {
-      sendJson(res, 502, { error: "Quran upstream failure", details: String(error) });
+      sendJson(res, 502, { error: "Quran upstream failure", kind: quranUpstreamErrorKind(error), details: String(error) });
     }
     return;
   }
@@ -1545,6 +1545,26 @@ function isValidVerseKey(value) {
 function normalizeQuranTranslation(value, lang) {
   const raw = String(value || lang || "tr").split("-")[0].trim().toLowerCase();
   return raw === "en" ? "en" : "tr";
+}
+
+function quranUpstreamErrorKind(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  if (message.includes("fetch failed") || message.includes("network")) {
+    return "network";
+  }
+  if (message.includes("abort") || message.includes("timeout")) {
+    return "timeout";
+  }
+  if (message.includes("http 401") || message.includes("http 403")) {
+    return "misconfigured";
+  }
+  if (message.includes("http 429")) {
+    return "rate_limited";
+  }
+  if (message.includes("empty") || message.includes("parseable")) {
+    return "invalid_response";
+  }
+  return "upstream_failure";
 }
 
 function normalizeSurahRows(payload) {

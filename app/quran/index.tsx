@@ -9,6 +9,7 @@ import { easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransit
 import { useMotionTransition, useReducedMotion } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
+import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getQuranSurahs } from "@/services/quran";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { SurahSummary } from "@/types/quran";
@@ -65,7 +66,8 @@ export default function QuranScreen() {
       setRows(data);
       quranListCache = { localeTag, rows: data };
     } catch (err) {
-      setError(String(err));
+      logDiagnostic("screen.quran.index.load", err, { localeTag });
+      setError(t(quranErrorTranslationKey(err)));
     } finally {
       if (withLoading) {
         setLoading(false);
@@ -193,7 +195,7 @@ export default function QuranScreen() {
             transition={easeStateTransition}
             style={styles.centerWrap}
           >
-            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{t("quran.error_load")}</Text>
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{error || t("quran.error_load")}</Text>
             <Pressable style={styles.retryButton} onPress={() => void load()}>
               <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
             </Pressable>
