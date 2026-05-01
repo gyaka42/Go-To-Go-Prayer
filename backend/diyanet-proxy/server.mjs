@@ -1816,7 +1816,7 @@ function normalizeTranslationContract(detail, translation) {
     ...detail,
     verses: detail.verses.map((row) => {
       const selected = String(row.translation || row.translationTr || "").trim();
-      const turkish = translation === "tr" ? String(row.translationTr || selected).trim() : "";
+      const turkish = String(row.translationTr || (translation === "tr" ? selected : "")).trim();
       return {
         ...row,
         translation: selected,
@@ -1906,6 +1906,25 @@ async function fetchQuranTurkishFallbackMapFromAlQuranCloud(surahId) {
   return new Map(
     fallback.verses.map((row) => [row.numberInSurah, String(row.translationTr || row.translation || "").trim()])
   );
+}
+
+async function enrichQuranTurkishTranslations(detail, surahId, translation) {
+  if (translation !== "en" || !detail || !Array.isArray(detail.verses)) {
+    return detail;
+  }
+
+  const turkishTranslations = await fetchQuranTurkishFallbackMapFromAlQuranCloud(surahId);
+  if (turkishTranslations.size === 0) {
+    return detail;
+  }
+
+  return {
+    ...detail,
+    verses: detail.verses.map((row) => ({
+      ...row,
+      translationTr: turkishTranslations.get(row.numberInSurah) || String(row.translationTr || "").trim()
+    }))
+  };
 }
 
 async function fetchQuranAyahFallbackFromAlQuranCloud(parsed, translation = "tr") {
@@ -2058,7 +2077,8 @@ async function fetchQuranSurahDetail(config, surahId, lang, translation = "tr") 
             ayahCount: fromList.ayahCount > 0 ? fromList.ayahCount : fallback.surah.ayahCount
           };
         }
-        return normalizeTranslationContract(fallback, translation);
+        const enrichedFallback = await enrichQuranTurkishTranslations(fallback, surahId, translation);
+        return normalizeTranslationContract(enrichedFallback, translation);
       }
     }
     const translated = await applyQuranTranslationFallback(best, surahId, translation);
@@ -2075,7 +2095,8 @@ async function fetchQuranSurahDetail(config, surahId, lang, translation = "tr") 
         ayahCount: fromList.ayahCount > 0 ? fromList.ayahCount : fallback.surah.ayahCount
       };
     }
-    return normalizeTranslationContract(fallback, translation);
+    const enrichedFallback = await enrichQuranTurkishTranslations(fallback, surahId, translation);
+    return normalizeTranslationContract(enrichedFallback, translation);
   }
 
   throw new Error("Surah not found");
@@ -2118,7 +2139,10 @@ async function fetchQuranAyah(config, verseKey, lang, translation = "tr") {
       numberInSurah: hit.numberInSurah,
       arabic: hit.arabic,
       translation: hit.translation || hit.translationTr,
-      translationTr: translation === "tr" ? hit.translationTr : ""
+      translationTr:
+        translation === "tr"
+          ? hit.translationTr
+          : String(hit.translationTr || (await fetchQuranTurkishAyahFallbackFromAlQuranCloud(parsed))).trim()
     };
   }
 
@@ -2132,7 +2156,7 @@ async function fetchQuranAyah(config, verseKey, lang, translation = "tr") {
         numberInSurah: hit.numberInSurah,
         arabic: hit.arabic,
         translation: hit.translation || hit.translationTr,
-        translationTr: translation === "tr" ? hit.translationTr : ""
+        translationTr: String(hit.translationTr || (translation === "tr" ? hit.translation || "" : "")).trim()
       };
     }
   } catch {
