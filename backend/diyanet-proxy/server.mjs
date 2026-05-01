@@ -10,7 +10,7 @@ const QURAN_AUDIO_FALLBACK_BITRATE = Number(process.env.QURAN_AUDIO_FALLBACK_BIT
 const PORT = Number(process.env.PORT || 3000);
 const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 * 60 * 1000);
 const QURAN_CACHE_TTL_MS = Number(process.env.QURAN_CACHE_TTL_MS || 24 * 60 * 60 * 1000);
-const QURAN_CACHE_SCHEMA_VERSION = "v3";
+const QURAN_CACHE_SCHEMA_VERSION = "v4";
 const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 8000);
 
 let tokenState = null; // { token: string, expMs: number }
@@ -1788,7 +1788,7 @@ function buildSurahAudioFallback(surahId, reciterOverride) {
 
 const ALQURAN_CLOUD_BASE = "https://api.alquran.cloud/v1";
 const ALQURAN_TRANSLATION_EDITIONS = {
-  tr: ["tr.ozturk", "tr.golpinarli", "tr.yazir", "tr.diyanet"],
+  tr: ["tr.diyanet", "tr.yazir", "tr.golpinarli", "tr.ozturk"],
   en: ["en.asad", "en.sahih", "en.pickthall"]
 };
 const QURAN_DETAIL_CANDIDATES = [
