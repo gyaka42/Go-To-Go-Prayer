@@ -29,6 +29,22 @@ const countryAliases = {
   US: ["usa", "unitedstates", "amerika"]
 };
 
+function countFreshCacheRows(cache) {
+  const now = Date.now();
+  let fresh = 0;
+  let expired = 0;
+
+  for (const value of cache.values()) {
+    if (value?.expMs && value.expMs > now) {
+      fresh += 1;
+    } else {
+      expired += 1;
+    }
+  }
+
+  return { fresh, expired, total: fresh + expired };
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     await handleRequest(req, res);
@@ -72,7 +88,23 @@ async function handleRequest(req, res) {
       ok: true,
       service: "diyanet-proxy",
       at: new Date().toISOString(),
-      quranApiConfigured: Boolean(process.env.DIYANET_QURAN_API_KEY?.trim())
+      upstreamTimeoutMs: UPSTREAM_TIMEOUT_MS,
+      timingsCacheTtlMs: TIMINGS_CACHE_TTL_MS,
+      quranCacheTtlMs: QURAN_CACHE_TTL_MS,
+      diyanetAuthConfigured: Boolean(process.env.DIYANET_USERNAME?.trim() && process.env.DIYANET_PASSWORD?.trim()),
+      quranApiConfigured: Boolean(process.env.DIYANET_QURAN_API_KEY?.trim()),
+      quranApiBaseUrl: String(process.env.DIYANET_QURAN_API_BASE_URL || DIYANET_QURAN_DEFAULT_BASE).replace(/\/+$/, ""),
+      quranAudioFallbackEnabled: QURAN_AUDIO_FALLBACK_ENABLED,
+      quranAudioFallbackReciter: QURAN_AUDIO_FALLBACK_RECITER,
+      quranAudioFallbackBitrate: QURAN_AUDIO_FALLBACK_BITRATE,
+      cache: {
+        timings: countFreshCacheRows(timingsCache),
+        quran: countFreshCacheRows(quranCache),
+        countries: countriesCache.size,
+        states: statesCache.size,
+        districts: districtsCache.size,
+        citiesLoaded: Boolean(citiesState?.items?.length)
+      }
     });
     return;
   }

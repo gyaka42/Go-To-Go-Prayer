@@ -28,8 +28,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.gogo22.gotogoprayer",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Je locatie wordt gebruikt om nauwkeurige gebedstijden te berekenen.",
-        "NSUserNotificationsUsageDescription": "Meldingen worden gebruikt om je op gebedstijden te attenderen.",
+        "NSLocationWhenInUseUsageDescription": "Your location is used to calculate accurate prayer times, Qibla direction, and nearby mosques.",
+        "NSUserNotificationsUsageDescription": "Notifications are used to remind you of prayer times.",
         "LSApplicationQueriesSchemes": ["comgooglemaps"],
         "ITSAppUsesNonExemptEncryption": false
       }
