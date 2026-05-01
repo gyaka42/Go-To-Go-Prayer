@@ -1,10 +1,17 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { QuranAudioInfo, QuranAyah, SurahMeta, SurahSummary, VerseRow } from "@/types/quran";
 import { fetchJson } from "@/services/http";
 
 const DEFAULT_DIYANET_PROXY_URL = "https://go-to-go-prayer-production.up.railway.app";
 const UNSUPPORTED_QURAN_MARKS_REGEX = /[\u0610-\u061A\u06D6-\u06ED\u08D0-\u08FF\u{10EFD}-\u{10EFF}]/gu;
+const QURAN_CACHE_PREFIX = "quran:cache:v1";
 
 const inFlight = new Map<string, Promise<unknown>>();
+
+type CacheEnvelope<T> = {
+  savedAt: string;
+  value: T;
+};
 
 function normalizeProxyBaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, "");
@@ -92,6 +99,38 @@ async function requestWithRetry<T>(
     return await run;
   } finally {
     inFlight.delete(key);
+  }
+}
+
+function cacheKeyFor(parts: string[]): string {
+  return `${QURAN_CACHE_PREFIX}:${parts.map((part) => encodeURIComponent(part)).join(":")}`;
+}
+
+async function readQuranCache<T>(key: string, validator: (value: unknown) => T): Promise<T | null> {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<CacheEnvelope<unknown>>;
+    if (!parsed || typeof parsed !== "object" || !("value" in parsed)) {
+      return null;
+    }
+    return validator(parsed.value);
+  } catch {
+    return null;
+  }
+}
+
+async function saveQuranCache<T>(key: string, value: T): Promise<void> {
+  try {
+    const envelope: CacheEnvelope<T> = {
+      savedAt: new Date().toISOString(),
+      value
+    };
+    await AsyncStorage.setItem(key, JSON.stringify(envelope));
+  } catch {
+    // Cache is best-effort; Quran should still work if local storage is unavailable.
   }
 }
 
@@ -201,10 +240,21 @@ export async function getQuranSurahs(localeTag?: string): Promise<SurahSummary[]
   const baseUrl = getProxyBaseUrl();
   const url = `${baseUrl}/quran/surahs?lang=${encodeURIComponent(lang)}`;
   const key = `surahs:${lang}`;
+  const cacheKey = cacheKeyFor(["surahs", lang]);
 
   return requestWithRetry(key, async () => {
-    const payload = await fetchJson(url, { method: "GET", timeoutMs: 9000, retries: 1 });
-    return assertSurahSummaryRows(payload);
+    try {
+      const payload = await fetchJson(url, { method: "GET", timeoutMs: 9000, retries: 1 });
+      const rows = assertSurahSummaryRows(payload);
+      await saveQuranCache(cacheKey, { items: rows });
+      return rows;
+    } catch (error) {
+      const cached = await readQuranCache(cacheKey, assertSurahSummaryRows);
+      if (cached && cached.length > 0) {
+        return cached;
+      }
+      throw error;
+    }
   });
 }
 
@@ -214,16 +264,26 @@ export async function getQuranSurahDetail(surahId: number, localeTag?: string): 
   const baseUrl = getProxyBaseUrl();
   const url = `${baseUrl}/quran/surahs/${surahId}?lang=${encodeURIComponent(lang)}&translation=${encodeURIComponent(translationLang)}`;
   const key = `surah:${surahId}:${lang}:${translationLang}`;
+  const cacheKey = cacheKeyFor(["surah", String(surahId), lang, translationLang]);
 
   return requestWithRetry(key, async () => {
-    const payload = await fetchJson(url, { method: "GET", timeoutMs: 10000, retries: 1 });
-    const detail = assertSurahDetail(payload);
+    try {
+      const payload = await fetchJson(url, { method: "GET", timeoutMs: 10000, retries: 1 });
+      const detail = assertSurahDetail(payload);
 
-    if (translationLang === "en" || !hasRepeatedTranslation(detail)) {
-      return detail;
+      if (translationLang === "en" || !hasRepeatedTranslation(detail)) {
+        await saveQuranCache(cacheKey, detail);
+        return detail;
+      }
+
+      throw new Error("Quran translation response is repeated and could not be repaired by proxy.");
+    } catch (error) {
+      const cached = await readQuranCache(cacheKey, assertSurahDetail);
+      if (cached) {
+        return cached;
+      }
+      throw error;
     }
-
-    throw new Error("Quran translation response is repeated and could not be repaired by proxy.");
   });
 }
 
@@ -233,10 +293,21 @@ export async function getQuranAyah(verseKey: string, localeTag?: string): Promis
   const baseUrl = getProxyBaseUrl();
   const url = `${baseUrl}/quran/ayah/${encodeURIComponent(verseKey)}?lang=${encodeURIComponent(lang)}&translation=${encodeURIComponent(translationLang)}`;
   const key = `ayah:${verseKey}:${lang}:${translationLang}`;
+  const cacheKey = cacheKeyFor(["ayah", verseKey, lang, translationLang]);
 
   return requestWithRetry(key, async () => {
-    const payload = await fetchJson(url, { method: "GET", timeoutMs: 9000, retries: 1 });
-    return assertAyah(payload);
+    try {
+      const payload = await fetchJson(url, { method: "GET", timeoutMs: 9000, retries: 1 });
+      const ayah = assertAyah(payload);
+      await saveQuranCache(cacheKey, ayah);
+      return ayah;
+    } catch (error) {
+      const cached = await readQuranCache(cacheKey, assertAyah);
+      if (cached) {
+        return cached;
+      }
+      throw error;
+    }
   });
 }
 
