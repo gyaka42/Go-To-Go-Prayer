@@ -1,3 +1,5 @@
+import { fetchJson } from "@/services/http";
+
 export interface DiyanetCountryOption {
   id: number;
   name: string;
@@ -30,23 +32,12 @@ function getProxyBaseUrl(): string {
   return raw.replace(/\/+$/, "");
 }
 
-async function safeJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
 export async function fetchDiyanetCountries(locale?: string): Promise<DiyanetCountryOption[]> {
   const lang = (locale || "en").split("-")[0].toLowerCase();
-  const response = await fetch(`${getProxyBaseUrl()}/locations/countries?lang=${encodeURIComponent(lang)}`, {
-    headers: { Accept: "application/json" }
-  });
-  const payload = (await safeJson(response)) as { items?: unknown; error?: unknown } | null;
-  if (!response.ok) {
-    throw new Error(typeof payload?.error === "string" ? payload.error : `Countries request failed (${response.status})`);
-  }
+  const payload = await fetchJson<{ items?: unknown }>(
+    `${getProxyBaseUrl()}/locations/countries?lang=${encodeURIComponent(lang)}`,
+    { timeoutMs: 9000, retries: 1 }
+  );
 
   const rows = Array.isArray(payload?.items) ? payload.items : [];
   return rows
@@ -63,16 +54,10 @@ export async function fetchDiyanetCountries(locale?: string): Promise<DiyanetCou
 
 export async function fetchDiyanetStates(countryId: number, locale?: string): Promise<DiyanetStateOption[]> {
   const lang = (locale || "en").split("-")[0].toLowerCase();
-  const response = await fetch(
+  const payload = await fetchJson<{ items?: unknown }>(
     `${getProxyBaseUrl()}/locations/states?countryId=${countryId}&lang=${encodeURIComponent(lang)}`,
-    {
-      headers: { Accept: "application/json" }
-    }
+    { timeoutMs: 9000, retries: 1 }
   );
-  const payload = (await safeJson(response)) as { items?: unknown; error?: unknown } | null;
-  if (!response.ok) {
-    throw new Error(typeof payload?.error === "string" ? payload.error : `States request failed (${response.status})`);
-  }
 
   const rows = Array.isArray(payload?.items) ? payload.items : [];
   return rows
@@ -89,16 +74,10 @@ export async function fetchDiyanetStates(countryId: number, locale?: string): Pr
 
 export async function fetchDiyanetDistricts(stateId: number, locale?: string): Promise<DiyanetDistrictOption[]> {
   const lang = (locale || "en").split("-")[0].toLowerCase();
-  const response = await fetch(
+  const payload = await fetchJson<{ items?: unknown }>(
     `${getProxyBaseUrl()}/locations/districts?stateId=${stateId}&lang=${encodeURIComponent(lang)}`,
-    {
-      headers: { Accept: "application/json" }
-    }
+    { timeoutMs: 9000, retries: 1 }
   );
-  const payload = (await safeJson(response)) as { items?: unknown; error?: unknown } | null;
-  if (!response.ok) {
-    throw new Error(typeof payload?.error === "string" ? payload.error : `Districts request failed (${response.status})`);
-  }
 
   const rows = Array.isArray(payload?.items) ? payload.items : [];
   return rows
@@ -142,9 +121,10 @@ export async function resolveDiyanetDistrictCoordinates(params: {
   }
   url.searchParams.set("lang", lang);
 
-  const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
-  const payload = (await safeJson(response)) as { lat?: unknown; lon?: unknown; error?: unknown } | null;
-  if (!response.ok) {
+  let payload: { lat?: unknown; lon?: unknown } | null = null;
+  try {
+    payload = await fetchJson<{ lat?: unknown; lon?: unknown }>(url.toString(), { timeoutMs: 9000, retries: 1 });
+  } catch {
     return null;
   }
 

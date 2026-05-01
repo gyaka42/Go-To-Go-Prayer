@@ -128,6 +128,7 @@ async function handleRequest(req, res) {
   const surahMatch = url.pathname.match(/^\/quran\/surahs\/(\d+)$/);
   if (req.method === "GET" && surahMatch) {
     const surahId = Number(surahMatch[1]);
+    const translation = normalizeQuranTranslation(url.searchParams.get("translation"), lang);
     if (!Number.isFinite(surahId) || surahId <= 0) {
       sendJson(res, 400, { error: "Invalid surahId" });
       return;
@@ -140,7 +141,7 @@ async function handleRequest(req, res) {
     }
 
     try {
-      const detail = await fetchQuranSurahDetail(quranConfig, surahId, lang);
+      const detail = await fetchQuranSurahDetail(quranConfig, surahId, lang, translation);
       if (!detail || !Array.isArray(detail.verses) || detail.verses.length === 0) {
         sendJson(res, 404, { error: "Surah not found" });
         return;
@@ -155,6 +156,7 @@ async function handleRequest(req, res) {
   const ayahMatch = url.pathname.match(/^\/quran\/ayah\/([^/]+)$/);
   if (req.method === "GET" && ayahMatch) {
     const verseKey = decodeURIComponent(ayahMatch[1] || "").trim();
+    const translation = normalizeQuranTranslation(url.searchParams.get("translation"), lang);
     if (!isValidVerseKey(verseKey)) {
       sendJson(res, 400, { error: "Invalid verseKey. Expected format like 2:255." });
       return;
@@ -167,7 +169,7 @@ async function handleRequest(req, res) {
     }
 
     try {
-      const verse = await fetchQuranAyah(quranConfig, verseKey, lang);
+      const verse = await fetchQuranAyah(quranConfig, verseKey, lang, translation);
       if (!verse) {
         sendJson(res, 404, { error: "Ayah not found" });
         return;
@@ -1540,6 +1542,11 @@ function isValidVerseKey(value) {
   return Boolean(parseVerseKey(value));
 }
 
+function normalizeQuranTranslation(value, lang) {
+  const raw = String(value || lang || "tr").split("-")[0].trim().toLowerCase();
+  return raw === "en" ? "en" : "tr";
+}
+
 function normalizeSurahRows(payload) {
   const rows = collectObjects(payload);
   const map = new Map();
@@ -1658,6 +1665,7 @@ function normalizeVerseRows(payload, fallbackSurahId = null) {
         key,
         numberInSurah,
         arabic,
+        translation: translationTr,
         translationTr
       });
     }
@@ -1759,7 +1767,10 @@ function buildSurahAudioFallback(surahId, reciterOverride) {
 }
 
 const ALQURAN_CLOUD_BASE = "https://api.alquran.cloud/v1";
-const ALQURAN_TURKISH_EDITIONS = ["tr.ozturk", "tr.golpinarli", "tr.yazir", "tr.diyanet"];
+const ALQURAN_TRANSLATION_EDITIONS = {
+  tr: ["tr.ozturk", "tr.golpinarli", "tr.yazir", "tr.diyanet"],
+  en: ["en.asad", "en.sahih", "en.pickthall"]
+};
 
 async function fetchAlQuranCloudData(path) {
   try {
@@ -1800,7 +1811,7 @@ function hasSingleRepeatedTranslation(verses) {
   return new Set(values).size === 1;
 }
 
-async function fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId) {
+async function fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId, translation = "tr") {
   const arabicData = await fetchAlQuranCloudData(`/surah/${surahId}/quran-uthmani`);
   const arabicRows = Array.isArray(arabicData?.ayahs) ? arabicData.ayahs : [];
   if (arabicRows.length === 0) {
@@ -1815,12 +1826,13 @@ async function fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId) {
     arabicByNumber.set(numberInSurah, text);
   }
 
-  let trByNumber = new Map();
-  for (const edition of ALQURAN_TURKISH_EDITIONS) {
-    const trData = await fetchAlQuranCloudData(`/surah/${surahId}/${edition}`);
-    const trRows = Array.isArray(trData?.ayahs) ? trData.ayahs : [];
+  let translationByNumber = new Map();
+  const editions = ALQURAN_TRANSLATION_EDITIONS[translation] || ALQURAN_TRANSLATION_EDITIONS.tr;
+  for (const edition of editions) {
+    const translationData = await fetchAlQuranCloudData(`/surah/${surahId}/${edition}`);
+    const translationRows = Array.isArray(translationData?.ayahs) ? translationData.ayahs : [];
     const map = new Map();
-    for (const row of trRows) {
+    for (const row of translationRows) {
       const numberInSurah = toPositiveNumber(row?.numberInSurah);
       const text = String(row?.text || "").trim();
       if (!numberInSurah || !text) continue;
@@ -1831,25 +1843,26 @@ async function fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId) {
     }
     const uniq = new Set(Array.from(map.values()).map((value) => normalizeTranslationForComparison(value)));
     if (uniq.size > 1 || map.size === 1) {
-      trByNumber = map;
+      translationByNumber = map;
       break;
     }
   }
-  if (trByNumber.size === 0) {
+  if (translationByNumber.size === 0) {
     return null;
   }
 
-  const upper = Math.max(arabicByNumber.size, trByNumber.size);
+  const upper = Math.max(arabicByNumber.size, translationByNumber.size);
   const verses = [];
   for (let n = 1; n <= upper; n += 1) {
     const arabic = arabicByNumber.get(n) || "";
-    const translationTr = trByNumber.get(n) || "";
+    const translationText = translationByNumber.get(n) || "";
     if (!arabic) continue;
     verses.push({
       key: `${surahId}:${n}`,
       numberInSurah: n,
       arabic,
-      translationTr
+      translation: translationText,
+      translationTr: translationText
     });
   }
 
@@ -1870,18 +1883,20 @@ async function fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId) {
   };
 }
 
-async function fetchQuranAyahFallbackFromAlQuranCloud(parsed) {
+async function fetchQuranAyahFallbackFromAlQuranCloud(parsed, translation = "tr") {
   const arabicData = await fetchAlQuranCloudData(`/ayah/${parsed.surahId}:${parsed.ayahNumber}/quran-uthmani`);
-  let trData = null;
-  for (const edition of ALQURAN_TURKISH_EDITIONS) {
-    trData = await fetchAlQuranCloudData(`/ayah/${parsed.surahId}:${parsed.ayahNumber}/${edition}`);
-    if (String(trData?.text || "").trim().length > 0) {
+  let translationData = null;
+  const editions = ALQURAN_TRANSLATION_EDITIONS[translation] || ALQURAN_TRANSLATION_EDITIONS.tr;
+  for (const edition of editions) {
+    translationData = await fetchAlQuranCloudData(`/ayah/${parsed.surahId}:${parsed.ayahNumber}/${edition}`);
+    if (String(translationData?.text || "").trim().length > 0) {
       break;
     }
   }
   const arabic = String(arabicData?.text || "").trim();
-  const translationTr = String(trData?.text || "").trim();
-  const numberInSurah = toPositiveNumber(arabicData?.numberInSurah) || toPositiveNumber(trData?.numberInSurah) || parsed.ayahNumber;
+  const translationText = String(translationData?.text || "").trim();
+  const numberInSurah =
+    toPositiveNumber(arabicData?.numberInSurah) || toPositiveNumber(translationData?.numberInSurah) || parsed.ayahNumber;
   if (!arabic || !numberInSurah) {
     return null;
   }
@@ -1890,7 +1905,37 @@ async function fetchQuranAyahFallbackFromAlQuranCloud(parsed) {
     surahId: parsed.surahId,
     numberInSurah,
     arabic,
-    translationTr
+    translation: translationText,
+    translationTr: translationText
+  };
+}
+
+async function applyQuranTranslationFallback(detail, surahId, translation) {
+  if (translation !== "en") {
+    return detail;
+  }
+
+  const translated = await fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId, translation);
+  if (!translated || !Array.isArray(translated.verses) || translated.verses.length === 0) {
+    return detail;
+  }
+
+  const translations = new Map(
+    translated.verses.map((row) => [row.numberInSurah, String(row.translation || row.translationTr || "").trim()])
+  );
+  return {
+    ...detail,
+    verses: detail.verses.map((row) => {
+      const translationText = translations.get(row.numberInSurah);
+      if (!translationText) {
+        return row;
+      }
+      return {
+        ...row,
+        translation: translationText,
+        translationTr: translationText
+      };
+    })
   };
 }
 
@@ -1907,7 +1952,7 @@ async function fetchQuranSurahs(config, lang) {
   return items;
 }
 
-async function fetchQuranSurahDetail(config, surahId, lang) {
+async function fetchQuranSurahDetail(config, surahId, lang, translation = "tr") {
   const candidates = [
     `/api/verses/by-surah/${surahId}`,
     `/api/v1/chapters/${surahId}`,
@@ -1932,7 +1977,7 @@ async function fetchQuranSurahDetail(config, surahId, lang) {
   for (const candidate of candidates) {
     let payload = null;
     try {
-      payload = await fetchQuranCandidateJson(config, [candidate], { lang, translation: "tr" });
+      payload = await fetchQuranCandidateJson(config, [candidate], { lang, translation });
     } catch {
       continue;
     }
@@ -1961,7 +2006,7 @@ async function fetchQuranSurahDetail(config, surahId, lang) {
     }
 
     if (expectedAyahCount > 0 && current.verses.length >= expectedAyahCount) {
-      return current;
+      return applyQuranTranslationFallback(current, surahId, translation);
     }
   }
 
@@ -1969,7 +2014,7 @@ async function fetchQuranSurahDetail(config, surahId, lang) {
     const isIncomplete = expectedAyahCount > 0 && best.verses.length < expectedAyahCount;
     const hasSuspiciousRepeatedTr = hasSingleRepeatedTranslation(best.verses);
     if (isIncomplete || hasSuspiciousRepeatedTr) {
-      const fallback = await fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId);
+      const fallback = await fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId, translation);
       if (fallback && fallback.verses.length > 0) {
         if (fromList) {
           fallback.surah = {
@@ -1982,10 +2027,10 @@ async function fetchQuranSurahDetail(config, surahId, lang) {
         return fallback;
       }
     }
-    return best;
+    return applyQuranTranslationFallback(best, surahId, translation);
   }
 
-  const fallback = await fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId);
+  const fallback = await fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId, translation);
   if (fallback && fallback.verses.length > 0) {
     if (fromList) {
       fallback.surah = {
@@ -2001,7 +2046,7 @@ async function fetchQuranSurahDetail(config, surahId, lang) {
   throw new Error("Surah not found");
 }
 
-async function fetchQuranAyah(config, verseKey, lang) {
+async function fetchQuranAyah(config, verseKey, lang, translation = "tr") {
   const parsed = parseVerseKey(verseKey);
   if (!parsed) {
     return null;
@@ -2020,7 +2065,7 @@ async function fetchQuranAyah(config, verseKey, lang) {
   for (const candidate of candidates) {
     let payload = null;
     try {
-      payload = await fetchQuranCandidateJson(config, [candidate], { lang, translation: "tr" });
+      payload = await fetchQuranCandidateJson(config, [candidate], { lang, translation });
     } catch {
       continue;
     }
@@ -2037,12 +2082,13 @@ async function fetchQuranAyah(config, verseKey, lang) {
       surahId: parsed.surahId,
       numberInSurah: hit.numberInSurah,
       arabic: hit.arabic,
+      translation: hit.translationTr,
       translationTr: hit.translationTr
     };
   }
 
   try {
-    const detail = await fetchQuranSurahDetail(config, parsed.surahId, lang);
+    const detail = await fetchQuranSurahDetail(config, parsed.surahId, lang, translation);
     const hit = detail.verses.find((row) => row.numberInSurah === parsed.ayahNumber) || null;
     if (hit) {
       return {
@@ -2050,6 +2096,7 @@ async function fetchQuranAyah(config, verseKey, lang) {
         surahId: parsed.surahId,
         numberInSurah: hit.numberInSurah,
         arabic: hit.arabic,
+        translation: hit.translation || hit.translationTr,
         translationTr: hit.translationTr
       };
     }
@@ -2057,7 +2104,7 @@ async function fetchQuranAyah(config, verseKey, lang) {
     // Ignore fallback errors.
   }
 
-  const fallback = await fetchQuranAyahFallbackFromAlQuranCloud(parsed);
+  const fallback = await fetchQuranAyahFallbackFromAlQuranCloud(parsed, translation);
   if (fallback) {
     return fallback;
   }

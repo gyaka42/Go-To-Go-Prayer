@@ -1,12 +1,8 @@
 import { PrayerName, Timings } from "@/types/prayer";
+import { fetchJson } from "@/services/http";
 
 const BASE_URL = "https://api.aladhan.com/v1";
 const REQUIRED_PRAYERS: PrayerName[] = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
-const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function toDateKey(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
@@ -48,29 +44,7 @@ export async function getTimingsByCoordinates(
   }
 
   const url = `${BASE_URL}/timings/${dateKey}?${params.toString()}`;
-  let response: Response | null = null;
-  let lastStatus = 0;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    response = await fetch(url);
-    if (response.ok) {
-      break;
-    }
-    lastStatus = response.status;
-    if (!RETRYABLE_STATUSES.has(response.status) || attempt === 2) {
-      break;
-    }
-    await sleep(700 * (attempt + 1));
-  }
-  if (!response || !response.ok) {
-    throw new Error(`Aladhan API error: ${lastStatus || response?.status || "unknown"}`);
-  }
-
-  let payload: any;
-  try {
-    payload = await response.json();
-  } catch (error) {
-    throw new Error(`Invalid Aladhan JSON response: ${String(error)}`);
-  }
+  const payload = await fetchJson<any>(url, { timeoutMs: 9000, retries: 2, retryDelayMs: 700 });
 
   const timingsData = payload?.data?.timings;
   const timezone = payload?.data?.meta?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;

@@ -1,11 +1,8 @@
 import { QuranAudioInfo, QuranAyah, SurahMeta, SurahSummary, VerseRow } from "@/types/quran";
+import { fetchJson } from "@/services/http";
 
 const DEFAULT_DIYANET_PROXY_URL = "https://go-to-go-prayer-production.up.railway.app";
 const UNSUPPORTED_QURAN_MARKS_REGEX = /[\u0610-\u061A\u06D6-\u06ED\u08D0-\u08FF\u{10EFD}-\u{10EFF}]/gu;
-const ALQURAN_TRANSLATION_EDITIONS: Record<"tr" | "en", string[]> = {
-  tr: ["tr.ozturk", "tr.golpinarli", "tr.yazir", "tr.diyanet"],
-  en: ["en.asad", "en.sahih", "en.pickthall"]
-};
 
 const inFlight = new Map<string, Promise<unknown>>();
 
@@ -61,87 +58,6 @@ function hasRepeatedTranslation(detail: { verses: VerseRow[] }): boolean {
     return false;
   }
   return new Set(values).size === 1;
-}
-
-async function fetchAyahTranslationFromAlQuranCloud(
-  verseKey: string,
-  translationLang: "tr" | "en"
-): Promise<string | null> {
-  const editions = ALQURAN_TRANSLATION_EDITIONS[translationLang];
-  for (const edition of editions) {
-    try {
-      const response = await fetch(
-        `https://api.alquran.cloud/v1/ayah/${encodeURIComponent(verseKey)}/${edition}`,
-        {
-          method: "GET",
-          headers: { Accept: "application/json" }
-        }
-      );
-      if (!response.ok) {
-        continue;
-      }
-      const payload = await safeJson(response);
-      const text = String((payload as any)?.data?.text || "").trim();
-      if (text.length > 0) {
-        return text;
-      }
-    } catch {
-      // Try next edition.
-    }
-  }
-  return null;
-}
-
-async function fetchSurahTranslationsFromAlQuranCloud(
-  surahId: number,
-  translationLang: "tr" | "en"
-): Promise<Map<number, string> | null> {
-  const editions = ALQURAN_TRANSLATION_EDITIONS[translationLang];
-  for (const edition of editions) {
-    try {
-      const response = await fetch(
-        `https://api.alquran.cloud/v1/surah/${encodeURIComponent(String(surahId))}/${edition}`,
-        {
-          method: "GET",
-          headers: { Accept: "application/json" }
-        }
-      );
-      if (!response.ok) {
-        continue;
-      }
-      const payload = await safeJson(response);
-      const ayahs = Array.isArray((payload as any)?.data?.ayahs) ? (payload as any).data.ayahs : [];
-      const mapped = new Map<number, string>();
-      for (const ayah of ayahs) {
-        const numberInSurah = Number(ayah?.numberInSurah || 0);
-        const text = String(ayah?.text || "").trim();
-        if (numberInSurah > 0 && text.length > 0) {
-          mapped.set(numberInSurah, text);
-        }
-      }
-      if (mapped.size > 0) {
-        return mapped;
-      }
-    } catch {
-      // Try next edition.
-    }
-  }
-  return null;
-}
-
-async function resolveRemoteTranslation(
-  verseKey: string,
-  translationLang: "tr" | "en"
-): Promise<string | null> {
-  return fetchAyahTranslationFromAlQuranCloud(verseKey, translationLang);
-}
-
-async function safeJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
 }
 
 async function requestWithRetry<T>(
@@ -287,11 +203,7 @@ export async function getQuranSurahs(localeTag?: string): Promise<SurahSummary[]
   const key = `surahs:${lang}`;
 
   return requestWithRetry(key, async () => {
-    const response = await fetch(url, { method: "GET", headers: { Accept: "application/json" } });
-    const payload = await safeJson(response);
-    if (!response.ok) {
-      throw new Error((payload as any)?.error || `HTTP ${response.status}`);
-    }
+    const payload = await fetchJson(url, { method: "GET", timeoutMs: 9000, retries: 1 });
     return assertSurahSummaryRows(payload);
   });
 }
@@ -300,65 +212,18 @@ export async function getQuranSurahDetail(surahId: number, localeTag?: string): 
   const lang = toLocaleLang(localeTag);
   const translationLang = toTranslationLang(localeTag);
   const baseUrl = getProxyBaseUrl();
-  const url = `${baseUrl}/quran/surahs/${surahId}?lang=${encodeURIComponent(lang)}&translation=tr`;
-  const key = `surah:${surahId}:${lang}`;
+  const url = `${baseUrl}/quran/surahs/${surahId}?lang=${encodeURIComponent(lang)}&translation=${encodeURIComponent(translationLang)}`;
+  const key = `surah:${surahId}:${lang}:${translationLang}`;
 
   return requestWithRetry(key, async () => {
-    const response = await fetch(url, { method: "GET", headers: { Accept: "application/json" } });
-    const payload = await safeJson(response);
-    if (!response.ok) {
-      throw new Error((payload as any)?.error || `HTTP ${response.status}`);
-    }
+    const payload = await fetchJson(url, { method: "GET", timeoutMs: 10000, retries: 1 });
     const detail = assertSurahDetail(payload);
 
-    if (translationLang === "en") {
-      const cloudTranslations = await fetchSurahTranslationsFromAlQuranCloud(surahId, "en");
-      if (cloudTranslations) {
-        const translatedVerses = await Promise.all(
-          detail.verses.map(async (row) => {
-            const cloud = cloudTranslations.get(row.numberInSurah)?.trim();
-            if (cloud && cloud.length > 0) {
-              return { ...row, translation: cloud };
-            }
-            const fallback = await resolveRemoteTranslation(row.key, "en");
-            return fallback && fallback.length > 0 ? { ...row, translation: fallback } : row;
-          })
-        );
-        return { ...detail, verses: translatedVerses };
-      }
-
-      const repairedEnglish = await Promise.all(
-        detail.verses.map(async (row) => {
-          const cloud = await resolveRemoteTranslation(row.key, "en");
-          return cloud && cloud.length > 0 ? { ...row, translation: cloud } : row;
-        })
-      );
-      return { ...detail, verses: repairedEnglish };
-    }
-
-    if (!hasRepeatedTranslation(detail)) {
+    if (translationLang === "en" || !hasRepeatedTranslation(detail)) {
       return detail;
     }
 
-    const repaired = await Promise.all(
-      detail.verses.map(async (row) => {
-        const cloud = await resolveRemoteTranslation(row.key, "tr");
-        if (cloud && cloud.length > 0) {
-          return { ...row, translation: cloud };
-        }
-        try {
-          const ayah = await getQuranAyah(row.key, localeTag);
-          if (ayah.translation.trim().length > 0) {
-            return { ...row, translation: ayah.translation };
-          }
-          return row;
-        } catch {
-          return row;
-        }
-      })
-    );
-
-    return { ...detail, verses: repaired };
+    throw new Error("Quran translation response is repeated and could not be repaired by proxy.");
   });
 }
 
@@ -366,21 +231,12 @@ export async function getQuranAyah(verseKey: string, localeTag?: string): Promis
   const lang = toLocaleLang(localeTag);
   const translationLang = toTranslationLang(localeTag);
   const baseUrl = getProxyBaseUrl();
-  const url = `${baseUrl}/quran/ayah/${encodeURIComponent(verseKey)}?lang=${encodeURIComponent(lang)}&translation=tr`;
-  const key = `ayah:${verseKey}:${lang}`;
+  const url = `${baseUrl}/quran/ayah/${encodeURIComponent(verseKey)}?lang=${encodeURIComponent(lang)}&translation=${encodeURIComponent(translationLang)}`;
+  const key = `ayah:${verseKey}:${lang}:${translationLang}`;
 
   return requestWithRetry(key, async () => {
-    const response = await fetch(url, { method: "GET", headers: { Accept: "application/json" } });
-    const payload = await safeJson(response);
-    if (!response.ok) {
-      throw new Error((payload as any)?.error || `HTTP ${response.status}`);
-    }
-    const ayah = assertAyah(payload);
-    if (translationLang !== "en") {
-      return ayah;
-    }
-    const english = await resolveRemoteTranslation(verseKey, "en");
-    return english && english.length > 0 ? { ...ayah, translation: english } : ayah;
+    const payload = await fetchJson(url, { method: "GET", timeoutMs: 9000, retries: 1 });
+    return assertAyah(payload);
   });
 }
 
@@ -398,11 +254,7 @@ export async function getQuranSurahAudio(
   return requestWithRetry(
     key,
     async () => {
-      const response = await fetch(url, { method: "GET", headers: { Accept: "application/json" } });
-      const payload = await safeJson(response);
-      if (!response.ok) {
-        throw new Error((payload as any)?.error || `HTTP ${response.status}`);
-      }
+      const payload = await fetchJson(url, { method: "GET", timeoutMs: 9000, retries: 0 });
       return assertAudioInfo(payload);
     },
     0

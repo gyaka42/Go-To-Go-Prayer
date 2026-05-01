@@ -1,4 +1,5 @@
 import { buildMosquesCacheKey, getCachedJson, saveCachedJson } from "@/services/storage";
+import { fetchJson } from "@/services/http";
 import { Mosque } from "@/types/mosque";
 import { haversineDistanceKm } from "@/utils/geo";
 
@@ -103,35 +104,17 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
 async function fetchMosquesFromOverpassOnce(lat: number, lon: number, radiusKm: number): Promise<Mosque[]> {
   const radiusMeters = Math.max(100, Math.round(radiusKm * 1000));
   const query = buildOverpassQuery(lat, lon, radiusMeters);
-  const response = await fetchWithTimeout(OVERPASS_URL, {
+  const json = await fetchJson<OverpassResponse>(OVERPASS_URL, {
+    timeoutMs: OVERPASS_TIMEOUT_MS,
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
     },
     body: `data=${encodeURIComponent(query)}`
-  }, OVERPASS_TIMEOUT_MS);
-
-  if (!response.ok) {
-    throw new Error(`Overpass request failed (${response.status})`);
-  }
-
-  const json = (await response.json()) as OverpassResponse;
+  });
   const elements = Array.isArray(json.elements) ? json.elements : [];
   return mapOverpassElementsToMosques(elements, lat, lon);
 }

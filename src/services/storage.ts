@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CachedLocation, CachedQibla, CachedTimings, PRAYER_NAMES, Settings } from "@/types/prayer";
 import { MosquesSettings } from "@/types/mosque";
+import { isValidCachedTimings } from "@/services/timingValidation";
 
 const SETTINGS_KEY = "settings:v1";
 const LATEST_CACHE_KEY = "timings:latest:v1";
@@ -193,13 +194,17 @@ export async function getCachedTimings(key: string): Promise<CachedTimings | nul
   }
 
   try {
-    return JSON.parse(raw) as CachedTimings;
+    const parsed = JSON.parse(raw);
+    return isValidCachedTimings(parsed) ? parsed : null;
   } catch {
     return null;
   }
 }
 
 export async function saveCachedTimings(key: string, data: CachedTimings): Promise<void> {
+  if (!isValidCachedTimings(data)) {
+    return;
+  }
   await AsyncStorage.setItem(key, JSON.stringify(data));
   await AsyncStorage.setItem(LATEST_CACHE_KEY, JSON.stringify(data));
 }
@@ -211,7 +216,8 @@ export async function getLatestCachedTimings(): Promise<CachedTimings | null> {
   }
 
   try {
-    return JSON.parse(raw) as CachedTimings;
+    const parsed = JSON.parse(raw);
+    return isValidCachedTimings(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -239,14 +245,8 @@ export async function getCachedTimingsForDate(
       continue;
     }
     try {
-      const parsed = JSON.parse(raw) as CachedTimings;
-      if (parsed.timings?.dateKey !== dateKey) {
-        continue;
-      }
-      if (parsed.methodId !== methodId) {
-        continue;
-      }
-      if ((parsed.provider ?? "aladhan") !== provider) {
+      const parsed = JSON.parse(raw);
+      if (!isValidCachedTimings(parsed, { dateKey, provider, methodId })) {
         continue;
       }
 

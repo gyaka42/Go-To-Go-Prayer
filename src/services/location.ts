@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { fetchJson } from "@/services/http";
 import { Settings } from "@/types/prayer";
 
 export async function getCurrentLocation(): Promise<{ lat: number; lon: number }> {
@@ -146,12 +147,10 @@ function localizedCountryName(countryName: string | null, countryCode: string | 
 async function fetchOpenMeteoSuggestions(trimmed: string, localeTag?: string): Promise<CitySuggestion[]> {
   const lang = localeLanguage(localeTag);
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(trimmed)}&count=12&language=${encodeURIComponent(lang)}&format=json`;
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!response.ok) {
+  const payload = await fetchJson<{ results?: Array<any> }>(url, { timeoutMs: 8000, retries: 1 }).catch(() => null);
+  if (!payload) {
     return [];
   }
-
-  const payload = (await response.json()) as { results?: Array<any> };
   const rows = Array.isArray(payload?.results) ? payload.results : [];
   return rows
     .map((item) => {
@@ -179,17 +178,17 @@ async function fetchOpenMeteoSuggestions(trimmed: string, localeTag?: string): P
 async function fetchNominatimSuggestions(trimmed: string, localeTag?: string): Promise<CitySuggestion[]> {
   const acceptLanguage = normalizeLocaleTag(localeTag);
   const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=12&accept-language=${encodeURIComponent(acceptLanguage)}&q=${encodeURIComponent(trimmed)}`;
-  const response = await fetch(url, {
+  const payload = await fetchJson<Array<any>>(url, {
+    timeoutMs: 8000,
+    retries: 1,
     headers: {
-      Accept: "application/json",
       "Accept-Language": acceptLanguage
     }
-  });
-  if (!response.ok) {
+  }).catch(() => null);
+  if (!payload) {
     return [];
   }
 
-  const payload = (await response.json()) as Array<any>;
   return payload
     .map((item) => {
       const lat = Number(item?.lat);

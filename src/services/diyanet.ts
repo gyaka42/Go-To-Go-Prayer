@@ -1,4 +1,5 @@
 import { PrayerName, Timings } from "@/types/prayer";
+import { fetchJson } from "@/services/http";
 
 const REQUIRED_PRAYERS: PrayerName[] = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
 const DEFAULT_DIYANET_PROXY_URL = "https://go-to-go-prayer-production.up.railway.app";
@@ -81,14 +82,6 @@ function parseMonthlyTimes(raw: unknown): Record<string, Record<PrayerName, stri
   return result;
 }
 
-async function safeJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
 function toFiniteNumber(raw: unknown): number | null {
   if (typeof raw === "number" && Number.isFinite(raw)) {
     return raw;
@@ -144,14 +137,11 @@ async function resolveCityIdProbe(
   }
 
   try {
-    const response = await fetch(url.toString(), {
+    const payload = await fetchJson<ProxyTimingsResponse>(url.toString(), {
       method: "GET",
-      headers: { Accept: "application/json" }
+      timeoutMs: 9000,
+      retries: 1
     });
-    const payload = (await safeJson(response)) as ProxyTimingsResponse | null;
-    if (!response.ok) {
-      return null;
-    }
     return toFiniteNumber(payload?.cityId);
   } catch {
     return null;
@@ -188,18 +178,11 @@ export async function getTimingsByCoordinates(
     url.searchParams.set("cityId", String(cityIdToUse));
   }
 
-  const response = await fetch(url.toString(), {
+  const payload = await fetchJson<ProxyTimingsResponse>(url.toString(), {
     method: "GET",
-    headers: { Accept: "application/json" }
+    timeoutMs: 9000,
+    retries: 1
   });
-  const payload = (await safeJson(response)) as ProxyTimingsResponse | null;
-
-  if (!response.ok) {
-    const apiError = typeof payload?.error === "string" ? payload.error : `HTTP ${response.status}`;
-    const details =
-      typeof payload?.details === "string" ? ` (${payload.details})` : "";
-    throw new Error(`Diyanet proxy error: ${apiError}${details}`);
-  }
 
   const times = parseTimes(payload?.times);
   if (!times) {
@@ -267,17 +250,11 @@ export async function getMonthlyTimingsByCoordinates(
     url.searchParams.set("cityId", String(cityIdToUse));
   }
 
-  const response = await fetch(url.toString(), {
+  const payload = await fetchJson<ProxyMonthlyTimingsResponse>(url.toString(), {
     method: "GET",
-    headers: { Accept: "application/json" }
+    timeoutMs: 12000,
+    retries: 1
   });
-  const payload = (await safeJson(response)) as ProxyMonthlyTimingsResponse | null;
-
-  if (!response.ok) {
-    const apiError = typeof payload?.error === "string" ? payload.error : `HTTP ${response.status}`;
-    const details = typeof payload?.details === "string" ? ` (${payload.details})` : "";
-    throw new Error(`Diyanet monthly proxy error: ${apiError}${details}`);
-  }
 
   const monthly = parseMonthlyTimes(payload?.days);
   const keys = Object.keys(monthly);

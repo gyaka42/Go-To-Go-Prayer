@@ -1,6 +1,7 @@
 import { getTimingsBySettings } from "@/services/prayerTimes";
 import { getMonthlyTimingsByCoordinates } from "@/services/diyanet";
 import { buildTimingsCacheKey, getCachedTimings, saveCachedTimings } from "@/services/storage";
+import { isValidTimings } from "@/services/timingValidation";
 import { Settings, Timings } from "@/types/prayer";
 import { getDateKey, getTomorrow } from "@/utils/time";
 
@@ -62,6 +63,9 @@ async function fetchAndCacheRange(params: {
           params.locationLabel
         );
         const dateKey = getDateKey(day);
+        if (!isValidTimings(timings, dateKey)) {
+          throw new Error(`Invalid timings received for ${dateKey}.`);
+        }
         const cacheKey = buildTimingsCacheKey(
           dateKey,
           params.location.lat,
@@ -195,6 +199,9 @@ async function fetchAndCacheDays(params: {
             params.locationLabel
           );
           const dateKey = getDateKey(day);
+          if (!isValidTimings(timings, dateKey)) {
+            throw new Error(`Invalid timings received for ${dateKey}.`);
+          }
           const cacheKey = buildTimingsCacheKey(
             dateKey,
             params.location.lat,
@@ -297,9 +304,12 @@ export async function prefetchMonthTimings(params: {
         params.location.lon,
         cityHint
       );
+      const validMonthly = Object.fromEntries(
+        Object.entries(monthly).filter(([dateKey, timings]) => isValidTimings(timings, dateKey))
+      ) as Record<string, Timings>;
       const nowIso = new Date().toISOString();
       await Promise.all(
-        Object.entries(monthly).map(async ([dateKey, timings]) => {
+        Object.entries(validMonthly).map(async ([dateKey, timings]) => {
           const cacheKey = buildTimingsCacheKey(
             dateKey,
             params.location.lat,
@@ -318,7 +328,7 @@ export async function prefetchMonthTimings(params: {
           });
         })
       );
-      return monthly;
+      return validMonthly;
     } catch {
       // For full-month requests, avoid 28/30 per-day calls when monthly endpoint is unstable.
       // This prevents request storms while keeping existing cache data visible.
