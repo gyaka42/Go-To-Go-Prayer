@@ -1811,6 +1811,21 @@ function hasSingleRepeatedTranslation(verses) {
   return new Set(values).size === 1;
 }
 
+function normalizeTranslationContract(detail, translation) {
+  return {
+    ...detail,
+    verses: detail.verses.map((row) => {
+      const selected = String(row.translation || row.translationTr || "").trim();
+      const turkish = translation === "tr" ? String(row.translationTr || selected).trim() : "";
+      return {
+        ...row,
+        translation: selected,
+        translationTr: turkish
+      };
+    })
+  };
+}
+
 async function fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId, translation = "tr") {
   const arabicData = await fetchAlQuranCloudData(`/surah/${surahId}/quran-uthmani`);
   const arabicRows = Array.isArray(arabicData?.ayahs) ? arabicData.ayahs : [];
@@ -1862,7 +1877,7 @@ async function fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId, translatio
       numberInSurah: n,
       arabic,
       translation: translationText,
-      translationTr: translationText
+      translationTr: translation === "tr" ? translationText : ""
     });
   }
 
@@ -1906,7 +1921,7 @@ async function fetchQuranAyahFallbackFromAlQuranCloud(parsed, translation = "tr"
     numberInSurah,
     arabic,
     translation: translationText,
-    translationTr: translationText
+    translationTr: translation === "tr" ? translationText : ""
   };
 }
 
@@ -1933,7 +1948,7 @@ async function applyQuranTranslationFallback(detail, surahId, translation) {
       return {
         ...row,
         translation: translationText,
-        translationTr: translationText
+        translationTr: ""
       };
     })
   };
@@ -2006,7 +2021,8 @@ async function fetchQuranSurahDetail(config, surahId, lang, translation = "tr") 
     }
 
     if (expectedAyahCount > 0 && current.verses.length >= expectedAyahCount) {
-      return applyQuranTranslationFallback(current, surahId, translation);
+      const translated = await applyQuranTranslationFallback(current, surahId, translation);
+      return normalizeTranslationContract(translated, translation);
     }
   }
 
@@ -2024,10 +2040,11 @@ async function fetchQuranSurahDetail(config, surahId, lang, translation = "tr") 
             ayahCount: fromList.ayahCount > 0 ? fromList.ayahCount : fallback.surah.ayahCount
           };
         }
-        return fallback;
+        return normalizeTranslationContract(fallback, translation);
       }
     }
-    return applyQuranTranslationFallback(best, surahId, translation);
+    const translated = await applyQuranTranslationFallback(best, surahId, translation);
+    return normalizeTranslationContract(translated, translation);
   }
 
   const fallback = await fetchQuranSurahDetailFallbackFromAlQuranCloud(surahId, translation);
@@ -2040,7 +2057,7 @@ async function fetchQuranSurahDetail(config, surahId, lang, translation = "tr") 
         ayahCount: fromList.ayahCount > 0 ? fromList.ayahCount : fallback.surah.ayahCount
       };
     }
-    return fallback;
+    return normalizeTranslationContract(fallback, translation);
   }
 
   throw new Error("Surah not found");
@@ -2082,8 +2099,8 @@ async function fetchQuranAyah(config, verseKey, lang, translation = "tr") {
       surahId: parsed.surahId,
       numberInSurah: hit.numberInSurah,
       arabic: hit.arabic,
-      translation: hit.translationTr,
-      translationTr: hit.translationTr
+      translation: hit.translation || hit.translationTr,
+      translationTr: translation === "tr" ? hit.translationTr : ""
     };
   }
 
@@ -2097,7 +2114,7 @@ async function fetchQuranAyah(config, verseKey, lang, translation = "tr") {
         numberInSurah: hit.numberInSurah,
         arabic: hit.arabic,
         translation: hit.translation || hit.translationTr,
-        translationTr: hit.translationTr
+        translationTr: translation === "tr" ? hit.translationTr : ""
       };
     }
   } catch {
