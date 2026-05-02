@@ -94,6 +94,13 @@ export default function MenuScreen() {
       )
     },
     {
+      id: "content-favorites",
+      onPress: () => router.push("/favorites" as never),
+      title: t("menu.content_favorites.title"),
+      subtitle: t("menu.content_favorites.subtitle"),
+      icon: <Ionicons name="bookmark-outline" size={21} color="#2B8CEE" />
+    },
+    {
       id: "monthly",
       onPress: () => router.push("/monthly" as never),
       title: t("menu.monthly.title"),

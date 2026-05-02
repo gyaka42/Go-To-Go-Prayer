@@ -1,7 +1,7 @@
 import { useFonts } from "expo-font";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -11,6 +11,7 @@ import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getDuaDetail } from "@/services/namazContent";
+import { isContentFavorite, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
 function resolveMeaning(content: NonNullable<ReturnType<typeof getDuaDetail>>, localeTag: string): string {
@@ -43,6 +44,38 @@ export default function NamazDuaDetailScreen() {
 
   const detail = getDuaDetail(duaId);
   const title = detail ? t(detail.titleKey) : t("namaz.invalid_item");
+  const [isFavorite, setIsFavorite] = useState(false);
+
+  useEffect(() => {
+    if (!detail) {
+      setIsFavorite(false);
+      return;
+    }
+    let active = true;
+    void isContentFavorite(`dua:${detail.id}`).then((value) => {
+      if (active) {
+        setIsFavorite(value);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [detail]);
+
+  const toggleFavorite = useCallback(async () => {
+    if (!detail) {
+      return;
+    }
+    const next = await toggleContentFavorite({
+      id: `dua:${detail.id}`,
+      kind: "namaz_dua",
+      route: `/namaz/dua/${detail.id}`,
+      title,
+      titleKey: detail.titleKey,
+      subtitle: t("namaz.section_duas")
+    });
+    setIsFavorite(next);
+  }, [detail, t, title]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -53,7 +86,13 @@ export default function NamazDuaDetailScreen() {
             <Ionicons name="chevron-back" size={24} color={isLight ? "#1E3D5C" : "#EAF2FF"} />
           </Pressable>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
-          <View style={styles.headerButtonPlaceholder} />
+          <Pressable onPress={() => void toggleFavorite()} style={styles.headerButton} disabled={!detail}>
+            <Ionicons
+              name={isFavorite ? "star" : "star-outline"}
+              size={22}
+              color={isFavorite ? "#F5B942" : isLight ? "#617990" : "#8EA4BF"}
+            />
+          </Pressable>
         </View>
 
         {detail ? (

@@ -14,6 +14,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getAsirItem } from "@/services/namazContent";
 import { getQuranAyahWithSource, getQuranSurahDetailWithSource, QuranDataSource } from "@/services/quran";
+import { isContentFavorite, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { SurahMeta, VerseRow } from "@/types/quran";
 
@@ -46,6 +47,7 @@ export default function NamazAsirDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<QuranDataSource | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
   const [audioBusy, setAudioBusy] = useState(false);
   const [audioPressed, setAudioPressed] = useState(false);
   const [audioState, setAudioState] = useState<AudioUiState>("ready");
@@ -170,6 +172,39 @@ export default function NamazAsirDetailScreen() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!asir) {
+      setIsFavorite(false);
+      return;
+    }
+    let active = true;
+    void isContentFavorite(`asir:${asir.id}`).then((value) => {
+      if (active) {
+        setIsFavorite(value);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [asir]);
+
+  const title = asir ? t(asir.titleKey) : t("namaz.invalid_item");
+
+  const toggleFavorite = useCallback(async () => {
+    if (!asir) {
+      return;
+    }
+    const next = await toggleContentFavorite({
+      id: `asir:${asir.id}`,
+      kind: "namaz_asir",
+      route: `/namaz/asir/${asir.id}`,
+      title,
+      titleKey: asir.titleKey,
+      subtitle: t("quran.ayah_range", { from: asir.fromAyah, to: asir.toAyah })
+    });
+    setIsFavorite(next);
+  }, [asir, t, title]);
+
   const playAudioIndex = useCallback(
     async (index: number) => {
       if (index < 0 || index >= audioUrls.length) {
@@ -259,7 +294,6 @@ export default function NamazAsirDetailScreen() {
     });
   }, [audioUrls, cleanupSound, currentAudioIndex, playAudioIndex, queueAudioAction]);
 
-  const title = asir ? t(asir.titleKey) : t("namaz.invalid_item");
   const audioStateLabel = useMemo(() => {
     if (audioBusy || audioState === "preparing") {
       return t("quran.audio_state_loading");
@@ -307,7 +341,13 @@ export default function NamazAsirDetailScreen() {
             <Ionicons name="chevron-back" size={24} color={isLight ? "#1E3D5C" : "#EAF2FF"} />
           </Pressable>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
-          <View style={styles.headerButtonPlaceholder} />
+          <Pressable onPress={() => void toggleFavorite()} style={styles.headerButton} disabled={!asir}>
+            <Ionicons
+              name={isFavorite ? "star" : "star-outline"}
+              size={22}
+              color={isFavorite ? "#F5B942" : isLight ? "#617990" : "#8EA4BF"}
+            />
+          </Pressable>
         </View>
 
         {surah && asir ? (

@@ -13,6 +13,7 @@ const MOSQUES_CACHE_PREFIX = "mosques:cache:v1";
 const MOSQUES_SETTINGS_KEY = "mosques:settings:v1";
 const MOSQUES_FAVORITES_KEY = "mosques:favorites:v1";
 const MOSQUES_DEFAULT_KEY = "mosques:default:v1";
+const CONTENT_FAVORITES_KEY = "content:favorites:v1";
 const ZIKR_STATE_KEY = "zikr:state:v2";
 const ZIKR_STATE_V1_KEY = "zikr:state:v1";
 const ZIKR_SETTINGS_KEY = "zikr:settings:v1";
@@ -61,6 +62,16 @@ export type QazaStateV2 = {
   updatedAt: number;
 };
 export type QazaState = QazaStateV2;
+export type ContentFavoriteKind = "quran_surah" | "namaz_dua" | "namaz_asir";
+export type ContentFavorite = {
+  id: string;
+  kind: ContentFavoriteKind;
+  route: string;
+  title: string;
+  titleKey?: string;
+  subtitle?: string;
+  updatedAt: number;
+};
 
 function createDefaultSettings(): Settings {
   return {
@@ -453,6 +464,80 @@ export async function setDefaultMosqueId(id: string | null): Promise<void> {
   }
 
   await AsyncStorage.setItem(MOSQUES_DEFAULT_KEY, JSON.stringify(id));
+}
+
+function sanitizeContentFavorite(value: Partial<ContentFavorite> | undefined): ContentFavorite | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const kind =
+    value.kind === "quran_surah" || value.kind === "namaz_dua" || value.kind === "namaz_asir"
+      ? value.kind
+      : null;
+  const id = typeof value.id === "string" ? value.id.trim() : "";
+  const route = typeof value.route === "string" ? value.route.trim() : "";
+  const title = typeof value.title === "string" ? value.title.trim() : "";
+  if (!kind || id.length === 0 || route.length === 0 || title.length === 0) {
+    return null;
+  }
+
+  return {
+    id,
+    kind,
+    route,
+    title,
+    titleKey: typeof value.titleKey === "string" && value.titleKey.trim().length > 0 ? value.titleKey.trim() : undefined,
+    subtitle: typeof value.subtitle === "string" ? value.subtitle.trim() : undefined,
+    updatedAt: typeof value.updatedAt === "number" && Number.isFinite(value.updatedAt) ? value.updatedAt : Date.now()
+  };
+}
+
+export async function getContentFavorites(): Promise<ContentFavorite[]> {
+  const raw = await AsyncStorage.getItem(CONTENT_FAVORITES_KEY);
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item) => sanitizeContentFavorite(item))
+      .filter((item): item is ContentFavorite => Boolean(item))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  } catch {
+    return [];
+  }
+}
+
+export async function setContentFavorites(items: ContentFavorite[]): Promise<void> {
+  const unique = new Map<string, ContentFavorite>();
+  items.forEach((item) => {
+    const sanitized = sanitizeContentFavorite(item);
+    if (sanitized) {
+      unique.set(sanitized.id, sanitized);
+    }
+  });
+  const rows = Array.from(unique.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+  await AsyncStorage.setItem(CONTENT_FAVORITES_KEY, JSON.stringify(rows));
+}
+
+export async function isContentFavorite(id: string): Promise<boolean> {
+  const rows = await getContentFavorites();
+  return rows.some((item) => item.id === id);
+}
+
+export async function toggleContentFavorite(item: Omit<ContentFavorite, "updatedAt">): Promise<boolean> {
+  const rows = await getContentFavorites();
+  const exists = rows.some((row) => row.id === item.id);
+  if (exists) {
+    await setContentFavorites(rows.filter((row) => row.id !== item.id));
+    return false;
+  }
+  await setContentFavorites([{ ...item, updatedAt: Date.now() }, ...rows]);
+  return true;
 }
 
 function createDefaultZikrState(): ZikrState {

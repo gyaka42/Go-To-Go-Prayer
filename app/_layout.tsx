@@ -63,6 +63,7 @@ function RootNavigation() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="notifications" options={{ headerShown: false }} />
         <Stack.Screen name="mosques" options={{ headerShown: false }} />
+        <Stack.Screen name="favorites" options={{ headerShown: false }} />
         <Stack.Screen name="zikr" options={{ headerShown: false }} />
         <Stack.Screen name="qaza" options={{ headerShown: false }} />
         <Stack.Screen name="qaza-history" options={{ headerShown: false }} />
