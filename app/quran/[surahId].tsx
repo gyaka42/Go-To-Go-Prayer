@@ -3,7 +3,7 @@ import { useFonts } from "expo-font";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
@@ -13,7 +13,7 @@ import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getQuranSurahAudio, getQuranSurahDetailWithSource, QuranDataSource } from "@/services/quran";
-import { isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
+import { getRecentContent, isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { QuranAudioInfo, SurahMeta, VerseRow } from "@/types/quran";
 
@@ -21,7 +21,13 @@ type AudioUiState = "ready" | "preparing" | "playing" | "paused" | "finished" | 
 
 export default function QuranSurahDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ surahId?: string; fromAyah?: string; toAyah?: string; titleOverride?: string }>();
+  const params = useLocalSearchParams<{
+    surahId?: string;
+    fromAyah?: string;
+    toAyah?: string;
+    titleOverride?: string;
+    resume?: string;
+  }>();
   const { colors, resolvedTheme } = useAppTheme();
   const { t, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
@@ -55,6 +61,11 @@ export default function QuranSurahDetailScreen() {
     return String(value || "").trim();
   }, [params.titleOverride]);
 
+  const shouldResume = useMemo(() => {
+    const value = Array.isArray(params.resume) ? params.resume[0] : params.resume;
+    return value === "1";
+  }, [params.resume]);
+
   const [surah, setSurah] = useState<SurahMeta | null>(null);
   const [verses, setVerses] = useState<VerseRow[]>([]);
   const [audioInfo, setAudioInfo] = useState<QuranAudioInfo>({ available: false });
@@ -68,6 +79,9 @@ export default function QuranSurahDetailScreen() {
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const lastRecentSaveRef = useRef(0);
+  const didRestoreScrollRef = useRef(false);
 
   const cleanupSound = useCallback(async () => {
     const sound = soundRef.current;
@@ -132,13 +146,19 @@ export default function QuranSurahDetailScreen() {
       setSurah(quranDetail.surah);
       setVerses(filteredVerses.length > 0 ? filteredVerses : quranDetail.verses);
       setDataSource(detail.source);
-      void saveRecentContent({
-        id: `quran:${quranDetail.surah.id}`,
-        kind: "quran_surah",
-        route: `/quran/${quranDetail.surah.id}`,
-        title: quranDetail.surah.nameLatin,
-        subtitle: t("quran.ayah_count", { count: quranDetail.surah.ayahCount })
-      }).catch(() => undefined);
+      void getRecentContent()
+        .then((recent) =>
+          saveRecentContent({
+            id: `quran:${quranDetail.surah.id}`,
+            kind: "quran_surah",
+            route: `/quran/${quranDetail.surah.id}`,
+            title: quranDetail.surah.nameLatin,
+            subtitle: t("quran.ayah_count", { count: quranDetail.surah.ayahCount }),
+            scrollY: recent?.id === `quran:${quranDetail.surah.id}` ? recent.scrollY : undefined,
+            ayahNumber: recent?.id === `quran:${quranDetail.surah.id}` ? recent.ayahNumber : undefined
+          })
+        )
+        .catch(() => undefined);
       setAudioInfo(audio);
       setAudioState("ready");
     } catch (err) {
@@ -200,6 +220,58 @@ export default function QuranSurahDetailScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    didRestoreScrollRef.current = false;
+  }, [surahId]);
+
+  useEffect(() => {
+    if (!shouldResume || loading || error || !surah || verses.length === 0 || didRestoreScrollRef.current) {
+      return;
+    }
+    let active = true;
+    const timer = setTimeout(() => {
+      void getRecentContent().then((recent) => {
+        if (!active || recent?.id !== `quran:${surah.id}` || !recent.scrollY || recent.scrollY <= 0) {
+          return;
+        }
+        didRestoreScrollRef.current = true;
+        scrollViewRef.current?.scrollTo({ y: recent.scrollY, animated: false });
+      });
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [error, loading, shouldResume, surah, verses.length]);
+
+  const saveScrollPosition = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (!surah) {
+        return;
+      }
+      const now = Date.now();
+      if (now - lastRecentSaveRef.current < 700) {
+        return;
+      }
+      lastRecentSaveRef.current = now;
+      const scrollY = Math.max(0, event.nativeEvent.contentOffset.y);
+      const estimatedIndex = Math.min(verses.length - 1, Math.max(0, Math.floor(scrollY / 230)));
+      const ayahNumber = verses[estimatedIndex]?.numberInSurah;
+      void saveRecentContent({
+        id: `quran:${surah.id}`,
+        kind: "quran_surah",
+        route: `/quran/${surah.id}`,
+        title: surah.nameLatin,
+        subtitle: ayahNumber
+          ? `${t("quran.ayah_count", { count: surah.ayahCount })} • ${t("quran.ayah_label")} ${ayahNumber}`
+          : t("quran.ayah_count", { count: surah.ayahCount }),
+        scrollY,
+        ayahNumber
+      }).catch(() => undefined);
+    },
+    [surah, t, verses]
+  );
 
   useEffect(() => {
     if (!surah) {
@@ -402,7 +474,13 @@ export default function QuranSurahDetailScreen() {
           </EaseView>
         ) : (
           <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition} style={styles.scrollWrap}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <ScrollView
+              ref={scrollViewRef}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              onScroll={saveScrollPosition}
+              scrollEventThrottle={120}
+            >
               {verses.map((row) => (
                 <View key={row.key} style={[styles.ayahCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                   <Text style={[styles.ayahIndex, { color: isLight ? "#1E78D9" : "#8DBEFF" }]}>{row.numberInSurah}</Text>

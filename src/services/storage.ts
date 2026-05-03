@@ -71,6 +71,8 @@ export type ContentFavorite = {
   title: string;
   titleKey?: string;
   subtitle?: string;
+  scrollY?: number;
+  ayahNumber?: number;
   updatedAt: number;
 };
 
@@ -489,6 +491,14 @@ function sanitizeContentFavorite(value: Partial<ContentFavorite> | undefined): C
     title,
     titleKey: typeof value.titleKey === "string" && value.titleKey.trim().length > 0 ? value.titleKey.trim() : undefined,
     subtitle: typeof value.subtitle === "string" ? value.subtitle.trim() : undefined,
+    scrollY:
+      typeof value.scrollY === "number" && Number.isFinite(value.scrollY) && value.scrollY >= 0
+        ? value.scrollY
+        : undefined,
+    ayahNumber:
+      typeof value.ayahNumber === "number" && Number.isFinite(value.ayahNumber) && value.ayahNumber > 0
+        ? value.ayahNumber
+        : undefined,
     updatedAt: typeof value.updatedAt === "number" && Number.isFinite(value.updatedAt) ? value.updatedAt : Date.now()
   };
 }

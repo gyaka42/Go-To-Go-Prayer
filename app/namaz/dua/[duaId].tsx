@@ -1,8 +1,8 @@
 import { useFonts } from "expo-font";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { easeEnterTransition, easeInitialFade, easeInitialLift, easeStateTransition, easeVisibleFade } from "@/animation/ease";
@@ -11,7 +11,7 @@ import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getDuaDetail } from "@/services/namazContent";
-import { isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
+import { getRecentContent, isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
 function resolveMeaning(content: NonNullable<ReturnType<typeof getDuaDetail>>, localeTag: string): string {
@@ -27,7 +27,7 @@ function resolveMeaning(content: NonNullable<ReturnType<typeof getDuaDetail>>, l
 
 export default function NamazDuaDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ duaId?: string }>();
+  const params = useLocalSearchParams<{ duaId?: string; resume?: string }>();
   const { colors, resolvedTheme } = useAppTheme();
   const { t, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
@@ -42,23 +42,83 @@ export default function NamazDuaDetailScreen() {
     return String(value || "").trim();
   }, [params.duaId]);
 
+  const shouldResume = useMemo(() => {
+    const value = Array.isArray(params.resume) ? params.resume[0] : params.resume;
+    return value === "1";
+  }, [params.resume]);
+
   const detail = getDuaDetail(duaId);
   const title = detail ? t(detail.titleKey) : t("namaz.invalid_item");
   const [isFavorite, setIsFavorite] = useState(false);
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const lastRecentSaveRef = useRef(0);
+  const didRestoreScrollRef = useRef(false);
 
   useEffect(() => {
     if (!detail) {
       return;
     }
-    void saveRecentContent({
-      id: `dua:${detail.id}`,
-      kind: "namaz_dua",
-      route: `/namaz/dua/${detail.id}`,
-      title,
-      titleKey: detail.titleKey,
-      subtitle: t("namaz.section_duas")
-    }).catch(() => undefined);
+    void getRecentContent()
+      .then((recent) =>
+        saveRecentContent({
+          id: `dua:${detail.id}`,
+          kind: "namaz_dua",
+          route: `/namaz/dua/${detail.id}`,
+          title,
+          titleKey: detail.titleKey,
+          subtitle: t("namaz.section_duas"),
+          scrollY: recent?.id === `dua:${detail.id}` ? recent.scrollY : undefined
+        })
+      )
+      .catch(() => undefined);
   }, [detail, t, title]);
+
+  useEffect(() => {
+    didRestoreScrollRef.current = false;
+  }, [duaId]);
+
+  useEffect(() => {
+    if (!shouldResume || !detail || didRestoreScrollRef.current) {
+      return;
+    }
+    let active = true;
+    const timer = setTimeout(() => {
+      void getRecentContent().then((recent) => {
+        if (!active || recent?.id !== `dua:${detail.id}` || !recent.scrollY || recent.scrollY <= 0) {
+          return;
+        }
+        didRestoreScrollRef.current = true;
+        scrollViewRef.current?.scrollTo({ y: recent.scrollY, animated: false });
+      });
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [detail, shouldResume]);
+
+  const saveScrollPosition = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (!detail) {
+        return;
+      }
+      const now = Date.now();
+      if (now - lastRecentSaveRef.current < 700) {
+        return;
+      }
+      lastRecentSaveRef.current = now;
+      void saveRecentContent({
+        id: `dua:${detail.id}`,
+        kind: "namaz_dua",
+        route: `/namaz/dua/${detail.id}`,
+        title,
+        titleKey: detail.titleKey,
+        subtitle: t("namaz.section_duas"),
+        scrollY: Math.max(0, event.nativeEvent.contentOffset.y)
+      }).catch(() => undefined);
+    },
+    [detail, t, title]
+  );
 
   useEffect(() => {
     if (!detail) {
@@ -111,7 +171,13 @@ export default function NamazDuaDetailScreen() {
 
         {detail ? (
           <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition} style={styles.scrollWrap}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <ScrollView
+              ref={scrollViewRef}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              onScroll={saveScrollPosition}
+              scrollEventThrottle={120}
+            >
               <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
                 <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                   <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.arabic_text")}</Text>

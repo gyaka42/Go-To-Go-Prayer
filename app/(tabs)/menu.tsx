@@ -153,7 +153,11 @@ export default function MenuScreen() {
                   styles.continueCard,
                   { backgroundColor: isLight ? "#E1F0FF" : "#132A44", borderColor: isLight ? "#A8D2FF" : "#315A84" }
                 ]}
-                onPress={() => router.push(recentContent.route as never)}
+                onPress={() =>
+                  router.push(
+                    `${recentContent.route}${recentContent.route.includes("?") ? "&" : "?"}resume=1` as never
+                  )
+                }
                 onPressIn={() => setPressedCard("continue-reading")}
                 onPressOut={() => setPressedCard(null)}
               >
