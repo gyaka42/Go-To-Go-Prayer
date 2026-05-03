@@ -14,6 +14,7 @@ const MOSQUES_SETTINGS_KEY = "mosques:settings:v1";
 const MOSQUES_FAVORITES_KEY = "mosques:favorites:v1";
 const MOSQUES_DEFAULT_KEY = "mosques:default:v1";
 const CONTENT_FAVORITES_KEY = "content:favorites:v1";
+const RECENT_CONTENT_KEY = "content:recent:v1";
 const ZIKR_STATE_KEY = "zikr:state:v2";
 const ZIKR_STATE_V1_KEY = "zikr:state:v1";
 const ZIKR_SETTINGS_KEY = "zikr:settings:v1";
@@ -538,6 +539,26 @@ export async function toggleContentFavorite(item: Omit<ContentFavorite, "updated
   }
   await setContentFavorites([{ ...item, updatedAt: Date.now() }, ...rows]);
   return true;
+}
+
+export async function getRecentContent(): Promise<ContentFavorite | null> {
+  const raw = await AsyncStorage.getItem(RECENT_CONTENT_KEY);
+  if (!raw) {
+    return null;
+  }
+  try {
+    return sanitizeContentFavorite(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+export async function saveRecentContent(item: Omit<ContentFavorite, "updatedAt">): Promise<void> {
+  const sanitized = sanitizeContentFavorite({ ...item, updatedAt: Date.now() });
+  if (!sanitized) {
+    return;
+  }
+  await AsyncStorage.setItem(RECENT_CONTENT_KEY, JSON.stringify(sanitized));
 }
 
 function createDefaultZikrState(): ZikrState {

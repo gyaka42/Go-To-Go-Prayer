@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { EaseView } from "react-native-ease";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,8 +7,9 @@ import { easeEnterTransition, easeInitialLift, easePressTransition, easeVisibleL
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
+import { ContentFavorite, getRecentContent } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 export default function MenuScreen() {
   const router = useRouter();
@@ -19,6 +20,21 @@ export default function MenuScreen() {
   const enterTransition = useMotionTransition(easeEnterTransition);
   const pressTransition = useMotionTransition(easePressTransition);
   const [pressedCard, setPressedCard] = useState<string | null>(null);
+  const [recentContent, setRecentContent] = useState<ContentFavorite | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void getRecentContent().then((value) => {
+        if (active) {
+          setRecentContent(value);
+        }
+      });
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
   const menuItems = [
     {
@@ -126,6 +142,40 @@ export default function MenuScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 112 }]}
         >
+          {recentContent ? (
+            <EaseView
+              initialAnimate={easeInitialLift}
+              animate={{ opacity: 1, translateY: 0, scale: pressedCard === "continue-reading" ? 0.985 : 1 }}
+              transition={pressedCard === "continue-reading" ? pressTransition : enterTransition}
+            >
+              <Pressable
+                style={[
+                  styles.continueCard,
+                  { backgroundColor: isLight ? "#E1F0FF" : "#132A44", borderColor: isLight ? "#A8D2FF" : "#315A84" }
+                ]}
+                onPress={() => router.push(recentContent.route as never)}
+                onPressIn={() => setPressedCard("continue-reading")}
+                onPressOut={() => setPressedCard(null)}
+              >
+                <View style={[styles.iconWrap, isLight ? { backgroundColor: "#F4FAFF" } : null]}>
+                  <Ionicons name="play-circle-outline" size={22} color="#2B8CEE" />
+                </View>
+                <View style={styles.cardTextWrap}>
+                  <Text style={[styles.continueEyebrow, { color: isLight ? "#2B8CEE" : "#8DBEFF" }]}>
+                    {t("menu.continue_reading.title")}
+                  </Text>
+                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+                    {recentContent.titleKey ? t(recentContent.titleKey) : recentContent.title}
+                  </Text>
+                  {recentContent.subtitle ? (
+                    <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{recentContent.subtitle}</Text>
+                  ) : null}
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
+              </Pressable>
+            </EaseView>
+          ) : null}
+
           {menuItems.map((item, index) => {
             const pressed = pressedCard === item.id;
             return (
@@ -138,7 +188,7 @@ export default function MenuScreen() {
                 <Pressable
                   style={[
                     styles.menuCard,
-                    index > 0 && styles.menuCardSpaced,
+                    (index > 0 || Boolean(recentContent)) && styles.menuCardSpaced,
                     { backgroundColor: colors.card, borderColor: colors.cardBorder }
                   ]}
                   onPress={item.onPress}
@@ -204,6 +254,23 @@ const styles = StyleSheet.create({
   },
   menuCardSpaced: {
     marginTop: 10
+  },
+  continueCard: {
+    minHeight: 94,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+  continueEyebrow: {
+    marginBottom: 3,
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    textTransform: "uppercase"
   },
   iconWrap: {
     width: 42,

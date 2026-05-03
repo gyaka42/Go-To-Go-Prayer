@@ -14,7 +14,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getAsirItem } from "@/services/namazContent";
 import { getQuranAyahWithSource, getQuranSurahDetailWithSource, QuranDataSource } from "@/services/quran";
-import { isContentFavorite, toggleContentFavorite } from "@/services/storage";
+import { isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { SurahMeta, VerseRow } from "@/types/quran";
 
@@ -172,6 +172,22 @@ export default function NamazAsirDetailScreen() {
     void load();
   }, [load]);
 
+  const title = asir ? t(asir.titleKey) : t("namaz.invalid_item");
+
+  useEffect(() => {
+    if (!asir) {
+      return;
+    }
+    void saveRecentContent({
+      id: `asir:${asir.id}`,
+      kind: "namaz_asir",
+      route: `/namaz/asir/${asir.id}`,
+      title,
+      titleKey: asir.titleKey,
+      subtitle: t("quran.ayah_range", { from: asir.fromAyah, to: asir.toAyah })
+    }).catch(() => undefined);
+  }, [asir, t, title]);
+
   useEffect(() => {
     if (!asir) {
       setIsFavorite(false);
@@ -187,8 +203,6 @@ export default function NamazAsirDetailScreen() {
       active = false;
     };
   }, [asir]);
-
-  const title = asir ? t(asir.titleKey) : t("namaz.invalid_item");
 
   const toggleFavorite = useCallback(async () => {
     if (!asir) {

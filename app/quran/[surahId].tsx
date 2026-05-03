@@ -13,7 +13,7 @@ import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getQuranSurahAudio, getQuranSurahDetailWithSource, QuranDataSource } from "@/services/quran";
-import { isContentFavorite, toggleContentFavorite } from "@/services/storage";
+import { isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { QuranAudioInfo, SurahMeta, VerseRow } from "@/types/quran";
 
@@ -132,6 +132,13 @@ export default function QuranSurahDetailScreen() {
       setSurah(quranDetail.surah);
       setVerses(filteredVerses.length > 0 ? filteredVerses : quranDetail.verses);
       setDataSource(detail.source);
+      void saveRecentContent({
+        id: `quran:${quranDetail.surah.id}`,
+        kind: "quran_surah",
+        route: `/quran/${quranDetail.surah.id}`,
+        title: quranDetail.surah.nameLatin,
+        subtitle: t("quran.ayah_count", { count: quranDetail.surah.ayahCount })
+      }).catch(() => undefined);
       setAudioInfo(audio);
       setAudioState("ready");
     } catch (err) {

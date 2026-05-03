@@ -20,7 +20,6 @@ const NAMAZ_DUA_IDS = [
   "allahumme_salli",
   "allahumme_barik",
   "rabbena_atina",
-  "rabbenaghfirli",
   "kunut_1",
   "kunut_2"
 ] as const;
@@ -134,26 +133,16 @@ export const duaDetails: Record<string, DuaDetailContent> = {
   rabbena_atina: {
     id: "rabbena_atina",
     titleKey: "namaz.dua.rabbena_atina",
-    arabic: "رَبَّنَا اٰتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْاٰخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ",
-    transliteration: "Rabbena atina fid-dunya haseneten ve fil-ahireti haseneten ve kına azaben-nar.",
+    arabic:
+      "رَبَّنَا اٰتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْاٰخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ\nرَبِّ اغْفِرْ لِي وَلِوَالِدَيَّ وَلِلْمُؤْمِنِينَ يَوْمَ يَقُومُ الْحِسَابُ",
+    transliteration:
+      "Rabbena atina fid-dunya haseneten ve fil-ahireti haseneten ve kına azaben-nar.\nRabbigfir li ve li valideyye ve lil mu'minine yevme yekumul hisab.",
     meaningTr:
-      "Rabbimiz! Bize dünyada da iyilik ver, ahirette de iyilik ver ve bizi ateş azabından koru.",
+      "Rabbimiz! Bize dünyada da iyilik ver, ahirette de iyilik ver ve bizi ateş azabından koru. Rabbim! Hesap gününde beni, annemi-babamı ve bütün müminleri bağışla.",
     meaningEn:
-      "Our Lord, grant us good in this world and good in the Hereafter, and protect us from the punishment of the Fire.",
+      "Our Lord, grant us good in this world and good in the Hereafter, and protect us from the punishment of the Fire. My Lord, forgive me, my parents, and all believers on the Day the account is established.",
     meaningNl:
-      "Onze Heer, geef ons het goede in deze wereld en het goede in het Hiernamaals, en bescherm ons tegen de bestraffing van het Vuur."
-  },
-  rabbenaghfirli: {
-    id: "rabbenaghfirli",
-    titleKey: "namaz.dua.rabbenaghfirli",
-    arabic: "رَبِّ اغْفِرْ لِي وَلِوَالِدَيَّ وَلِلْمُؤْمِنِينَ يَوْمَ يَقُومُ الْحِسَابُ",
-    transliteration: "Rabbigfir li ve li valideyye ve lil mu'minine yevme yekumul hisab.",
-    meaningTr:
-      "Rabbim! Hesap gününde beni, annemi-babamı ve bütün müminleri bağışla.",
-    meaningEn:
-      "My Lord, forgive me, my parents, and all believers on the Day the account is established.",
-    meaningNl:
-      "Mijn Heer, vergeef mij, mijn ouders en alle gelovigen op de Dag waarop de afrekening plaatsvindt."
+      "Onze Heer, geef ons het goede in deze wereld en het goede in het Hiernamaals, en bescherm ons tegen de bestraffing van het Vuur. Mijn Heer, vergeef mij, mijn ouders en alle gelovigen op de Dag waarop de afrekening plaatsvindt."
   },
   kunut_1: {
     id: "kunut_1",
@@ -186,5 +175,8 @@ export const duaDetails: Record<string, DuaDetailContent> = {
 };
 
 export function getDuaDetail(duaId: string): DuaDetailContent | null {
+  if (duaId === "rabbenaghfirli") {
+    return duaDetails.rabbena_atina;
+  }
   return duaDetails[duaId] || null;
 }

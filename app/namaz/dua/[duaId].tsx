@@ -11,7 +11,7 @@ import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getDuaDetail } from "@/services/namazContent";
-import { isContentFavorite, toggleContentFavorite } from "@/services/storage";
+import { isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
 function resolveMeaning(content: NonNullable<ReturnType<typeof getDuaDetail>>, localeTag: string): string {
@@ -45,6 +45,20 @@ export default function NamazDuaDetailScreen() {
   const detail = getDuaDetail(duaId);
   const title = detail ? t(detail.titleKey) : t("namaz.invalid_item");
   const [isFavorite, setIsFavorite] = useState(false);
+
+  useEffect(() => {
+    if (!detail) {
+      return;
+    }
+    void saveRecentContent({
+      id: `dua:${detail.id}`,
+      kind: "namaz_dua",
+      route: `/namaz/dua/${detail.id}`,
+      title,
+      titleKey: detail.titleKey,
+      subtitle: t("namaz.section_duas")
+    }).catch(() => undefined);
+  }, [detail, t, title]);
 
   useEffect(() => {
     if (!detail) {
