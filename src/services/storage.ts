@@ -15,6 +15,7 @@ const MOSQUES_FAVORITES_KEY = "mosques:favorites:v1";
 const MOSQUES_DEFAULT_KEY = "mosques:default:v1";
 const CONTENT_FAVORITES_KEY = "content:favorites:v1";
 const RECENT_CONTENT_KEY = "content:recent:v1";
+const RECENT_CONTENT_LIST_KEY = "content:recent:list:v1";
 const ZIKR_STATE_KEY = "zikr:state:v2";
 const ZIKR_STATE_V1_KEY = "zikr:state:v1";
 const ZIKR_SETTINGS_KEY = "zikr:settings:v1";
@@ -552,6 +553,11 @@ export async function toggleContentFavorite(item: Omit<ContentFavorite, "updated
 }
 
 export async function getRecentContent(): Promise<ContentFavorite | null> {
+  const rows = await getRecentContents();
+  if (rows.length > 0) {
+    return rows[0];
+  }
+
   const raw = await AsyncStorage.getItem(RECENT_CONTENT_KEY);
   if (!raw) {
     return null;
@@ -563,12 +569,37 @@ export async function getRecentContent(): Promise<ContentFavorite | null> {
   }
 }
 
+export async function getRecentContents(limit = 10): Promise<ContentFavorite[]> {
+  const raw = await AsyncStorage.getItem(RECENT_CONTENT_LIST_KEY);
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item) => sanitizeContentFavorite(item))
+      .filter((item): item is ContentFavorite => Boolean(item))
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, Math.max(1, limit));
+  } catch {
+    return [];
+  }
+}
+
 export async function saveRecentContent(item: Omit<ContentFavorite, "updatedAt">): Promise<void> {
   const sanitized = sanitizeContentFavorite({ ...item, updatedAt: Date.now() });
   if (!sanitized) {
     return;
   }
   await AsyncStorage.setItem(RECENT_CONTENT_KEY, JSON.stringify(sanitized));
+  const rows = await getRecentContents(10);
+  const next = [sanitized, ...rows.filter((row) => row.id !== sanitized.id)]
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, 10);
+  await AsyncStorage.setItem(RECENT_CONTENT_LIST_KEY, JSON.stringify(next));
 }
 
 function createDefaultZikrState(): ZikrState {

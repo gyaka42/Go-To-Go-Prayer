@@ -8,7 +8,7 @@ import { easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransit
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
-import { ContentFavorite, getContentFavorites, setContentFavorites } from "@/services/storage";
+import { ContentFavorite, getContentFavorites, getRecentContents, setContentFavorites } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
 function iconForKind(kind: ContentFavorite["kind"]): keyof typeof Ionicons.glyphMap {
@@ -21,6 +21,10 @@ function iconForKind(kind: ContentFavorite["kind"]): keyof typeof Ionicons.glyph
   return "document-text-outline";
 }
 
+function withResume(route: string): string {
+  return `${route}${route.includes("?") ? "&" : "?"}resume=1`;
+}
+
 export default function FavoritesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -30,10 +34,13 @@ export default function FavoritesScreen() {
   const enterTransition = useMotionTransition(easeEnterTransition);
   const pressTransition = useMotionTransition(easePressTransition);
   const [items, setItems] = useState<ContentFavorite[]>([]);
+  const [recentItems, setRecentItems] = useState<ContentFavorite[]>([]);
   const [pressedId, setPressedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setItems(await getContentFavorites());
+    const [favorites, recent] = await Promise.all([getContentFavorites(), getRecentContents(10)]);
+    setItems(favorites);
+    setRecentItems(recent);
   }, []);
 
   useFocusEffect(
@@ -64,7 +71,7 @@ export default function FavoritesScreen() {
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("favorites.subtitle")}</Text>
         </EaseView>
 
-        {items.length === 0 ? (
+        {items.length === 0 && recentItems.length === 0 ? (
           <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition} style={styles.emptyWrap}>
             <Ionicons name="bookmark-outline" size={36} color={isLight ? "#617990" : "#8EA4BF"} />
             <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>{t("favorites.empty_title")}</Text>
@@ -75,6 +82,63 @@ export default function FavoritesScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 32 }]}
           >
+            {recentItems.length > 0 ? (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("favorites.recent_title")}</Text>
+                {recentItems.map((item) => {
+                  const rowId = `recent:${item.id}`;
+                  const pressed = pressedId === rowId;
+                  return (
+                    <EaseView
+                      key={rowId}
+                      initialAnimate={easeInitialLift}
+                      animate={{ opacity: 1, translateY: 0, scale: pressed ? 0.985 : 1 }}
+                      transition={pressed ? pressTransition : enterTransition}
+                    >
+                      <Pressable
+                        style={[
+                          styles.row,
+                          styles.recentRow,
+                          {
+                            backgroundColor: isLight ? "#E1F0FF" : "#132A44",
+                            borderColor: isLight ? "#A8D2FF" : "#315A84"
+                          }
+                        ]}
+                        onPress={() => router.push(withResume(item.route) as never)}
+                        onPressIn={() => setPressedId(rowId)}
+                        onPressOut={() => setPressedId(null)}
+                      >
+                        <View style={[styles.iconWrap, isLight ? { backgroundColor: "#F4FAFF" } : null]}>
+                          <Ionicons name="play-circle-outline" size={20} color="#2B8CEE" />
+                        </View>
+                        <View style={styles.rowTextWrap}>
+                          <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>
+                            {item.titleKey ? t(item.titleKey) : item.title}
+                          </Text>
+                          {item.subtitle ? (
+                            <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>{item.subtitle}</Text>
+                          ) : null}
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
+                      </Pressable>
+                    </EaseView>
+                  );
+                })}
+              </>
+            ) : null}
+
+            {items.length > 0 ? (
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  recentItems.length > 0 ? styles.sectionTitleSpaced : null,
+                  { color: colors.textSecondary }
+                ]}
+              >
+                {t("favorites.saved_title")}
+              </Text>
+            ) : null}
+
             {items.map((item) => {
               const pressed = pressedId === item.id;
               return (
@@ -165,6 +229,16 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     gap: 10
   },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    color: "#8EA4BF"
+  },
+  sectionTitleSpaced: {
+    marginTop: 10
+  },
   row: {
     minHeight: 76,
     borderRadius: 16,
@@ -174,6 +248,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12
+  },
+  recentRow: {
+    minHeight: 82
   },
   iconWrap: {
     width: 42,
