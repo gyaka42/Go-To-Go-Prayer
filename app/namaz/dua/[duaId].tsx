@@ -12,7 +12,7 @@ import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { duaAudioSources, getDuaDetail } from "@/services/namazContent";
-import { getRecentContentById, isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
+import { clearAudioProgress, getAudioProgress, getRecentContentById, isContentFavorite, saveAudioProgress, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
 type AudioUiState = "ready" | "preparing" | "playing" | "paused" | "finished" | "error";
@@ -63,14 +63,32 @@ export default function NamazDuaDetailScreen() {
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
   const audioTokenRef = useRef(0);
+  const audioProgressIdRef = useRef("");
+  const resumeAudioPositionRef = useRef(0);
+  const lastAudioProgressSaveRef = useRef(0);
 
   const cleanupSound = useCallback(async () => {
     audioTokenRef.current += 1;
     const sound = soundRef.current;
+    const progressId = audioProgressIdRef.current;
     if (!sound) {
       return;
     }
     sound.setOnPlaybackStatusUpdate(null);
+    try {
+      const status = await sound.getStatusAsync();
+      if (progressId && status.isLoaded) {
+        const position = status.positionMillis ?? 0;
+        const duration = status.durationMillis ?? 0;
+        if (duration > 0 && position >= duration - 1000) {
+          resumeAudioPositionRef.current = 0;
+          await clearAudioProgress(progressId);
+        } else if (position > 1000) {
+          resumeAudioPositionRef.current = position;
+          await saveAudioProgress({ id: progressId, positionMillis: position, durationMillis: duration || undefined });
+        }
+      }
+    } catch {}
     try {
       await sound.stopAsync();
     } catch {}
@@ -79,6 +97,37 @@ export default function NamazDuaDetailScreen() {
     } catch {}
     soundRef.current = null;
     setAudioState("ready");
+  }, []);
+
+  const persistAudioProgress = useCallback((status: AVPlaybackStatus, force = false) => {
+    if (!status.isLoaded) {
+      return;
+    }
+    const progressId = audioProgressIdRef.current;
+    if (!progressId) {
+      return;
+    }
+    const duration = status.durationMillis ?? 0;
+    const position = status.positionMillis ?? 0;
+    if (duration > 0 && position >= duration - 1000) {
+      resumeAudioPositionRef.current = 0;
+      void clearAudioProgress(progressId).catch(() => undefined);
+      return;
+    }
+    if (position <= 1000) {
+      return;
+    }
+    const now = Date.now();
+    if (!force && now - lastAudioProgressSaveRef.current < 1500) {
+      return;
+    }
+    lastAudioProgressSaveRef.current = now;
+    resumeAudioPositionRef.current = position;
+    void saveAudioProgress({
+      id: progressId,
+      positionMillis: position,
+      durationMillis: duration || undefined
+    }).catch(() => undefined);
   }, []);
 
   const queueAudioAction = useCallback(async (action: () => Promise<void>) => {
@@ -108,6 +157,7 @@ export default function NamazDuaDetailScreen() {
     if (!detail) {
       return;
     }
+    audioProgressIdRef.current = `dua:${detail.id}`;
     void getRecentContentById(`dua:${detail.id}`)
       .then((recent) =>
         saveRecentContent({
@@ -121,7 +171,14 @@ export default function NamazDuaDetailScreen() {
         })
       )
       .catch(() => undefined);
-  }, [detail, t, title]);
+    void getAudioProgress(`dua:${detail.id}`)
+      .then((progress) => {
+        const position = progress?.positionMillis ?? 0;
+        resumeAudioPositionRef.current = position > 1000 ? position : 0;
+        setAudioState(position > 1000 && audioSource ? "paused" : "ready");
+      })
+      .catch(() => undefined);
+  }, [audioSource, detail, t, title]);
 
   useEffect(() => {
     didRestoreScrollRef.current = false;
@@ -254,6 +311,7 @@ export default function NamazDuaDetailScreen() {
           return;
         }
         if (status.isPlaying) {
+          persistAudioProgress(status, true);
           await existing.pauseAsync();
           setAudioState("paused");
           return;
@@ -261,6 +319,8 @@ export default function NamazDuaDetailScreen() {
         const duration = status.durationMillis ?? 0;
         const position = status.positionMillis ?? 0;
         if (duration > 0 && position >= duration - 400) {
+          await clearAudioProgress(audioProgressIdRef.current);
+          resumeAudioPositionRef.current = 0;
           await existing.setPositionAsync(0);
         }
         await existing.playAsync();
@@ -291,9 +351,12 @@ export default function NamazDuaDetailScreen() {
             return;
           }
           if (status.didJustFinish) {
+            resumeAudioPositionRef.current = 0;
+            void clearAudioProgress(audioProgressIdRef.current).catch(() => undefined);
             setAudioState("finished");
             return;
           }
+          persistAudioProgress(status);
           if (status.isPlaying) {
             setAudioState("playing");
             return;
@@ -301,6 +364,8 @@ export default function NamazDuaDetailScreen() {
           const duration = status.durationMillis ?? 0;
           const position = status.positionMillis ?? 0;
           if (duration > 0 && position >= duration - 400) {
+            resumeAudioPositionRef.current = 0;
+            void clearAudioProgress(audioProgressIdRef.current).catch(() => undefined);
             setAudioState("finished");
             return;
           }
@@ -310,6 +375,10 @@ export default function NamazDuaDetailScreen() {
           }
           setAudioState("ready");
         });
+        const resumePosition = resumeAudioPositionRef.current;
+        if (resumePosition > 1000) {
+          await sound.setPositionAsync(resumePosition);
+        }
         await sound.playAsync();
         if (audioTokenRef.current === token && soundRef.current === sound) {
           setAudioState("playing");
@@ -319,7 +388,7 @@ export default function NamazDuaDetailScreen() {
         setAudioState("error");
       }
     });
-  }, [audioSource, cleanupSound, queueAudioAction]);
+  }, [audioSource, cleanupSound, persistAudioProgress, queueAudioAction]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>

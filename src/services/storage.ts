@@ -81,6 +81,7 @@ export type AudioProgress = {
   id: string;
   positionMillis: number;
   durationMillis?: number;
+  trackIndex?: number;
   updatedAt: number;
 };
 
@@ -663,6 +664,7 @@ function sanitizeAudioProgress(value: any): AudioProgress | null {
   const id = typeof value?.id === "string" ? value.id.trim() : "";
   const positionMillis = Number(value?.positionMillis);
   const durationMillis = Number(value?.durationMillis);
+  const trackIndex = Number(value?.trackIndex);
   if (id.length === 0 || !Number.isFinite(positionMillis) || positionMillis < 0) {
     return null;
   }
@@ -672,6 +674,7 @@ function sanitizeAudioProgress(value: any): AudioProgress | null {
     positionMillis: Math.max(0, Math.floor(positionMillis)),
     durationMillis:
       Number.isFinite(durationMillis) && durationMillis > 0 ? Math.floor(durationMillis) : undefined,
+    trackIndex: Number.isFinite(trackIndex) && trackIndex >= 0 ? Math.floor(trackIndex) : undefined,
     updatedAt: typeof value.updatedAt === "number" && Number.isFinite(value.updatedAt) ? value.updatedAt : Date.now()
   };
 }

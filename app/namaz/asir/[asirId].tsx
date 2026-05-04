@@ -14,7 +14,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getAsirItem } from "@/services/namazContent";
 import { getQuranAyahWithSource, getQuranSurahDetailWithSource, QuranDataSource } from "@/services/quran";
-import { getRecentContentById, isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
+import { clearAudioProgress, getAudioProgress, getRecentContentById, isContentFavorite, saveAudioProgress, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { SurahMeta, VerseRow } from "@/types/quran";
 
@@ -59,15 +59,44 @@ export default function NamazAsirDetailScreen() {
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const audioTokenRef = useRef(0);
+  const audioProgressIdRef = useRef("");
+  const resumeAudioPositionRef = useRef(0);
+  const resumeAudioTrackIndexRef = useRef(0);
+  const currentAudioIndexRef = useRef(0);
+  const lastAudioProgressSaveRef = useRef(0);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const lastRecentSaveRef = useRef(0);
   const didRestoreScrollRef = useRef(false);
 
   const cleanupSound = useCallback(async () => {
     const sound = soundRef.current;
+    const progressId = audioProgressIdRef.current;
+    audioTokenRef.current += 1;
     if (!sound) {
       return;
     }
+    sound.setOnPlaybackStatusUpdate(null);
+    try {
+      const status = await sound.getStatusAsync();
+      if (progressId && status.isLoaded) {
+        const position = status.positionMillis ?? 0;
+        const duration = status.durationMillis ?? 0;
+        if (duration > 0 && position >= duration - 1000) {
+          resumeAudioPositionRef.current = 0;
+          await clearAudioProgress(progressId);
+        } else if (position > 1000) {
+          resumeAudioPositionRef.current = position;
+          resumeAudioTrackIndexRef.current = currentAudioIndexRef.current;
+          await saveAudioProgress({
+            id: progressId,
+            positionMillis: position,
+            durationMillis: duration || undefined,
+            trackIndex: currentAudioIndexRef.current
+          });
+        }
+      }
+    } catch {}
     try {
       await sound.stopAsync();
     } catch {}
@@ -76,6 +105,42 @@ export default function NamazAsirDetailScreen() {
     } catch {}
     soundRef.current = null;
     setAudioState("ready");
+  }, []);
+
+  const setActiveAudioIndex = useCallback((index: number) => {
+    currentAudioIndexRef.current = index;
+    setCurrentAudioIndex(index);
+  }, []);
+
+  const persistAudioProgress = useCallback((status: AVPlaybackStatus, force = false) => {
+    if (!status.isLoaded) {
+      return;
+    }
+    const progressId = audioProgressIdRef.current;
+    if (!progressId) {
+      return;
+    }
+    const duration = status.durationMillis ?? 0;
+    const position = status.positionMillis ?? 0;
+    if (duration > 0 && position >= duration - 1000) {
+      return;
+    }
+    if (position <= 1000) {
+      return;
+    }
+    const now = Date.now();
+    if (!force && now - lastAudioProgressSaveRef.current < 1500) {
+      return;
+    }
+    lastAudioProgressSaveRef.current = now;
+    resumeAudioPositionRef.current = position;
+    resumeAudioTrackIndexRef.current = currentAudioIndexRef.current;
+    void saveAudioProgress({
+      id: progressId,
+      positionMillis: position,
+      durationMillis: duration || undefined,
+      trackIndex: currentAudioIndexRef.current
+    }).catch(() => undefined);
   }, []);
 
   const queueAudioAction = useCallback(async (action: () => Promise<void>) => {
@@ -159,7 +224,10 @@ export default function NamazAsirDetailScreen() {
       setSurah(detail.surah);
       setVerses(filtered);
       setDataSource(nextDataSource);
-      setCurrentAudioIndex(0);
+      audioProgressIdRef.current = `asir:${asir.id}`;
+      resumeAudioPositionRef.current = 0;
+      resumeAudioTrackIndexRef.current = 0;
+      setActiveAudioIndex(0);
       void cleanupSound();
       setAudioState("ready");
 
@@ -168,13 +236,22 @@ export default function NamazAsirDetailScreen() {
         (value): value is string => Boolean(value)
       );
       setAudioUrls(urls);
+      const progress = urls.length > 0 ? await getAudioProgress(`asir:${asir.id}`) : null;
+      const trackIndex = progress?.trackIndex ?? 0;
+      const position = progress?.positionMillis ?? 0;
+      if (trackIndex >= 0 && trackIndex < urls.length && position > 1000) {
+        resumeAudioTrackIndexRef.current = trackIndex;
+        resumeAudioPositionRef.current = position;
+        setActiveAudioIndex(trackIndex);
+        setAudioState("paused");
+      }
     } catch (err) {
       logDiagnostic("screen.namaz.asir.load", err, { asirId, localeTag });
       setError(t(quranErrorTranslationKey(err)));
     } finally {
       setLoading(false);
     }
-  }, [asir, cleanupSound, fetchAyahAudioUrl, localeTag, t]);
+  }, [asir, cleanupSound, fetchAyahAudioUrl, localeTag, setActiveAudioIndex, t]);
 
   useEffect(() => {
     void load();
@@ -287,14 +364,19 @@ export default function NamazAsirDetailScreen() {
   }, [asir, t, title]);
 
   const playAudioIndex = useCallback(
-    async (index: number) => {
+    async (index: number, startPositionMillis = 0) => {
       if (index < 0 || index >= audioUrls.length) {
         setAudioState("finished");
-        setCurrentAudioIndex(0);
+        setActiveAudioIndex(0);
+        resumeAudioPositionRef.current = 0;
+        resumeAudioTrackIndexRef.current = 0;
+        await clearAudioProgress(audioProgressIdRef.current);
         return;
       }
 
-      setCurrentAudioIndex(index);
+      const token = audioTokenRef.current + 1;
+      audioTokenRef.current = token;
+      setActiveAudioIndex(index);
       setAudioState("preparing");
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
@@ -302,10 +384,17 @@ export default function NamazAsirDetailScreen() {
       });
       const { sound } = await Audio.Sound.createAsync(
         { uri: audioUrls[index] },
-        { shouldPlay: true }
+        { shouldPlay: false }
       );
+      if (audioTokenRef.current !== token) {
+        await sound.unloadAsync().catch(() => undefined);
+        return;
+      }
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+        if (audioTokenRef.current !== token || soundRef.current !== sound) {
+          return;
+        }
         if (!status.isLoaded) {
           setAudioState("error");
           return;
@@ -317,12 +406,16 @@ export default function NamazAsirDetailScreen() {
             if (next < audioUrls.length) {
               await playAudioIndex(next);
             } else {
+              await clearAudioProgress(audioProgressIdRef.current);
+              resumeAudioPositionRef.current = 0;
+              resumeAudioTrackIndexRef.current = 0;
               setAudioState("finished");
-              setCurrentAudioIndex(0);
+              setActiveAudioIndex(0);
             }
           });
           return;
         }
+        persistAudioProgress(status);
         if (status.isPlaying) {
           setAudioState("playing");
           return;
@@ -339,9 +432,13 @@ export default function NamazAsirDetailScreen() {
         }
         setAudioState("ready");
       });
+      if (startPositionMillis > 1000) {
+        await sound.setPositionAsync(startPositionMillis);
+      }
+      await sound.playAsync();
       setAudioState("playing");
     },
-    [audioUrls, cleanupSound, queueAudioAction]
+    [audioUrls, cleanupSound, persistAudioProgress, queueAudioAction, setActiveAudioIndex]
   );
 
   const toggleAudio = useCallback(async () => {
@@ -358,6 +455,7 @@ export default function NamazAsirDetailScreen() {
           return;
         }
         if (status.isPlaying) {
+          persistAudioProgress(status, true);
           await existing.pauseAsync();
           setAudioState("paused");
           return;
@@ -368,12 +466,16 @@ export default function NamazAsirDetailScreen() {
       }
 
       const startAt =
-        currentAudioIndex >= 0 && currentAudioIndex < audioUrls.length
-          ? currentAudioIndex
+        resumeAudioTrackIndexRef.current >= 0 && resumeAudioTrackIndexRef.current < audioUrls.length
+          ? resumeAudioTrackIndexRef.current
+          : currentAudioIndex >= 0 && currentAudioIndex < audioUrls.length
+            ? currentAudioIndex
           : 0;
-      await playAudioIndex(startAt);
+      const startPosition =
+        startAt === resumeAudioTrackIndexRef.current ? resumeAudioPositionRef.current : 0;
+      await playAudioIndex(startAt, startPosition);
     });
-  }, [audioUrls, cleanupSound, currentAudioIndex, playAudioIndex, queueAudioAction]);
+  }, [audioUrls, cleanupSound, currentAudioIndex, persistAudioProgress, playAudioIndex, queueAudioAction]);
 
   const audioStateLabel = useMemo(() => {
     if (audioBusy || audioState === "preparing") {
