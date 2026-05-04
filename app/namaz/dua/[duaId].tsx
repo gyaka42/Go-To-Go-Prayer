@@ -1,3 +1,4 @@
+import { Audio, AVPlaybackStatus } from "expo-av";
 import { useFonts } from "expo-font";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -10,9 +11,11 @@ import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
-import { getDuaDetail } from "@/services/namazContent";
+import { duaAudioSources, getDuaDetail } from "@/services/namazContent";
 import { getRecentContentById, isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
+
+type AudioUiState = "ready" | "preparing" | "playing" | "paused" | "finished" | "error";
 
 function resolveMeaning(content: NonNullable<ReturnType<typeof getDuaDetail>>, localeTag: string): string {
   const lang = String(localeTag || "tr").split("-")[0].toLowerCase();
@@ -49,10 +52,53 @@ export default function NamazDuaDetailScreen() {
 
   const detail = getDuaDetail(duaId);
   const title = detail ? t(detail.titleKey) : t("namaz.invalid_item");
+  const audioSource = detail ? duaAudioSources[detail.id as keyof typeof duaAudioSources] : undefined;
   const [isFavorite, setIsFavorite] = useState(false);
+  const [audioBusy, setAudioBusy] = useState(false);
+  const [audioPressed, setAudioPressed] = useState(false);
+  const [audioState, setAudioState] = useState<AudioUiState>("ready");
   const scrollViewRef = useRef<ScrollView | null>(null);
   const lastRecentSaveRef = useRef(0);
   const didRestoreScrollRef = useRef(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const cleanupSound = useCallback(async () => {
+    const sound = soundRef.current;
+    if (!sound) {
+      return;
+    }
+    try {
+      await sound.stopAsync();
+    } catch {}
+    try {
+      await sound.unloadAsync();
+    } catch {}
+    soundRef.current = null;
+    setAudioState("ready");
+  }, []);
+
+  const queueAudioAction = useCallback(async (action: () => Promise<void>) => {
+    audioQueueRef.current = audioQueueRef.current
+      .then(async () => {
+        setAudioBusy(true);
+        try {
+          await action();
+        } finally {
+          setAudioBusy(false);
+        }
+      })
+      .catch(() => {
+        setAudioBusy(false);
+      });
+    await audioQueueRef.current;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      void cleanupSound();
+    };
+  }, [cleanupSound]);
 
   useEffect(() => {
     if (!detail) {
@@ -75,7 +121,46 @@ export default function NamazDuaDetailScreen() {
 
   useEffect(() => {
     didRestoreScrollRef.current = false;
+    void cleanupSound();
   }, [duaId]);
+
+  const audioStateLabel = useMemo(() => {
+    if (audioBusy || audioState === "preparing") {
+      return t("quran.audio_state_loading");
+    }
+    if (audioState === "playing") {
+      return t("quran.audio_state_playing");
+    }
+    if (audioState === "paused") {
+      return t("quran.audio_state_paused");
+    }
+    if (audioState === "finished") {
+      return t("quran.audio_state_finished");
+    }
+    if (audioState === "error") {
+      return t("quran.audio_state_error");
+    }
+    return t("quran.audio_state_ready");
+  }, [audioBusy, audioState, t]);
+
+  const audioStateTone = useMemo(() => {
+    if (audioBusy || audioState === "preparing") {
+      return "loading" as const;
+    }
+    if (audioState === "playing") {
+      return "info" as const;
+    }
+    if (audioState === "paused") {
+      return "warning" as const;
+    }
+    if (audioState === "finished") {
+      return "success" as const;
+    }
+    if (audioState === "error") {
+      return "error" as const;
+    }
+    return "success" as const;
+  }, [audioBusy, audioState]);
 
   useEffect(() => {
     if (!shouldResume || !detail || didRestoreScrollRef.current) {
@@ -151,6 +236,76 @@ export default function NamazDuaDetailScreen() {
     setIsFavorite(next);
   }, [detail, t, title]);
 
+  const toggleAudio = useCallback(async () => {
+    if (!audioSource) {
+      return;
+    }
+    await queueAudioAction(async () => {
+      const existing = soundRef.current;
+      if (existing) {
+        const status = await existing.getStatusAsync();
+        if (!status.isLoaded) {
+          await cleanupSound();
+          setAudioState("error");
+          return;
+        }
+        if (status.isPlaying) {
+          await existing.pauseAsync();
+          setAudioState("paused");
+          return;
+        }
+        const duration = status.durationMillis ?? 0;
+        const position = status.positionMillis ?? 0;
+        if (duration > 0 && position >= duration - 400) {
+          await existing.setPositionAsync(0);
+        }
+        await existing.playAsync();
+        setAudioState("playing");
+        return;
+      }
+
+      try {
+        setAudioState("preparing");
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false
+        });
+        const { sound } = await Audio.Sound.createAsync(audioSource, { shouldPlay: false });
+        soundRef.current = sound;
+        sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+          if (!status.isLoaded) {
+            setAudioState("error");
+            return;
+          }
+          if (status.didJustFinish) {
+            setAudioState("finished");
+            return;
+          }
+          if (status.isPlaying) {
+            setAudioState("playing");
+            return;
+          }
+          const duration = status.durationMillis ?? 0;
+          const position = status.positionMillis ?? 0;
+          if (duration > 0 && position >= duration - 400) {
+            setAudioState("finished");
+            return;
+          }
+          if (position > 0) {
+            setAudioState("paused");
+            return;
+          }
+          setAudioState("ready");
+        });
+        await sound.playAsync();
+        setAudioState("playing");
+      } catch {
+        await cleanupSound();
+        setAudioState("error");
+      }
+    });
+  }, [audioSource, cleanupSound, queueAudioAction]);
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
@@ -178,6 +333,31 @@ export default function NamazDuaDetailScreen() {
               onScroll={saveScrollPosition}
               scrollEventThrottle={120}
             >
+              {audioSource ? (
+                <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
+                  <View style={styles.audioWrap}>
+                    <Pressable
+                      style={[
+                        styles.audioButton,
+                        audioState === "playing" ? { backgroundColor: "#D86076" } : { backgroundColor: "#2B8CEE" },
+                        audioBusy ? { opacity: 0.65 } : null,
+                        audioPressed ? { transform: [{ scale: 0.985 }] } : null
+                      ]}
+                      onPress={() => void toggleAudio()}
+                      onPressIn={() => setAudioPressed(true)}
+                      onPressOut={() => setAudioPressed(false)}
+                      disabled={audioBusy}
+                    >
+                      <Ionicons name={audioState === "playing" ? "pause" : "play"} size={16} color="#FFFFFF" />
+                      <Text style={styles.audioButtonText}>
+                        {audioState === "playing" ? t("quran.audio_pause") : t("quran.audio_play")}
+                      </Text>
+                    </Pressable>
+                    <StatusChip label={audioStateLabel} tone={audioStateTone} />
+                  </View>
+                </EaseView>
+              ) : null}
+
               <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
                 <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                   <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.arabic_text")}</Text>
@@ -207,9 +387,11 @@ export default function NamazDuaDetailScreen() {
                 </View>
               </EaseView>
 
-              <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
-                <StatusChip label={t("namaz.audio_not_available")} tone="info" />
-              </EaseView>
+              {!audioSource ? (
+                <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+                  <StatusChip label={t("namaz.audio_not_available")} tone="info" />
+                </EaseView>
+              ) : null}
             </ScrollView>
           </EaseView>
         ) : (
@@ -268,6 +450,26 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 24,
     gap: 10
+  },
+  audioWrap: {
+    marginBottom: 2,
+    alignItems: "center",
+    gap: 6
+  },
+  audioButton: {
+    minHeight: 40,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    flexDirection: "row",
+    gap: 8
+  },
+  audioButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 14
   },
   card: {
     borderWidth: 1,

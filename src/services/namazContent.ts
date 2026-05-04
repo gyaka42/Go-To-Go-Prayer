@@ -24,6 +24,16 @@ const NAMAZ_DUA_IDS = [
   "kunut_2"
 ] as const;
 
+export const duaAudioSources: Partial<Record<(typeof NAMAZ_DUA_IDS)[number], number>> = {
+  subhaneke: require("../../assets/sounds/Namaz_dualari/01_SUBHANEKE.mp3"),
+  ettehiyyatu: require("../../assets/sounds/Namaz_dualari/02_ETTEHIYYATU.mp3"),
+  allahumme_salli: require("../../assets/sounds/Namaz_dualari/03_ALLAHUMME_SALLI.mp3"),
+  allahumme_barik: require("../../assets/sounds/Namaz_dualari/04_ALLAHUMME_BARIK.mp3"),
+  rabbena_atina: require("../../assets/sounds/Namaz_dualari/05_RABBENA_ATINA.mp3"),
+  kunut_1: require("../../assets/sounds/Namaz_dualari/06_KUNUT_DUASI_1.mp3"),
+  kunut_2: require("../../assets/sounds/Namaz_dualari/07_KUNUT_DUASI_2.mp3")
+};
+
 const ASIR_ITEMS = [
   { id: "ayetel_kursi", surahId: 2, fromAyah: 255, toAyah: 255 },
   { id: "huvallahullezi", surahId: 59, fromAyah: 22, toAyah: 24 },
