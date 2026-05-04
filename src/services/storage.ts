@@ -16,6 +16,7 @@ const MOSQUES_DEFAULT_KEY = "mosques:default:v1";
 const CONTENT_FAVORITES_KEY = "content:favorites:v1";
 const RECENT_CONTENT_KEY = "content:recent:v1";
 const RECENT_CONTENT_LIST_KEY = "content:recent:list:v1";
+const AUDIO_PROGRESS_PREFIX = "audio:progress:v1";
 const ZIKR_STATE_KEY = "zikr:state:v2";
 const ZIKR_STATE_V1_KEY = "zikr:state:v1";
 const ZIKR_SETTINGS_KEY = "zikr:settings:v1";
@@ -74,6 +75,12 @@ export type ContentFavorite = {
   subtitle?: string;
   scrollY?: number;
   ayahNumber?: number;
+  updatedAt: number;
+};
+export type AudioProgress = {
+  id: string;
+  positionMillis: number;
+  durationMillis?: number;
   updatedAt: number;
 };
 
@@ -646,6 +653,61 @@ export async function removeRecentContent(id: string): Promise<void> {
 export async function clearRecentContents(): Promise<void> {
   await AsyncStorage.removeItem(RECENT_CONTENT_LIST_KEY);
   await AsyncStorage.removeItem(RECENT_CONTENT_KEY);
+}
+
+function buildAudioProgressKey(id: string): string {
+  return `${AUDIO_PROGRESS_PREFIX}:${id.trim()}`;
+}
+
+function sanitizeAudioProgress(value: any): AudioProgress | null {
+  const id = typeof value?.id === "string" ? value.id.trim() : "";
+  const positionMillis = Number(value?.positionMillis);
+  const durationMillis = Number(value?.durationMillis);
+  if (id.length === 0 || !Number.isFinite(positionMillis) || positionMillis < 0) {
+    return null;
+  }
+
+  return {
+    id,
+    positionMillis: Math.max(0, Math.floor(positionMillis)),
+    durationMillis:
+      Number.isFinite(durationMillis) && durationMillis > 0 ? Math.floor(durationMillis) : undefined,
+    updatedAt: typeof value.updatedAt === "number" && Number.isFinite(value.updatedAt) ? value.updatedAt : Date.now()
+  };
+}
+
+export async function getAudioProgress(id: string): Promise<AudioProgress | null> {
+  const normalizedId = id.trim();
+  if (normalizedId.length === 0) {
+    return null;
+  }
+
+  const raw = await AsyncStorage.getItem(buildAudioProgressKey(normalizedId));
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return sanitizeAudioProgress(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+export async function saveAudioProgress(item: Omit<AudioProgress, "updatedAt">): Promise<void> {
+  const sanitized = sanitizeAudioProgress({ ...item, updatedAt: Date.now() });
+  if (!sanitized) {
+    return;
+  }
+  await AsyncStorage.setItem(buildAudioProgressKey(sanitized.id), JSON.stringify(sanitized));
+}
+
+export async function clearAudioProgress(id: string): Promise<void> {
+  const normalizedId = id.trim();
+  if (normalizedId.length === 0) {
+    return;
+  }
+  await AsyncStorage.removeItem(buildAudioProgressKey(normalizedId));
 }
 
 function createDefaultZikrState(): ZikrState {

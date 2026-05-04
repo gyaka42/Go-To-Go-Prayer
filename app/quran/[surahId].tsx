@@ -13,7 +13,7 @@ import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getQuranSurahAudio, getQuranSurahDetailWithSource, QuranDataSource } from "@/services/quran";
-import { getRecentContentById, isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
+import { clearAudioProgress, getAudioProgress, getRecentContentById, isContentFavorite, saveAudioProgress, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { QuranAudioInfo, SurahMeta, VerseRow } from "@/types/quran";
 
@@ -79,14 +79,37 @@ export default function QuranSurahDetailScreen() {
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const audioTokenRef = useRef(0);
+  const audioProgressIdRef = useRef("");
+  const resumeAudioPositionRef = useRef(0);
+  const lastAudioProgressSaveRef = useRef(0);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const lastRecentSaveRef = useRef(0);
   const didRestoreScrollRef = useRef(false);
 
   const cleanupSound = useCallback(async () => {
     const sound = soundRef.current;
+    const progressId = audioProgressIdRef.current;
+    audioTokenRef.current += 1;
     if (!sound) {
       return;
+    }
+    sound.setOnPlaybackStatusUpdate(null);
+    try {
+      const status = await sound.getStatusAsync();
+      if (progressId && status.isLoaded) {
+        const position = status.positionMillis ?? 0;
+        const duration = status.durationMillis ?? 0;
+        if (duration > 0 && position >= duration - 1000) {
+          resumeAudioPositionRef.current = 0;
+          await clearAudioProgress(progressId);
+        } else if (position > 1000) {
+          resumeAudioPositionRef.current = position;
+          await saveAudioProgress({ id: progressId, positionMillis: position, durationMillis: duration || undefined });
+        }
+      }
+    } catch {
+      // Ignore progress persistence errors during teardown.
     }
     try {
       await sound.stopAsync();
@@ -100,6 +123,37 @@ export default function QuranSurahDetailScreen() {
     }
     soundRef.current = null;
     setAudioState("ready");
+  }, []);
+
+  const persistAudioProgress = useCallback((status: AVPlaybackStatus, force = false) => {
+    if (!status.isLoaded) {
+      return;
+    }
+    const progressId = audioProgressIdRef.current;
+    if (!progressId) {
+      return;
+    }
+    const duration = status.durationMillis ?? 0;
+    const position = status.positionMillis ?? 0;
+    if (duration > 0 && position >= duration - 1000) {
+      resumeAudioPositionRef.current = 0;
+      void clearAudioProgress(progressId).catch(() => undefined);
+      return;
+    }
+    if (position <= 1000) {
+      return;
+    }
+    const now = Date.now();
+    if (!force && now - lastAudioProgressSaveRef.current < 1500) {
+      return;
+    }
+    lastAudioProgressSaveRef.current = now;
+    resumeAudioPositionRef.current = position;
+    void saveAudioProgress({
+      id: progressId,
+      positionMillis: position,
+      durationMillis: duration || undefined
+    }).catch(() => undefined);
   }, []);
 
   const queueAudioAction = useCallback(async (action: () => Promise<void>) => {
@@ -146,6 +200,8 @@ export default function QuranSurahDetailScreen() {
       setSurah(quranDetail.surah);
       setVerses(filteredVerses.length > 0 ? filteredVerses : quranDetail.verses);
       setDataSource(detail.source);
+      audioProgressIdRef.current = `quran:${quranDetail.surah.id}`;
+      resumeAudioPositionRef.current = 0;
       void getRecentContentById(`quran:${quranDetail.surah.id}`)
         .then((recent) =>
           saveRecentContent({
@@ -160,7 +216,10 @@ export default function QuranSurahDetailScreen() {
         )
         .catch(() => undefined);
       setAudioInfo(audio);
-      setAudioState("ready");
+      const progress = audio.available ? await getAudioProgress(`quran:${quranDetail.surah.id}`) : null;
+      const position = progress?.positionMillis ?? 0;
+      resumeAudioPositionRef.current = position > 1000 ? position : 0;
+      setAudioState(position > 1000 ? "paused" : "ready");
     } catch (err) {
       logDiagnostic("screen.quran.detail.load", err, { surahId, localeTag, fromAyah, toAyah });
       setError(t(quranErrorTranslationKey(err)));
@@ -319,6 +378,7 @@ export default function QuranSurahDetailScreen() {
         }
 
         if (status.isPlaying) {
+          persistAudioProgress(status, true);
           await existing.pauseAsync();
           setAudioState("paused");
           return;
@@ -327,6 +387,8 @@ export default function QuranSurahDetailScreen() {
         const duration = status.durationMillis ?? 0;
         const position = status.positionMillis ?? 0;
         if (duration > 0 && position >= duration - 400) {
+          await clearAudioProgress(audioProgressIdRef.current);
+          resumeAudioPositionRef.current = 0;
           await existing.setPositionAsync(0);
         }
         await existing.playAsync();
@@ -335,6 +397,8 @@ export default function QuranSurahDetailScreen() {
       }
 
       try {
+        const token = audioTokenRef.current + 1;
+        audioTokenRef.current = token;
         setAudioState("preparing");
         await Audio.setAudioModeAsync({
           playsInSilentModeIOS: true,
@@ -344,16 +408,26 @@ export default function QuranSurahDetailScreen() {
           { uri: audioUrl },
           { shouldPlay: false }
         );
+        if (token !== audioTokenRef.current) {
+          await sound.unloadAsync();
+          return;
+        }
         soundRef.current = sound;
         sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+          if (token !== audioTokenRef.current) {
+            return;
+          }
           if (!status.isLoaded) {
             setAudioState("error");
             return;
           }
           if (status.didJustFinish) {
+            resumeAudioPositionRef.current = 0;
+            void clearAudioProgress(audioProgressIdRef.current).catch(() => undefined);
             setAudioState("finished");
             return;
           }
+          persistAudioProgress(status);
           if (status.isPlaying) {
             setAudioState("playing");
             return;
@@ -361,6 +435,8 @@ export default function QuranSurahDetailScreen() {
           const duration = status.durationMillis ?? 0;
           const position = status.positionMillis ?? 0;
           if (duration > 0 && position >= duration - 400) {
+            resumeAudioPositionRef.current = 0;
+            void clearAudioProgress(audioProgressIdRef.current).catch(() => undefined);
             setAudioState("finished");
             return;
           }
@@ -370,6 +446,10 @@ export default function QuranSurahDetailScreen() {
           }
           setAudioState("ready");
         });
+        const resumePosition = resumeAudioPositionRef.current;
+        if (resumePosition > 1000) {
+          await sound.setPositionAsync(resumePosition);
+        }
         await sound.playAsync();
         setAudioState("playing");
       } catch {
@@ -377,7 +457,7 @@ export default function QuranSurahDetailScreen() {
         setAudioState("error");
       }
     });
-  }, [audioInfo.audio, audioInfo.available, cleanupSound, queueAudioAction]);
+  }, [audioInfo.audio, audioInfo.available, cleanupSound, persistAudioProgress, queueAudioAction]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
