@@ -5,7 +5,14 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
-import { ContentFavorite, getContentFavorites, getRecentContents, setContentFavorites } from "@/services/storage";
+import {
+  clearRecentContents,
+  ContentFavorite,
+  getContentFavorites,
+  getRecentContents,
+  removeRecentContent,
+  setContentFavorites
+} from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
 function iconForKind(kind: ContentFavorite["kind"]): keyof typeof Ionicons.glyphMap {
@@ -50,6 +57,17 @@ export default function FavoritesScreen() {
     await setContentFavorites(next);
   }, [items]);
 
+  const removeRecent = useCallback(async (id: string) => {
+    const next = recentItems.filter((item) => item.id !== id);
+    setRecentItems(next);
+    await removeRecentContent(id);
+  }, [recentItems]);
+
+  const clearRecent = useCallback(async () => {
+    setRecentItems([]);
+    await clearRecentContents();
+  }, []);
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
@@ -79,7 +97,12 @@ export default function FavoritesScreen() {
           >
             {recentItems.length > 0 ? (
               <>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("favorites.recent_title")}</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("favorites.recent_title")}</Text>
+                  <Pressable onPress={() => void clearRecent()} hitSlop={10} style={styles.clearButton}>
+                    <Text style={styles.clearButtonText}>{t("favorites.clear_recent")}</Text>
+                  </Pressable>
+                </View>
                 {recentItems.map((item) => {
                   const rowId = `recent:${item.id}`;
                   const pressed = pressedId === rowId;
@@ -112,7 +135,16 @@ export default function FavoritesScreen() {
                             <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>{item.subtitle}</Text>
                           ) : null}
                         </View>
-                        <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
+                        <Pressable
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            void removeRecent(item.id);
+                          }}
+                          hitSlop={10}
+                          style={styles.removeButton}
+                        >
+                          <Ionicons name="close-circle-outline" size={22} color={isLight ? "#617990" : "#8EA4BF"} />
+                        </Pressable>
                       </Pressable>
                     </View>
                   );
@@ -141,7 +173,7 @@ export default function FavoritesScreen() {
                 >
                   <Pressable
                     style={[styles.row, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                    onPress={() => router.push(item.route as never)}
+                    onPress={() => router.push(withResume(item.route) as never)}
                     onPressIn={() => setPressedId(item.id)}
                     onPressOut={() => setPressedId(null)}
                   >
@@ -227,8 +259,25 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     color: "#8EA4BF"
   },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12
+  },
   sectionTitleSpaced: {
     marginTop: 10
+  },
+  clearButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(43, 140, 238, 0.12)"
+  },
+  clearButtonText: {
+    color: "#2B8CEE",
+    fontSize: 12,
+    fontWeight: "800"
   },
   row: {
     minHeight: 76,

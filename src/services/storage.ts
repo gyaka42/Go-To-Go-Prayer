@@ -629,6 +629,25 @@ export async function saveRecentContent(item: Omit<ContentFavorite, "updatedAt">
   await AsyncStorage.setItem(RECENT_CONTENT_LIST_KEY, JSON.stringify(next));
 }
 
+export async function removeRecentContent(id: string): Promise<void> {
+  const normalizedId = id.trim();
+  if (normalizedId.length === 0) {
+    return;
+  }
+  const next = (await getRecentContents(10)).filter((row) => row.id !== normalizedId);
+  await AsyncStorage.setItem(RECENT_CONTENT_LIST_KEY, JSON.stringify(next));
+  if (next.length > 0) {
+    await AsyncStorage.setItem(RECENT_CONTENT_KEY, JSON.stringify(next[0]));
+  } else {
+    await AsyncStorage.removeItem(RECENT_CONTENT_KEY);
+  }
+}
+
+export async function clearRecentContents(): Promise<void> {
+  await AsyncStorage.removeItem(RECENT_CONTENT_LIST_KEY);
+  await AsyncStorage.removeItem(RECENT_CONTENT_KEY);
+}
+
 function createDefaultZikrState(): ZikrState {
   const now = Date.now();
   return {
