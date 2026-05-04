@@ -2,10 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { EaseView } from "react-native-ease";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeVisibleFade } from "@/animation/ease";
-import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { ContentFavorite, getContentFavorites, getRecentContents, setContentFavorites } from "@/services/storage";
@@ -31,8 +28,6 @@ export default function FavoritesScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t } = useI18n();
   const isLight = resolvedTheme === "light";
-  const enterTransition = useMotionTransition(easeEnterTransition);
-  const pressTransition = useMotionTransition(easePressTransition);
   const [items, setItems] = useState<ContentFavorite[]>([]);
   const [recentItems, setRecentItems] = useState<ContentFavorite[]>([]);
   const [pressedId, setPressedId] = useState<string | null>(null);
@@ -67,16 +62,16 @@ export default function FavoritesScreen() {
           <View style={styles.headerButtonPlaceholder} />
         </View>
 
-        <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
+        <View>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("favorites.subtitle")}</Text>
-        </EaseView>
+        </View>
 
         {items.length === 0 && recentItems.length === 0 ? (
-          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition} style={styles.emptyWrap}>
+          <View style={styles.emptyWrap}>
             <Ionicons name="bookmark-outline" size={36} color={isLight ? "#617990" : "#8EA4BF"} />
             <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>{t("favorites.empty_title")}</Text>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("favorites.empty_body")}</Text>
-          </EaseView>
+          </View>
         ) : (
           <ScrollView
             showsVerticalScrollIndicator={false}
@@ -89,11 +84,9 @@ export default function FavoritesScreen() {
                   const rowId = `recent:${item.id}`;
                   const pressed = pressedId === rowId;
                   return (
-                    <EaseView
+                    <View
                       key={rowId}
-                      initialAnimate={easeInitialLift}
-                      animate={{ opacity: 1, translateY: 0, scale: pressed ? 0.985 : 1 }}
-                      transition={pressed ? pressTransition : enterTransition}
+                      style={pressed ? styles.pressedRowWrap : null}
                     >
                       <Pressable
                         style={[
@@ -121,7 +114,7 @@ export default function FavoritesScreen() {
                         </View>
                         <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
                       </Pressable>
-                    </EaseView>
+                    </View>
                   );
                 })}
               </>
@@ -142,11 +135,9 @@ export default function FavoritesScreen() {
             {items.map((item) => {
               const pressed = pressedId === item.id;
               return (
-                <EaseView
+                <View
                   key={item.id}
-                  initialAnimate={easeInitialLift}
-                  animate={{ opacity: 1, translateY: 0, scale: pressed ? 0.985 : 1 }}
-                  transition={pressed ? pressTransition : enterTransition}
+                  style={pressed ? styles.pressedRowWrap : null}
                 >
                   <Pressable
                     style={[styles.row, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
@@ -174,7 +165,7 @@ export default function FavoritesScreen() {
                       <Ionicons name="star" size={20} color="#F5B942" />
                     </Pressable>
                   </Pressable>
-                </EaseView>
+                </View>
               );
             })}
           </ScrollView>
@@ -251,6 +242,9 @@ const styles = StyleSheet.create({
   },
   recentRow: {
     minHeight: 82
+  },
+  pressedRowWrap: {
+    transform: [{ scale: 0.985 }]
   },
   iconWrap: {
     width: 42,
