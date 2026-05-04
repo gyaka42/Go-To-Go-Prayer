@@ -17,6 +17,7 @@ import { getQuranAyahWithSource, getQuranSurahDetailWithSource, QuranDataSource 
 import { clearAudioProgress, getAudioProgress, getRecentContentById, isContentFavorite, saveAudioProgress, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { SurahMeta, VerseRow } from "@/types/quran";
+import { formatAudioPosition } from "@/utils/time";
 
 type AudioUiState = "ready" | "preparing" | "playing" | "paused" | "finished" | "error";
 
@@ -56,6 +57,7 @@ export default function NamazAsirDetailScreen() {
   const [audioBusy, setAudioBusy] = useState(false);
   const [audioPressed, setAudioPressed] = useState(false);
   const [audioState, setAudioState] = useState<AudioUiState>("ready");
+  const [audioResumePosition, setAudioResumePosition] = useState(0);
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -84,10 +86,12 @@ export default function NamazAsirDetailScreen() {
         const duration = status.durationMillis ?? 0;
         if (duration > 0 && position >= duration - 1000) {
           resumeAudioPositionRef.current = 0;
+          setAudioResumePosition(0);
           await clearAudioProgress(progressId);
         } else if (position > 1000) {
           resumeAudioPositionRef.current = position;
           resumeAudioTrackIndexRef.current = currentAudioIndexRef.current;
+          setAudioResumePosition(position);
           await saveAudioProgress({
             id: progressId,
             positionMillis: position,
@@ -135,6 +139,7 @@ export default function NamazAsirDetailScreen() {
     lastAudioProgressSaveRef.current = now;
     resumeAudioPositionRef.current = position;
     resumeAudioTrackIndexRef.current = currentAudioIndexRef.current;
+    setAudioResumePosition(position);
     void saveAudioProgress({
       id: progressId,
       positionMillis: position,
@@ -227,6 +232,7 @@ export default function NamazAsirDetailScreen() {
       audioProgressIdRef.current = `asir:${asir.id}`;
       resumeAudioPositionRef.current = 0;
       resumeAudioTrackIndexRef.current = 0;
+      setAudioResumePosition(0);
       setActiveAudioIndex(0);
       void cleanupSound();
       setAudioState("ready");
@@ -242,6 +248,7 @@ export default function NamazAsirDetailScreen() {
       if (trackIndex >= 0 && trackIndex < urls.length && position > 1000) {
         resumeAudioTrackIndexRef.current = trackIndex;
         resumeAudioPositionRef.current = position;
+        setAudioResumePosition(position);
         setActiveAudioIndex(trackIndex);
         setAudioState("paused");
       }
@@ -370,6 +377,7 @@ export default function NamazAsirDetailScreen() {
         setActiveAudioIndex(0);
         resumeAudioPositionRef.current = 0;
         resumeAudioTrackIndexRef.current = 0;
+        setAudioResumePosition(0);
         await clearAudioProgress(audioProgressIdRef.current);
         return;
       }
@@ -409,6 +417,7 @@ export default function NamazAsirDetailScreen() {
               await clearAudioProgress(audioProgressIdRef.current);
               resumeAudioPositionRef.current = 0;
               resumeAudioTrackIndexRef.current = 0;
+              setAudioResumePosition(0);
               setAudioState("finished");
               setActiveAudioIndex(0);
             }
@@ -575,7 +584,11 @@ export default function NamazAsirDetailScreen() {
               >
                 <Ionicons name={audioState === "playing" ? "pause" : "play"} size={16} color="#FFFFFF" />
                 <Text style={styles.audioButtonText}>
-                  {audioState === "playing" ? t("quran.audio_pause") : t("quran.audio_play")}
+                  {audioState === "playing"
+                    ? t("quran.audio_pause")
+                    : audioResumePosition > 1000
+                      ? t("quran.audio_resume")
+                      : t("quran.audio_play")}
                 </Text>
               </Pressable>
               <StatusChip label={audioStateLabel} tone={audioStateTone} />
@@ -587,6 +600,13 @@ export default function NamazAsirDetailScreen() {
                   })}
                 </Text>
               </EaseView>
+              {audioState !== "playing" && audioResumePosition > 1000 ? (
+                <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+                  <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>
+                    {t("quran.audio_resume_hint", { time: formatAudioPosition(audioResumePosition) })}
+                  </Text>
+                </EaseView>
+              ) : null}
             </View>
           </EaseView>
         ) : null}

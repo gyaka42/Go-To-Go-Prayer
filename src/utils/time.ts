@@ -16,6 +16,21 @@ export function formatCountdown(ms: number): string {
   return [hours, minutes, seconds].map((v) => String(v).padStart(2, "0")).join(":");
 }
 
+export function formatAudioPosition(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return [hours, minutes, seconds]
+      .map((value, index) => (index === 0 ? String(value) : String(value).padStart(2, "0")))
+      .join(":");
+  }
+
+  return [minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
+}
+
 export function getDateKey(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");

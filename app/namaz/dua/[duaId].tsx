@@ -14,6 +14,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { duaAudioSources, getDuaDetail } from "@/services/namazContent";
 import { clearAudioProgress, getAudioProgress, getRecentContentById, isContentFavorite, saveAudioProgress, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
+import { formatAudioPosition } from "@/utils/time";
 
 type AudioUiState = "ready" | "preparing" | "playing" | "paused" | "finished" | "error";
 
@@ -57,6 +58,7 @@ export default function NamazDuaDetailScreen() {
   const [audioBusy, setAudioBusy] = useState(false);
   const [audioPressed, setAudioPressed] = useState(false);
   const [audioState, setAudioState] = useState<AudioUiState>("ready");
+  const [audioResumePosition, setAudioResumePosition] = useState(0);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const lastRecentSaveRef = useRef(0);
   const didRestoreScrollRef = useRef(false);
@@ -82,9 +84,11 @@ export default function NamazDuaDetailScreen() {
         const duration = status.durationMillis ?? 0;
         if (duration > 0 && position >= duration - 1000) {
           resumeAudioPositionRef.current = 0;
+          setAudioResumePosition(0);
           await clearAudioProgress(progressId);
         } else if (position > 1000) {
           resumeAudioPositionRef.current = position;
+          setAudioResumePosition(position);
           await saveAudioProgress({ id: progressId, positionMillis: position, durationMillis: duration || undefined });
         }
       }
@@ -111,6 +115,7 @@ export default function NamazDuaDetailScreen() {
     const position = status.positionMillis ?? 0;
     if (duration > 0 && position >= duration - 1000) {
       resumeAudioPositionRef.current = 0;
+      setAudioResumePosition(0);
       void clearAudioProgress(progressId).catch(() => undefined);
       return;
     }
@@ -123,6 +128,7 @@ export default function NamazDuaDetailScreen() {
     }
     lastAudioProgressSaveRef.current = now;
     resumeAudioPositionRef.current = position;
+    setAudioResumePosition(position);
     void saveAudioProgress({
       id: progressId,
       positionMillis: position,
@@ -175,6 +181,7 @@ export default function NamazDuaDetailScreen() {
       .then((progress) => {
         const position = progress?.positionMillis ?? 0;
         resumeAudioPositionRef.current = position > 1000 ? position : 0;
+        setAudioResumePosition(position > 1000 ? position : 0);
         setAudioState(position > 1000 && audioSource ? "paused" : "ready");
       })
       .catch(() => undefined);
@@ -321,6 +328,7 @@ export default function NamazDuaDetailScreen() {
         if (duration > 0 && position >= duration - 400) {
           await clearAudioProgress(audioProgressIdRef.current);
           resumeAudioPositionRef.current = 0;
+          setAudioResumePosition(0);
           await existing.setPositionAsync(0);
         }
         await existing.playAsync();
@@ -352,6 +360,7 @@ export default function NamazDuaDetailScreen() {
           }
           if (status.didJustFinish) {
             resumeAudioPositionRef.current = 0;
+            setAudioResumePosition(0);
             void clearAudioProgress(audioProgressIdRef.current).catch(() => undefined);
             setAudioState("finished");
             return;
@@ -365,6 +374,7 @@ export default function NamazDuaDetailScreen() {
           const position = status.positionMillis ?? 0;
           if (duration > 0 && position >= duration - 400) {
             resumeAudioPositionRef.current = 0;
+            setAudioResumePosition(0);
             void clearAudioProgress(audioProgressIdRef.current).catch(() => undefined);
             setAudioState("finished");
             return;
@@ -434,10 +444,19 @@ export default function NamazDuaDetailScreen() {
                     >
                       <Ionicons name={audioState === "playing" ? "pause" : "play"} size={16} color="#FFFFFF" />
                       <Text style={styles.audioButtonText}>
-                        {audioState === "playing" ? t("quran.audio_pause") : t("quran.audio_play")}
+                        {audioState === "playing"
+                          ? t("quran.audio_pause")
+                          : audioResumePosition > 1000
+                            ? t("quran.audio_resume")
+                            : t("quran.audio_play")}
                       </Text>
                     </Pressable>
                     <StatusChip label={audioStateLabel} tone={audioStateTone} />
+                    {audioState !== "playing" && audioResumePosition > 1000 ? (
+                      <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>
+                        {t("quran.audio_resume_hint", { time: formatAudioPosition(audioResumePosition) })}
+                      </Text>
+                    ) : null}
                   </View>
                 </EaseView>
               ) : null}
@@ -554,6 +573,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 14
+  },
+  audioHintText: {
+    fontSize: 12,
+    color: "#8EA4BF",
+    textAlign: "center"
   },
   card: {
     borderWidth: 1,
