@@ -29,6 +29,21 @@ function withResume(route: string): string {
   return `${route}${route.includes("?") ? "&" : "?"}resume=1`;
 }
 
+function subtitleForItem(item: ContentFavorite, t: ReturnType<typeof useI18n>["t"]): string | undefined {
+  const progress = item.ayahNumber ? t("favorites.progress_ayah", { ayah: item.ayahNumber }) : "";
+  const kindLabel =
+    item.kind === "quran_surah"
+      ? t("favorites.kind_quran")
+      : item.kind === "namaz_asir"
+        ? t("favorites.kind_asir")
+        : t("favorites.kind_dua");
+
+  if (progress.length > 0) {
+    return `${kindLabel} • ${progress}`;
+  }
+  return item.subtitle || kindLabel;
+}
+
 export default function FavoritesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -67,6 +82,8 @@ export default function FavoritesScreen() {
     setRecentItems([]);
     await clearRecentContents();
   }, []);
+
+  const recentById = new Map(recentItems.map((item) => [item.id, item]));
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -131,9 +148,9 @@ export default function FavoritesScreen() {
                           <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>
                             {item.titleKey ? t(item.titleKey) : item.title}
                           </Text>
-                          {item.subtitle ? (
-                            <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>{item.subtitle}</Text>
-                          ) : null}
+                          <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
+                            {subtitleForItem(item, t)}
+                          </Text>
                         </View>
                         <Pressable
                           onPress={(event) => {
@@ -166,6 +183,8 @@ export default function FavoritesScreen() {
 
             {items.map((item) => {
               const pressed = pressedId === item.id;
+              const recent = recentById.get(item.id);
+              const displayItem = recent ? { ...item, ayahNumber: recent.ayahNumber, subtitle: recent.subtitle } : item;
               return (
                 <View
                   key={item.id}
@@ -182,9 +201,9 @@ export default function FavoritesScreen() {
                     </View>
                     <View style={styles.rowTextWrap}>
                       <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{item.titleKey ? t(item.titleKey) : item.title}</Text>
-                      {item.subtitle ? (
-                        <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>{item.subtitle}</Text>
-                      ) : null}
+                      <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
+                        {subtitleForItem(displayItem, t)}
+                      </Text>
                     </View>
                     <Pressable
                       onPress={(event) => {

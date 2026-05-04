@@ -22,6 +22,11 @@ export default function MenuScreen() {
   const [pressedCard, setPressedCard] = useState<string | null>(null);
   const [recentContent, setRecentContent] = useState<ContentFavorite | null>(null);
 
+  const recentSubtitle =
+    recentContent?.ayahNumber && recentContent.ayahNumber > 0
+      ? `${recentContent.kind === "namaz_dua" ? t("favorites.kind_dua") : recentContent.kind === "namaz_asir" ? t("favorites.kind_asir") : t("favorites.kind_quran")} • ${t("favorites.progress_ayah", { ayah: recentContent.ayahNumber })}`
+      : recentContent?.subtitle;
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -171,8 +176,8 @@ export default function MenuScreen() {
                   <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
                     {recentContent.titleKey ? t(recentContent.titleKey) : recentContent.title}
                   </Text>
-                  {recentContent.subtitle ? (
-                    <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{recentContent.subtitle}</Text>
+                  {recentSubtitle ? (
+                    <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{recentSubtitle}</Text>
                   ) : null}
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
