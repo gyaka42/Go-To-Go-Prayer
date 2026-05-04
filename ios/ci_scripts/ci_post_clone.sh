@@ -27,6 +27,25 @@ run_with_heartbeat() {
   return "${status}"
 }
 
+run_pod_install_with_retries() {
+  local attempts=4
+  local attempt
+
+  for attempt in $(seq 1 "${attempts}"); do
+    if run_with_heartbeat "pod install (attempt ${attempt}/${attempts})" pod install; then
+      return 0
+    fi
+
+    if [ "${attempt}" -lt "${attempts}" ]; then
+      echo "==> pod install failed, waiting before retry"
+      sleep 20
+    fi
+  done
+
+  echo "==> pod install failed after ${attempts} attempts, retrying once with --repo-update"
+  run_with_heartbeat "pod install --repo-update" pod install --repo-update
+}
+
 ensure_node_in_path() {
   local candidate
   for candidate in \
@@ -128,9 +147,6 @@ find . -name "*.pbxproj" -print0 | while IFS= read -r -d '' f; do
 done
 echo "==> objectVersion values after patch:"
 grep -R "objectVersion =" . --include="*.pbxproj" || true
-if ! run_with_heartbeat "pod install" pod install; then
-  echo "==> pod install failed, retrying with --repo-update"
-  run_with_heartbeat "pod install --repo-update" pod install --repo-update
-fi
+run_pod_install_with_retries
 
 echo "==> ci_post_clone: done"
