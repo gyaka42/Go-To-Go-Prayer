@@ -589,14 +589,41 @@ export async function getRecentContents(limit = 10): Promise<ContentFavorite[]> 
   }
 }
 
+export async function getRecentContentById(id: string): Promise<ContentFavorite | null> {
+  const normalizedId = id.trim();
+  if (normalizedId.length === 0) {
+    return null;
+  }
+
+  const rows = await getRecentContents(10);
+  const match = rows.find((row) => row.id === normalizedId);
+  if (match) {
+    return match;
+  }
+
+  const latest = await getRecentContent();
+  return latest?.id === normalizedId ? latest : null;
+}
+
 export async function saveRecentContent(item: Omit<ContentFavorite, "updatedAt">): Promise<void> {
   const sanitized = sanitizeContentFavorite({ ...item, updatedAt: Date.now() });
   if (!sanitized) {
     return;
   }
-  await AsyncStorage.setItem(RECENT_CONTENT_KEY, JSON.stringify(sanitized));
   const rows = await getRecentContents(10);
-  const next = [sanitized, ...rows.filter((row) => row.id !== sanitized.id)]
+  const existing = rows.find((row) => row.id === sanitized.id);
+  const merged = sanitizeContentFavorite({
+    ...existing,
+    ...sanitized,
+    scrollY: sanitized.scrollY ?? existing?.scrollY,
+    ayahNumber: sanitized.ayahNumber ?? existing?.ayahNumber,
+    updatedAt: sanitized.updatedAt
+  });
+  if (!merged) {
+    return;
+  }
+  await AsyncStorage.setItem(RECENT_CONTENT_KEY, JSON.stringify(merged));
+  const next = [merged, ...rows.filter((row) => row.id !== merged.id)]
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, 10);
   await AsyncStorage.setItem(RECENT_CONTENT_LIST_KEY, JSON.stringify(next));

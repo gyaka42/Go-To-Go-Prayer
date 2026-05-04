@@ -11,7 +11,7 @@ import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getDuaDetail } from "@/services/namazContent";
-import { getRecentContent, isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
+import { getRecentContentById, isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
 function resolveMeaning(content: NonNullable<ReturnType<typeof getDuaDetail>>, localeTag: string): string {
@@ -58,7 +58,7 @@ export default function NamazDuaDetailScreen() {
     if (!detail) {
       return;
     }
-    void getRecentContent()
+    void getRecentContentById(`dua:${detail.id}`)
       .then((recent) =>
         saveRecentContent({
           id: `dua:${detail.id}`,
@@ -83,7 +83,7 @@ export default function NamazDuaDetailScreen() {
     }
     let active = true;
     const timer = setTimeout(() => {
-      void getRecentContent().then((recent) => {
+      void getRecentContentById(`dua:${detail.id}`).then((recent) => {
         if (!active || recent?.id !== `dua:${detail.id}` || !recent.scrollY || recent.scrollY <= 0) {
           return;
         }

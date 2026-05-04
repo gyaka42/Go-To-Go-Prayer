@@ -14,7 +14,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getAsirItem } from "@/services/namazContent";
 import { getQuranAyahWithSource, getQuranSurahDetailWithSource, QuranDataSource } from "@/services/quran";
-import { getRecentContent, isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
+import { getRecentContentById, isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { SurahMeta, VerseRow } from "@/types/quran";
 
@@ -186,7 +186,7 @@ export default function NamazAsirDetailScreen() {
     if (!asir) {
       return;
     }
-    void getRecentContent()
+    void getRecentContentById(`asir:${asir.id}`)
       .then((recent) =>
         saveRecentContent({
           id: `asir:${asir.id}`,
@@ -212,7 +212,7 @@ export default function NamazAsirDetailScreen() {
     }
     let active = true;
     const timer = setTimeout(() => {
-      void getRecentContent().then((recent) => {
+      void getRecentContentById(`asir:${asir.id}`).then((recent) => {
         if (!active || recent?.id !== `asir:${asir.id}` || !recent.scrollY || recent.scrollY <= 0) {
           return;
         }

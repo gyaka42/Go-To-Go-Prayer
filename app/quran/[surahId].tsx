@@ -13,7 +13,7 @@ import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getQuranSurahAudio, getQuranSurahDetailWithSource, QuranDataSource } from "@/services/quran";
-import { getRecentContent, isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
+import { getRecentContentById, isContentFavorite, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { QuranAudioInfo, SurahMeta, VerseRow } from "@/types/quran";
 
@@ -146,7 +146,7 @@ export default function QuranSurahDetailScreen() {
       setSurah(quranDetail.surah);
       setVerses(filteredVerses.length > 0 ? filteredVerses : quranDetail.verses);
       setDataSource(detail.source);
-      void getRecentContent()
+      void getRecentContentById(`quran:${quranDetail.surah.id}`)
         .then((recent) =>
           saveRecentContent({
             id: `quran:${quranDetail.surah.id}`,
@@ -231,7 +231,7 @@ export default function QuranSurahDetailScreen() {
     }
     let active = true;
     const timer = setTimeout(() => {
-      void getRecentContent().then((recent) => {
+      void getRecentContentById(`quran:${surah.id}`).then((recent) => {
         if (!active || recent?.id !== `quran:${surah.id}` || !recent.scrollY || recent.scrollY <= 0) {
           return;
         }
