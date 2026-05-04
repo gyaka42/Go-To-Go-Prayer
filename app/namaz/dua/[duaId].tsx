@@ -62,12 +62,15 @@ export default function NamazDuaDetailScreen() {
   const didRestoreScrollRef = useRef(false);
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const audioTokenRef = useRef(0);
 
   const cleanupSound = useCallback(async () => {
+    audioTokenRef.current += 1;
     const sound = soundRef.current;
     if (!sound) {
       return;
     }
+    sound.setOnPlaybackStatusUpdate(null);
     try {
       await sound.stopAsync();
     } catch {}
@@ -89,6 +92,7 @@ export default function NamazDuaDetailScreen() {
         }
       })
       .catch(() => {
+        setAudioState("error");
         setAudioBusy(false);
       });
     await audioQueueRef.current;
@@ -122,7 +126,7 @@ export default function NamazDuaDetailScreen() {
   useEffect(() => {
     didRestoreScrollRef.current = false;
     void cleanupSound();
-  }, [duaId]);
+  }, [cleanupSound, duaId]);
 
   const audioStateLabel = useMemo(() => {
     if (audioBusy || audioState === "preparing") {
@@ -266,13 +270,22 @@ export default function NamazDuaDetailScreen() {
 
       try {
         setAudioState("preparing");
+        const token = audioTokenRef.current + 1;
+        audioTokenRef.current = token;
         await Audio.setAudioModeAsync({
           playsInSilentModeIOS: true,
           staysActiveInBackground: false
         });
         const { sound } = await Audio.Sound.createAsync(audioSource, { shouldPlay: false });
+        if (audioTokenRef.current !== token) {
+          await sound.unloadAsync().catch(() => undefined);
+          return;
+        }
         soundRef.current = sound;
         sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+          if (audioTokenRef.current !== token || soundRef.current !== sound) {
+            return;
+          }
           if (!status.isLoaded) {
             setAudioState("error");
             return;
@@ -298,7 +311,9 @@ export default function NamazDuaDetailScreen() {
           setAudioState("ready");
         });
         await sound.playAsync();
-        setAudioState("playing");
+        if (audioTokenRef.current === token && soundRef.current === sound) {
+          setAudioState("playing");
+        }
       } catch {
         await cleanupSound();
         setAudioState("error");
