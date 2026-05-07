@@ -9,11 +9,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { ReadingControls } from "@/components/ReadingControls";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getQuranSurahAudio, getQuranSurahDetailWithSource, QuranDataSource } from "@/services/quran";
-import { clearAudioProgress, getAudioProgress, getRecentContentById, isContentFavorite, saveAudioProgress, saveRecentContent, toggleContentFavorite } from "@/services/storage";
+import { clearAudioProgress, getAudioProgress, getReadingSettings, getRecentContentById, isContentFavorite, ReadingSettings, saveAudioProgress, saveReadingSettings, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { QuranAudioInfo, SurahMeta, VerseRow } from "@/types/quran";
 import { formatAudioPosition } from "@/utils/time";
@@ -78,6 +79,11 @@ export default function QuranSurahDetailScreen() {
   const [audioPressed, setAudioPressed] = useState(false);
   const [audioState, setAudioState] = useState<AudioUiState>("ready");
   const [audioResumePosition, setAudioResumePosition] = useState(0);
+  const [readingSettings, setReadingSettings] = useState<ReadingSettings>({
+    textSize: "medium",
+    showTranslation: true,
+    showTransliteration: true
+  });
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -184,6 +190,25 @@ export default function QuranSurahDetailScreen() {
     };
   }, [cleanupSound]);
 
+  useEffect(() => {
+    let active = true;
+    void getReadingSettings()
+      .then((settings) => {
+        if (active) {
+          setReadingSettings(settings);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const updateReadingSettings = useCallback((settings: ReadingSettings) => {
+    setReadingSettings(settings);
+    void saveReadingSettings(settings).catch(() => undefined);
+  }, []);
+
   const load = useCallback(async () => {
     if (!(surahId > 0)) {
       setError(t("quran.invalid_surah"));
@@ -282,6 +307,22 @@ export default function QuranSurahDetailScreen() {
     }
     return "success" as const;
   }, [audioBusy, audioState]);
+
+  const textScale = readingSettings.textSize === "large" ? 1.16 : readingSettings.textSize === "small" ? 0.9 : 1;
+  const arabicTextSizeStyle = useMemo(
+    () => ({
+      fontSize: Math.round(27 * textScale),
+      lineHeight: Math.round(42 * textScale)
+    }),
+    [textScale]
+  );
+  const translationTextSizeStyle = useMemo(
+    () => ({
+      fontSize: Math.round(15 * textScale),
+      lineHeight: Math.round(22 * textScale)
+    }),
+    [textScale]
+  );
 
   useEffect(() => {
     void load();
@@ -551,6 +592,14 @@ export default function QuranSurahDetailScreen() {
           </EaseView>
         ) : null}
 
+        <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+          <ReadingControls
+            settings={readingSettings}
+            onChange={updateReadingSettings}
+            showTransliterationToggle={false}
+          />
+        </EaseView>
+
         {loading ? (
           <EaseView
             initialAnimate={easeInitialFade}
@@ -588,15 +637,18 @@ export default function QuranSurahDetailScreen() {
                   <Text
                     style={[
                       styles.ayahArabic,
+                      arabicTextSizeStyle,
                       { color: colors.textPrimary },
                       fontsLoaded ? styles.quranArabicFont : null
                     ]}
                   >
                     {row.arabic}
                   </Text>
-                  <Text style={[styles.ayahTranslation, { color: colors.textSecondary }]}>
-                    {row.translation || "—"}
-                  </Text>
+                  {readingSettings.showTranslation ? (
+                    <Text style={[styles.ayahTranslation, translationTextSizeStyle, { color: colors.textSecondary }]}>
+                      {row.translation || "—"}
+                    </Text>
+                  ) : null}
                 </View>
               ))}
             </ScrollView>

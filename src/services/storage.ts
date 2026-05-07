@@ -17,6 +17,7 @@ const CONTENT_FAVORITES_KEY = "content:favorites:v1";
 const RECENT_CONTENT_KEY = "content:recent:v1";
 const RECENT_CONTENT_LIST_KEY = "content:recent:list:v1";
 const AUDIO_PROGRESS_PREFIX = "audio:progress:v1";
+const READING_SETTINGS_KEY = "reading:settings:v1";
 const ZIKR_STATE_KEY = "zikr:state:v2";
 const ZIKR_STATE_V1_KEY = "zikr:state:v1";
 const ZIKR_SETTINGS_KEY = "zikr:settings:v1";
@@ -83,6 +84,12 @@ export type AudioProgress = {
   durationMillis?: number;
   trackIndex?: number;
   updatedAt: number;
+};
+export type ReadingTextSize = "small" | "medium" | "large";
+export type ReadingSettings = {
+  textSize: ReadingTextSize;
+  showTranslation: boolean;
+  showTransliteration: boolean;
 };
 
 function createDefaultSettings(): Settings {
@@ -711,6 +718,49 @@ export async function clearAudioProgress(id: string): Promise<void> {
     return;
   }
   await AsyncStorage.removeItem(buildAudioProgressKey(normalizedId));
+}
+
+function createDefaultReadingSettings(): ReadingSettings {
+  return {
+    textSize: "medium",
+    showTranslation: true,
+    showTransliteration: true
+  };
+}
+
+function sanitizeReadingSettings(value: any): ReadingSettings {
+  const defaults = createDefaultReadingSettings();
+  const textSize =
+    value?.textSize === "small" || value?.textSize === "medium" || value?.textSize === "large"
+      ? value.textSize
+      : defaults.textSize;
+
+  return {
+    textSize,
+    showTranslation:
+      typeof value?.showTranslation === "boolean" ? value.showTranslation : defaults.showTranslation,
+    showTransliteration:
+      typeof value?.showTransliteration === "boolean"
+        ? value.showTransliteration
+        : defaults.showTransliteration
+  };
+}
+
+export async function getReadingSettings(): Promise<ReadingSettings> {
+  const raw = await AsyncStorage.getItem(READING_SETTINGS_KEY);
+  if (!raw) {
+    return createDefaultReadingSettings();
+  }
+
+  try {
+    return sanitizeReadingSettings(JSON.parse(raw));
+  } catch {
+    return createDefaultReadingSettings();
+  }
+}
+
+export async function saveReadingSettings(settings: ReadingSettings): Promise<void> {
+  await AsyncStorage.setItem(READING_SETTINGS_KEY, JSON.stringify(sanitizeReadingSettings(settings)));
 }
 
 function createDefaultZikrState(): ZikrState {

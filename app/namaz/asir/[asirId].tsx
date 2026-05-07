@@ -9,12 +9,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { easeEnterTransition, easeInitialFade, easeInitialLift, easePressTransition, easeStateTransition, easeVisibleFade } from "@/animation/ease";
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { ReadingControls } from "@/components/ReadingControls";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { logDiagnostic, quranErrorTranslationKey } from "@/services/errorDiagnostics";
 import { getAsirItem } from "@/services/namazContent";
 import { getQuranAyahWithSource, getQuranSurahDetailWithSource, QuranDataSource } from "@/services/quran";
-import { clearAudioProgress, getAudioProgress, getRecentContentById, isContentFavorite, saveAudioProgress, saveRecentContent, toggleContentFavorite } from "@/services/storage";
+import { clearAudioProgress, getAudioProgress, getReadingSettings, getRecentContentById, isContentFavorite, ReadingSettings, saveAudioProgress, saveReadingSettings, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { SurahMeta, VerseRow } from "@/types/quran";
 import { formatAudioPosition } from "@/utils/time";
@@ -58,6 +59,11 @@ export default function NamazAsirDetailScreen() {
   const [audioPressed, setAudioPressed] = useState(false);
   const [audioState, setAudioState] = useState<AudioUiState>("ready");
   const [audioResumePosition, setAudioResumePosition] = useState(0);
+  const [readingSettings, setReadingSettings] = useState<ReadingSettings>({
+    textSize: "medium",
+    showTranslation: true,
+    showTransliteration: true
+  });
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -169,6 +175,25 @@ export default function NamazAsirDetailScreen() {
       void cleanupSound();
     };
   }, [cleanupSound]);
+
+  useEffect(() => {
+    let active = true;
+    void getReadingSettings()
+      .then((settings) => {
+        if (active) {
+          setReadingSettings(settings);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const updateReadingSettings = useCallback((settings: ReadingSettings) => {
+    setReadingSettings(settings);
+    void saveReadingSettings(settings).catch(() => undefined);
+  }, []);
 
   const fetchAyahAudioUrl = useCallback(async (verseKey: string): Promise<string | null> => {
     try {
@@ -524,6 +549,22 @@ export default function NamazAsirDetailScreen() {
     return "success" as const;
   }, [audioBusy, audioState]);
 
+  const textScale = readingSettings.textSize === "large" ? 1.16 : readingSettings.textSize === "small" ? 0.9 : 1;
+  const arabicTextSizeStyle = useMemo(
+    () => ({
+      fontSize: Math.round(27 * textScale),
+      lineHeight: Math.round(42 * textScale)
+    }),
+    [textScale]
+  );
+  const translationTextSizeStyle = useMemo(
+    () => ({
+      fontSize: Math.round(15 * textScale),
+      lineHeight: Math.round(22 * textScale)
+    }),
+    [textScale]
+  );
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
@@ -611,6 +652,14 @@ export default function NamazAsirDetailScreen() {
           </EaseView>
         ) : null}
 
+        <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+          <ReadingControls
+            settings={readingSettings}
+            onChange={updateReadingSettings}
+            showTransliterationToggle={false}
+          />
+        </EaseView>
+
         {loading ? (
           <EaseView
             initialAnimate={easeInitialFade}
@@ -645,10 +694,21 @@ export default function NamazAsirDetailScreen() {
               {verses.map((row) => (
                 <View key={row.key} style={[styles.ayahCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                   <Text style={[styles.ayahIndex, { color: isLight ? "#1E78D9" : "#8DBEFF" }]}>{row.numberInSurah}</Text>
-                  <Text style={[styles.ayahArabic, { color: colors.textPrimary }, fontsLoaded ? styles.quranArabicFont : null]}>
+                  <Text
+                    style={[
+                      styles.ayahArabic,
+                      arabicTextSizeStyle,
+                      { color: colors.textPrimary },
+                      fontsLoaded ? styles.quranArabicFont : null
+                    ]}
+                  >
                     {row.arabic}
                   </Text>
-                  <Text style={[styles.ayahTranslation, { color: colors.textSecondary }]}>{row.translation || "—"}</Text>
+                  {readingSettings.showTranslation ? (
+                    <Text style={[styles.ayahTranslation, translationTextSizeStyle, { color: colors.textSecondary }]}>
+                      {row.translation || "—"}
+                    </Text>
+                  ) : null}
                 </View>
               ))}
             </ScrollView>

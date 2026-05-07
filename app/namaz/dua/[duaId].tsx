@@ -9,10 +9,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { easeEnterTransition, easeInitialFade, easeInitialLift, easeStateTransition, easeVisibleFade } from "@/animation/ease";
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { ReadingControls } from "@/components/ReadingControls";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { duaAudioSources, getDuaDetail } from "@/services/namazContent";
-import { clearAudioProgress, getAudioProgress, getRecentContentById, isContentFavorite, saveAudioProgress, saveRecentContent, toggleContentFavorite } from "@/services/storage";
+import { clearAudioProgress, getAudioProgress, getReadingSettings, getRecentContentById, isContentFavorite, ReadingSettings, saveAudioProgress, saveReadingSettings, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { formatAudioPosition } from "@/utils/time";
 
@@ -59,6 +60,11 @@ export default function NamazDuaDetailScreen() {
   const [audioPressed, setAudioPressed] = useState(false);
   const [audioState, setAudioState] = useState<AudioUiState>("ready");
   const [audioResumePosition, setAudioResumePosition] = useState(0);
+  const [readingSettings, setReadingSettings] = useState<ReadingSettings>({
+    textSize: "medium",
+    showTranslation: true,
+    showTransliteration: true
+  });
   const scrollViewRef = useRef<ScrollView | null>(null);
   const lastRecentSaveRef = useRef(0);
   const didRestoreScrollRef = useRef(false);
@@ -160,6 +166,25 @@ export default function NamazDuaDetailScreen() {
   }, [cleanupSound]);
 
   useEffect(() => {
+    let active = true;
+    void getReadingSettings()
+      .then((settings) => {
+        if (active) {
+          setReadingSettings(settings);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const updateReadingSettings = useCallback((settings: ReadingSettings) => {
+    setReadingSettings(settings);
+    void saveReadingSettings(settings).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     if (!detail) {
       return;
     }
@@ -229,6 +254,22 @@ export default function NamazDuaDetailScreen() {
     }
     return "success" as const;
   }, [audioBusy, audioState]);
+
+  const textScale = readingSettings.textSize === "large" ? 1.16 : readingSettings.textSize === "small" ? 0.9 : 1;
+  const arabicTextSizeStyle = useMemo(
+    () => ({
+      fontSize: Math.round(27 * textScale),
+      lineHeight: Math.round(43 * textScale)
+    }),
+    [textScale]
+  );
+  const bodyTextSizeStyle = useMemo(
+    () => ({
+      fontSize: Math.round(16 * textScale),
+      lineHeight: Math.round(24 * textScale)
+    }),
+    [textScale]
+  );
 
   useEffect(() => {
     if (!shouldResume || !detail || didRestoreScrollRef.current) {
@@ -461,12 +502,21 @@ export default function NamazDuaDetailScreen() {
                 </EaseView>
               ) : null}
 
+              <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+                <ReadingControls
+                  settings={readingSettings}
+                  onChange={updateReadingSettings}
+                  showTransliterationToggle
+                />
+              </EaseView>
+
               <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
                 <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                   <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.arabic_text")}</Text>
                   <Text
                     style={[
                       styles.arabicText,
+                      arabicTextSizeStyle,
                       { color: colors.textPrimary },
                       fontsLoaded ? styles.quranArabicFont : null
                     ]}
@@ -476,19 +526,25 @@ export default function NamazDuaDetailScreen() {
                 </View>
               </EaseView>
 
-              <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
-                <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.transliteration")}</Text>
-                  <Text style={[styles.bodyText, { color: colors.textPrimary }]}>{detail.transliteration}</Text>
-                </View>
-              </EaseView>
+              {readingSettings.showTransliteration ? (
+                <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
+                  <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                    <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.transliteration")}</Text>
+                    <Text style={[styles.bodyText, bodyTextSizeStyle, { color: colors.textPrimary }]}>{detail.transliteration}</Text>
+                  </View>
+                </EaseView>
+              ) : null}
 
-              <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
-                <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.meaning")}</Text>
-                  <Text style={[styles.bodyText, { color: colors.textPrimary }]}>{resolveMeaning(detail, localeTag)}</Text>
-                </View>
-              </EaseView>
+              {readingSettings.showTranslation ? (
+                <EaseView initialAnimate={easeInitialLift} animate={{ opacity: 1, translateY: 0 }} transition={enterTransition}>
+                  <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                    <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{t("namaz.meaning")}</Text>
+                    <Text style={[styles.bodyText, bodyTextSizeStyle, { color: colors.textPrimary }]}>
+                      {resolveMeaning(detail, localeTag)}
+                    </Text>
+                  </View>
+                </EaseView>
+              ) : null}
 
               {!audioSource ? (
                 <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
