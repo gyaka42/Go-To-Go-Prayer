@@ -17,7 +17,7 @@ import { getQuranSurahAudio, getQuranSurahDetailWithSource, QuranDataSource } fr
 import { clearAudioProgress, getAudioProgress, getReadingSettings, getRecentContentById, isContentFavorite, ReadingSettings, saveAudioProgress, saveReadingSettings, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { QuranAudioInfo, SurahMeta, VerseRow } from "@/types/quran";
-import { formatAudioPosition } from "@/utils/time";
+import { formatAudioRange } from "@/utils/time";
 
 type AudioUiState = "ready" | "preparing" | "playing" | "paused" | "finished" | "error";
 
@@ -79,6 +79,8 @@ export default function QuranSurahDetailScreen() {
   const [audioPressed, setAudioPressed] = useState(false);
   const [audioState, setAudioState] = useState<AudioUiState>("ready");
   const [audioResumePosition, setAudioResumePosition] = useState(0);
+  const [audioPositionMillis, setAudioPositionMillis] = useState(0);
+  const [audioDurationMillis, setAudioDurationMillis] = useState(0);
   const [readingSettings, setReadingSettings] = useState<ReadingSettings>({
     textSize: "medium",
     showTranslation: true,
@@ -249,8 +251,11 @@ export default function QuranSurahDetailScreen() {
       setAudioInfo(audio);
       const progress = audio.available ? await getAudioProgress(`quran:${quranDetail.surah.id}`) : null;
       const position = progress?.positionMillis ?? 0;
+      const duration = progress?.durationMillis ?? 0;
       resumeAudioPositionRef.current = position > 1000 ? position : 0;
       setAudioResumePosition(position > 1000 ? position : 0);
+      setAudioPositionMillis(position > 1000 ? position : 0);
+      setAudioDurationMillis(duration > 0 ? duration : 0);
       setAudioState(position > 1000 ? "paused" : "ready");
     } catch (err) {
       logDiagnostic("screen.quran.detail.load", err, { surahId, localeTag, fromAyah, toAyah });
@@ -289,24 +294,6 @@ export default function QuranSurahDetailScreen() {
     return t("quran.audio_state_ready");
   }, [audioBusy, audioState, t]);
 
-  const audioStateTone = useMemo(() => {
-    if (audioBusy || audioState === "preparing") {
-      return "loading" as const;
-    }
-    if (audioState === "playing") {
-      return "info" as const;
-    }
-    if (audioState === "paused") {
-      return "warning" as const;
-    }
-    if (audioState === "finished") {
-      return "success" as const;
-    }
-    if (audioState === "error") {
-      return "error" as const;
-    }
-    return "success" as const;
-  }, [audioBusy, audioState]);
 
   const textScale = readingSettings.textSize === "large" ? 1.16 : readingSettings.textSize === "small" ? 0.9 : 1;
   const arabicTextSizeStyle = useMemo(
@@ -323,6 +310,20 @@ export default function QuranSurahDetailScreen() {
     }),
     [textScale]
   );
+  const audioProgressLabel = useMemo(() => {
+    const position = audioPositionMillis > 0 ? audioPositionMillis : audioResumePosition;
+    return formatAudioRange(position, audioDurationMillis);
+  }, [audioDurationMillis, audioPositionMillis, audioResumePosition]);
+  const audioMetaLabel = useMemo(() => {
+    const parts = [audioStateLabel];
+    if (audioProgressLabel) {
+      parts.push(audioProgressLabel);
+    }
+    if (audioInfo.source === "fallback") {
+      parts.push(t("quran.audio_fallback_hint"));
+    }
+    return parts.join(" • ");
+  }, [audioInfo.source, audioProgressLabel, audioStateLabel, t]);
 
   useEffect(() => {
     void load();
@@ -473,20 +474,24 @@ export default function QuranSurahDetailScreen() {
           if (status.didJustFinish) {
             resumeAudioPositionRef.current = 0;
             setAudioResumePosition(0);
+            setAudioPositionMillis(0);
             void clearAudioProgress(audioProgressIdRef.current).catch(() => undefined);
             setAudioState("finished");
             return;
           }
+          const duration = status.durationMillis ?? 0;
+          const position = status.positionMillis ?? 0;
+          setAudioPositionMillis(position);
+          setAudioDurationMillis(duration);
           persistAudioProgress(status);
           if (status.isPlaying) {
             setAudioState("playing");
             return;
           }
-          const duration = status.durationMillis ?? 0;
-          const position = status.positionMillis ?? 0;
           if (duration > 0 && position >= duration - 400) {
             resumeAudioPositionRef.current = 0;
             setAudioResumePosition(0);
+            setAudioPositionMillis(0);
             void clearAudioProgress(audioProgressIdRef.current).catch(() => undefined);
             setAudioState("finished");
             return;
@@ -500,6 +505,7 @@ export default function QuranSurahDetailScreen() {
         const resumePosition = resumeAudioPositionRef.current;
         if (resumePosition > 1000) {
           await sound.setPositionAsync(resumePosition);
+          setAudioPositionMillis(resumePosition);
         }
         await sound.playAsync();
         setAudioState("playing");
@@ -573,21 +579,9 @@ export default function QuranSurahDetailScreen() {
                       : t("quran.audio_play")}
                 </Text>
               </Pressable>
-              <StatusChip label={audioStateLabel} tone={audioStateTone} />
-              {audioState !== "playing" && audioResumePosition > 1000 ? (
-                <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
-                  <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>
-                    {t("quran.audio_resume_hint", { time: formatAudioPosition(audioResumePosition) })}
-                  </Text>
-                </EaseView>
-              ) : null}
-              {audioInfo.source === "fallback" ? (
-                <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
-                  <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>
-                    {t("quran.audio_fallback_hint")}
-                  </Text>
-                </EaseView>
-              ) : null}
+              <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+                <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>{audioMetaLabel}</Text>
+              </EaseView>
             </View>
           </EaseView>
         ) : null}

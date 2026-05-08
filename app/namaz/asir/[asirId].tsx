@@ -18,7 +18,7 @@ import { getQuranAyahWithSource, getQuranSurahDetailWithSource, QuranDataSource 
 import { clearAudioProgress, getAudioProgress, getReadingSettings, getRecentContentById, isContentFavorite, ReadingSettings, saveAudioProgress, saveReadingSettings, saveRecentContent, toggleContentFavorite } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { SurahMeta, VerseRow } from "@/types/quran";
-import { formatAudioPosition } from "@/utils/time";
+import { formatAudioRange } from "@/utils/time";
 
 type AudioUiState = "ready" | "preparing" | "playing" | "paused" | "finished" | "error";
 
@@ -59,6 +59,8 @@ export default function NamazAsirDetailScreen() {
   const [audioPressed, setAudioPressed] = useState(false);
   const [audioState, setAudioState] = useState<AudioUiState>("ready");
   const [audioResumePosition, setAudioResumePosition] = useState(0);
+  const [audioPositionMillis, setAudioPositionMillis] = useState(0);
+  const [audioDurationMillis, setAudioDurationMillis] = useState(0);
   const [readingSettings, setReadingSettings] = useState<ReadingSettings>({
     textSize: "medium",
     showTranslation: true,
@@ -258,6 +260,8 @@ export default function NamazAsirDetailScreen() {
       resumeAudioPositionRef.current = 0;
       resumeAudioTrackIndexRef.current = 0;
       setAudioResumePosition(0);
+      setAudioPositionMillis(0);
+      setAudioDurationMillis(0);
       setActiveAudioIndex(0);
       void cleanupSound();
       setAudioState("ready");
@@ -270,10 +274,13 @@ export default function NamazAsirDetailScreen() {
       const progress = urls.length > 0 ? await getAudioProgress(`asir:${asir.id}`) : null;
       const trackIndex = progress?.trackIndex ?? 0;
       const position = progress?.positionMillis ?? 0;
+      const duration = progress?.durationMillis ?? 0;
       if (trackIndex >= 0 && trackIndex < urls.length && position > 1000) {
         resumeAudioTrackIndexRef.current = trackIndex;
         resumeAudioPositionRef.current = position;
         setAudioResumePosition(position);
+        setAudioPositionMillis(position);
+        setAudioDurationMillis(duration > 0 ? duration : 0);
         setActiveAudioIndex(trackIndex);
         setAudioState("paused");
       }
@@ -443,19 +450,22 @@ export default function NamazAsirDetailScreen() {
               resumeAudioPositionRef.current = 0;
               resumeAudioTrackIndexRef.current = 0;
               setAudioResumePosition(0);
+              setAudioPositionMillis(0);
               setAudioState("finished");
               setActiveAudioIndex(0);
             }
           });
           return;
         }
+        const duration = status.durationMillis ?? 0;
+        const position = status.positionMillis ?? 0;
+        setAudioPositionMillis(position);
+        setAudioDurationMillis(duration);
         persistAudioProgress(status);
         if (status.isPlaying) {
           setAudioState("playing");
           return;
         }
-        const duration = status.durationMillis ?? 0;
-        const position = status.positionMillis ?? 0;
         if (duration > 0 && position >= duration - 400) {
           setAudioState("finished");
           return;
@@ -468,6 +478,7 @@ export default function NamazAsirDetailScreen() {
       });
       if (startPositionMillis > 1000) {
         await sound.setPositionAsync(startPositionMillis);
+        setAudioPositionMillis(startPositionMillis);
       }
       await sound.playAsync();
       setAudioState("playing");
@@ -530,24 +541,6 @@ export default function NamazAsirDetailScreen() {
     return t("quran.audio_state_ready");
   }, [audioBusy, audioState, t]);
 
-  const audioStateTone = useMemo(() => {
-    if (audioBusy || audioState === "preparing") {
-      return "loading" as const;
-    }
-    if (audioState === "playing") {
-      return "info" as const;
-    }
-    if (audioState === "paused") {
-      return "warning" as const;
-    }
-    if (audioState === "finished") {
-      return "success" as const;
-    }
-    if (audioState === "error") {
-      return "error" as const;
-    }
-    return "success" as const;
-  }, [audioBusy, audioState]);
 
   const textScale = readingSettings.textSize === "large" ? 1.16 : readingSettings.textSize === "small" ? 0.9 : 1;
   const arabicTextSizeStyle = useMemo(
@@ -564,6 +557,23 @@ export default function NamazAsirDetailScreen() {
     }),
     [textScale]
   );
+  const audioProgressLabel = useMemo(() => {
+    const position = audioPositionMillis > 0 ? audioPositionMillis : audioResumePosition;
+    return formatAudioRange(position, audioDurationMillis);
+  }, [audioDurationMillis, audioPositionMillis, audioResumePosition]);
+  const audioMetaLabel = useMemo(() => {
+    const parts = [
+      audioStateLabel,
+      t("namaz.asir_audio_hint", {
+        current: Math.min(currentAudioIndex + 1, Math.max(audioUrls.length, 1)),
+        total: audioUrls.length
+      })
+    ];
+    if (audioProgressLabel) {
+      parts.push(audioProgressLabel);
+    }
+    return parts.join(" • ");
+  }, [audioProgressLabel, audioStateLabel, audioUrls.length, currentAudioIndex, t]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -632,22 +642,9 @@ export default function NamazAsirDetailScreen() {
                       : t("quran.audio_play")}
                 </Text>
               </Pressable>
-              <StatusChip label={audioStateLabel} tone={audioStateTone} />
               <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
-                <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>
-                  {t("namaz.asir_audio_hint", {
-                    current: Math.min(currentAudioIndex + 1, Math.max(audioUrls.length, 1)),
-                    total: audioUrls.length
-                  })}
-                </Text>
+                <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>{audioMetaLabel}</Text>
               </EaseView>
-              {audioState !== "playing" && audioResumePosition > 1000 ? (
-                <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
-                  <Text style={[styles.audioHintText, { color: colors.textSecondary }]}>
-                    {t("quran.audio_resume_hint", { time: formatAudioPosition(audioResumePosition) })}
-                  </Text>
-                </EaseView>
-              ) : null}
             </View>
           </EaseView>
         ) : null}

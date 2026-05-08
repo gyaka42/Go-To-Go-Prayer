@@ -31,6 +31,14 @@ export function formatAudioPosition(ms: number): string {
   return [minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
 }
 
+export function formatAudioRange(positionMs: number, durationMs?: number): string {
+  const position = formatAudioPosition(positionMs);
+  if (!durationMs || durationMs <= 0) {
+    return positionMs > 0 ? position : "";
+  }
+  return `${position} / ${formatAudioPosition(durationMs)}`;
+}
+
 export function getDateKey(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
