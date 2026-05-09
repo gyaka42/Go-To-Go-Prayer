@@ -353,6 +353,10 @@ async function handleRequest(req, res) {
       attempts.push({
         cityId: c.cityId,
         source: c.source,
+        score: c.score,
+        distanceKm: formatDistanceKm(c.distKm),
+        matchedName: c.name,
+        matchedCountry: c.country,
         endpoint: monthly.endpoint,
         status: monthly.status,
         rows: monthly.rows.length
@@ -370,6 +374,9 @@ async function handleRequest(req, res) {
         month,
         cityId: c.cityId,
         citySource: c.source,
+        cityDistanceKm: formatDistanceKm(c.distKm),
+        resolvedCityName: c.name,
+        resolvedCountryName: c.country,
         source: "diyanet-proxy",
         days
       };
@@ -534,6 +541,10 @@ async function handleRequest(req, res) {
     attempts.push({
       cityId: c.cityId,
       source: c.source,
+      score: c.score,
+      distanceKm: formatDistanceKm(c.distKm),
+      matchedName: c.name,
+      matchedCountry: c.country,
       endpoint: daily.endpoint,
       status: daily.status,
       rows: daily.rows.length
@@ -552,6 +563,9 @@ async function handleRequest(req, res) {
       dateKey,
       cityId: c.cityId,
       citySource: c.source,
+      cityDistanceKm: formatDistanceKm(c.distKm),
+      resolvedCityName: c.name,
+      resolvedCountryName: c.country,
       source: "diyanet-proxy",
       times
     };
@@ -700,53 +714,80 @@ async function getCities(token) {
 function matchCities(cities, context) {
   const cityNorm = normalizeText(context.city || "");
   const countryNorms = normalizedCountryHints(context.countryCode || "", context.countryName || "");
+  const hasCountryHint = countryNorms.length > 0;
 
   const scored = [];
   for (const city of cities) {
     let score = 0;
+    let nameScore = 0;
     if (cityNorm) {
       if (city.nameNorm === cityNorm) {
-        score += 100;
+        nameScore = 160;
       } else if (city.nameNorm.startsWith(cityNorm) || cityNorm.startsWith(city.nameNorm)) {
-        score += 60;
+        nameScore = 95;
       } else if (city.nameNorm.includes(cityNorm) || cityNorm.includes(city.nameNorm)) {
-        score += 30;
+        nameScore = 45;
       }
     }
+    if (cityNorm && nameScore === 0) {
+      continue;
+    }
+    score += nameScore;
 
+    let countryScore = 0;
     for (const cNorm of countryNorms) {
       if (!cNorm || !city.countryNorm) {
         continue;
       }
       if (city.countryNorm === cNorm) {
-        score += 25;
+        countryScore = Math.max(countryScore, 40);
       } else if (city.countryNorm.includes(cNorm) || cNorm.includes(city.countryNorm)) {
-        score += 10;
+        countryScore = Math.max(countryScore, 20);
       }
     }
+    score += countryScore;
 
+    let distKm = null;
     if (Number.isFinite(city.lat) && Number.isFinite(city.lon)) {
-      const d = haversineKm(context.lat, context.lon, city.lat, city.lon);
-      if (d < 20) {
-        score += 20;
-      } else if (d < 60) {
-        score += 10;
+      distKm = haversineKm(context.lat, context.lon, city.lat, city.lon);
+      score += distanceScore(distKm);
+      if (hasCountryHint && distKm > 120) {
+        score -= 160;
       }
+    } else if (hasCountryHint && countryScore === 0) {
+      score -= 90;
     }
 
     if (score > 0) {
-      scored.push({ cityId: city.id, score });
+      scored.push({
+        cityId: city.id,
+        source: "cities-match",
+        score,
+        distKm,
+        name: city.name,
+        country: city.country
+      });
     }
   }
 
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, 10).map((item) => item.cityId);
+  scored.sort((a, b) => b.score - a.score || compareDistance(a.distKm, b.distKm));
+  return scored.slice(0, 10);
 }
 
 function nearestCities(cities, lat, lon, limit = 20) {
   return cities
     .filter((city) => Number.isFinite(city.lat) && Number.isFinite(city.lon))
-    .map((city) => ({ ...city, distKm: haversineKm(lat, lon, city.lat, city.lon) }))
+    .map((city) => {
+      const distKm = haversineKm(lat, lon, city.lat, city.lon);
+      return {
+        cityId: city.id,
+        source: "nearest",
+        score: 260 + distanceScore(distKm),
+        distKm,
+        name: city.name,
+        country: city.country
+      };
+    })
     .sort((a, b) => a.distKm - b.distKm)
     .slice(0, limit);
 }
@@ -894,24 +935,38 @@ async function fetchMonthlyRows(token, cityId, ymdStart) {
 }
 
 async function resolveCityCandidates(params) {
-  const candidates = [];
-  const seen = new Set();
-  const addCandidate = (id, source) => {
-    const n = Number(id);
-    if (Number.isFinite(n) && n > 0 && !seen.has(n)) {
-      seen.add(n);
-      candidates.push({ cityId: n, source });
+  const candidatesById = new Map();
+  const addCandidate = (candidate) => {
+    const n = Number(candidate?.cityId ?? candidate?.id);
+    if (!Number.isFinite(n) || n <= 0) {
+      return;
+    }
+    const normalized = {
+      cityId: n,
+      source: candidate.source || "unknown",
+      score: Number.isFinite(candidate.score) ? candidate.score : 0,
+      distKm: Number.isFinite(candidate.distKm) ? candidate.distKm : null,
+      name: candidate.name,
+      country: candidate.country
+    };
+    const existing = candidatesById.get(n);
+    if (
+      !existing ||
+      normalized.score > existing.score ||
+      (normalized.score === existing.score && compareDistance(normalized.distKm, existing.distKm) < 0)
+    ) {
+      candidatesById.set(n, normalized);
     }
   };
 
   if (Number.isFinite(params.cityIdParam) && params.cityIdParam > 0) {
-    addCandidate(params.cityIdParam, "query-cityId");
+    addCandidate({ cityId: params.cityIdParam, source: "query-cityId", score: 10000 });
   }
 
   try {
     const byGeo = await resolveCityIdByGeo(params.token, params.lat, params.lon);
     if (byGeo) {
-      addCandidate(byGeo, "diyanet-geocode");
+      addCandidate({ cityId: byGeo, source: "diyanet-geocode", score: 9000 });
     }
   } catch {
     // ignore geocode upstream failures
@@ -923,6 +978,11 @@ async function resolveCityCandidates(params) {
   } catch {
     cities = [];
   }
+
+  for (const item of nearestCities(cities, params.lat, params.lon, 30)) {
+    addCandidate(item);
+  }
+
   const matched = matchCities(cities, {
     lat: params.lat,
     lon: params.lon,
@@ -930,16 +990,14 @@ async function resolveCityCandidates(params) {
     countryCode: params.resolvedCountryCode,
     countryName: params.resolvedCountryName
   });
-  for (const id of matched) {
-    addCandidate(id, "cities-match");
-  }
-
-  for (const item of nearestCities(cities, params.lat, params.lon, 30)) {
-    addCandidate(item.id, "nearest");
+  for (const item of matched) {
+    addCandidate(item);
   }
 
   return {
-    candidates: candidates.slice(0, 12),
+    candidates: Array.from(candidatesById.values())
+      .sort((a, b) => b.score - a.score || compareDistance(a.distKm, b.distKm))
+      .slice(0, 12),
     citiesLoaded: Array.isArray(cities) ? cities.length : 0
   };
 }
@@ -2685,6 +2743,27 @@ function haversineKm(lat1, lon1, lat2, lon2) {
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return 6371 * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+function distanceScore(distKm) {
+  if (!Number.isFinite(distKm)) return 0;
+  if (distKm <= 10) return 180;
+  if (distKm <= 25) return 145;
+  if (distKm <= 60) return 95;
+  if (distKm <= 120) return 35;
+  if (distKm <= 250) return -50;
+  return -140;
+}
+
+function compareDistance(a, b) {
+  const da = Number.isFinite(a) ? a : Number.POSITIVE_INFINITY;
+  const db = Number.isFinite(b) ? b : Number.POSITIVE_INFINITY;
+  return da - db;
+}
+
+function formatDistanceKm(value) {
+  if (!Number.isFinite(value)) return undefined;
+  return Number(value.toFixed(2));
 }
 
 async function safeJson(response) {
