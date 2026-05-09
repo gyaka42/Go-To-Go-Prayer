@@ -76,6 +76,7 @@ export default function NamazAsirDetailScreen() {
   const currentAudioIndexRef = useRef(0);
   const lastAudioProgressSaveRef = useRef(0);
   const scrollViewRef = useRef<ScrollView | null>(null);
+  const ayahLayoutYRef = useRef<Map<number, number>>(new Map());
   const lastRecentSaveRef = useRef(0);
   const didRestoreScrollRef = useRef(false);
 
@@ -320,7 +321,34 @@ export default function NamazAsirDetailScreen() {
 
   useEffect(() => {
     didRestoreScrollRef.current = false;
+    ayahLayoutYRef.current.clear();
   }, [asirId]);
+
+  const rememberAyahLayout = useCallback((ayahNumber: number, y: number) => {
+    ayahLayoutYRef.current.set(ayahNumber, y);
+  }, []);
+
+  const findAyahAtScrollPosition = useCallback(
+    (scrollY: number) => {
+      const layouts = Array.from(ayahLayoutYRef.current.entries()).sort((a, b) => a[1] - b[1]);
+      if (layouts.length === 0) {
+        const estimatedIndex = Math.min(verses.length - 1, Math.max(0, Math.floor(scrollY / 230)));
+        return verses[estimatedIndex]?.numberInSurah;
+      }
+
+      const targetY = scrollY + 24;
+      let current = layouts[0]?.[0];
+      for (const [ayahNumber, y] of layouts) {
+        if (y <= targetY) {
+          current = ayahNumber;
+        } else {
+          break;
+        }
+      }
+      return current;
+    },
+    [verses]
+  );
 
   useEffect(() => {
     if (!shouldResume || loading || error || !asir || verses.length === 0 || didRestoreScrollRef.current) {
@@ -353,8 +381,7 @@ export default function NamazAsirDetailScreen() {
       }
       lastRecentSaveRef.current = now;
       const scrollY = Math.max(0, event.nativeEvent.contentOffset.y);
-      const estimatedIndex = Math.min(verses.length - 1, Math.max(0, Math.floor(scrollY / 230)));
-      const ayahNumber = verses[estimatedIndex]?.numberInSurah;
+      const ayahNumber = findAyahAtScrollPosition(scrollY);
       void saveRecentContent({
         id: `asir:${asir.id}`,
         kind: "namaz_asir",
@@ -368,7 +395,7 @@ export default function NamazAsirDetailScreen() {
         ayahNumber
       }).catch(() => undefined);
     },
-    [asir, t, title, verses]
+    [asir, findAyahAtScrollPosition, t, title]
   );
 
   useEffect(() => {
@@ -689,7 +716,11 @@ export default function NamazAsirDetailScreen() {
               scrollEventThrottle={120}
             >
               {verses.map((row) => (
-                <View key={row.key} style={[styles.ayahCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+                <View
+                  key={row.key}
+                  style={[styles.ayahCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                  onLayout={(event) => rememberAyahLayout(row.numberInSurah, event.nativeEvent.layout.y)}
+                >
                   <Text style={[styles.ayahIndex, { color: isLight ? "#1E78D9" : "#8DBEFF" }]}>{row.numberInSurah}</Text>
                   <Text
                     style={[
