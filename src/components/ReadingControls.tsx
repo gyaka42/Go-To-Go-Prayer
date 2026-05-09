@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ReadingSettings, ReadingTextSize } from "@/services/storage";
@@ -24,6 +25,7 @@ export function ReadingControls({
   const { t } = useI18n();
   const { colors, resolvedTheme } = useAppTheme();
   const isLight = resolvedTheme === "light";
+  const [expanded, setExpanded] = useState(false);
 
   const update = (patch: Partial<ReadingSettings>) => {
     onChange({ ...settings, ...patch });
@@ -31,57 +33,79 @@ export function ReadingControls({
 
   const activeBackground = isLight ? "#DDEEFF" : "#173553";
   const inactiveBackground = isLight ? "#F1F6FC" : "#0F1D2C";
+  const selectedTextSize = textSizeOptions.find((item) => item.value === settings.textSize) ?? textSizeOptions[1];
+  const summary = [
+    t(selectedTextSize.labelKey),
+    settings.showTranslation ? t("reading.translation") : null,
+    showTransliterationToggle && settings.showTransliteration ? t("reading.transliteration") : null
+  ]
+    .filter(Boolean)
+    .join(" • ");
 
   return (
-    <View style={[styles.wrap, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-      <View style={styles.headerRow}>
+    <View style={[styles.wrap, { backgroundColor: colors.card, borderColor: colors.cardBorder }, !expanded ? styles.wrapCompact : null]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        style={styles.headerRow}
+        onPress={() => setExpanded((value) => !value)}
+      >
         <View style={styles.titleRow}>
           <Ionicons name="book-outline" size={16} color={colors.accent} />
           <Text style={[styles.title, { color: colors.textPrimary }]}>{t("reading.title")}</Text>
         </View>
-        <Text style={[styles.caption, { color: colors.textSecondary }]}>{t("reading.text_size")}</Text>
-      </View>
+        <View style={styles.summaryRow}>
+          <Text style={[styles.caption, { color: colors.textSecondary }]} numberOfLines={1}>
+            {expanded ? t("reading.text_size") : summary}
+          </Text>
+          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
+        </View>
+      </Pressable>
 
-      <View style={styles.optionRow}>
-        {textSizeOptions.map((item) => {
-          const selected = settings.textSize === item.value;
-          return (
-            <Pressable
-              key={item.value}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              style={[
-                styles.sizeChip,
-                {
-                  backgroundColor: selected ? activeBackground : inactiveBackground,
-                  borderColor: selected ? colors.accent : colors.cardBorder
-                }
-              ]}
-              onPress={() => update({ textSize: item.value })}
-            >
-              <Text style={[styles.sizeSample, { color: selected ? colors.accent : colors.textPrimary }]}>
-                {item.sample}
-              </Text>
-              <Text style={[styles.sizeLabel, { color: colors.textSecondary }]}>{t(item.labelKey)}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {expanded ? (
+        <>
+          <View style={styles.optionRow}>
+            {textSizeOptions.map((item) => {
+              const selected = settings.textSize === item.value;
+              return (
+                <Pressable
+                  key={item.value}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  style={[
+                    styles.sizeChip,
+                    {
+                      backgroundColor: selected ? activeBackground : inactiveBackground,
+                      borderColor: selected ? colors.accent : colors.cardBorder
+                    }
+                  ]}
+                  onPress={() => update({ textSize: item.value })}
+                >
+                  <Text style={[styles.sizeSample, { color: selected ? colors.accent : colors.textPrimary }]}>
+                    {item.sample}
+                  </Text>
+                  <Text style={[styles.sizeLabel, { color: colors.textSecondary }]}>{t(item.labelKey)}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
-      <View style={styles.toggleRow}>
-        <ToggleChip
-          active={settings.showTranslation}
-          label={t("reading.translation")}
-          onPress={() => update({ showTranslation: !settings.showTranslation })}
-        />
-        {showTransliterationToggle ? (
-          <ToggleChip
-            active={settings.showTransliteration}
-            label={t("reading.transliteration")}
-            onPress={() => update({ showTransliteration: !settings.showTransliteration })}
-          />
-        ) : null}
-      </View>
+          <View style={styles.toggleRow}>
+            <ToggleChip
+              active={settings.showTranslation}
+              label={t("reading.translation")}
+              onPress={() => update({ showTranslation: !settings.showTranslation })}
+            />
+            {showTransliterationToggle ? (
+              <ToggleChip
+                active={settings.showTransliteration}
+                label={t("reading.transliteration")}
+                onPress={() => update({ showTransliteration: !settings.showTransliteration })}
+              />
+            ) : null}
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -121,6 +145,10 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 12
   },
+  wrapCompact: {
+    paddingVertical: 10,
+    marginBottom: 8
+  },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -138,7 +166,15 @@ const styles = StyleSheet.create({
   },
   caption: {
     fontSize: 12,
-    fontWeight: "700"
+    fontWeight: "700",
+    flexShrink: 1
+  },
+  summaryRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 6
   },
   optionRow: {
     flexDirection: "row",
