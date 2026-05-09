@@ -33,6 +33,26 @@ const countryAliases = {
   US: ["usa", "unitedstates", "amerika"]
 };
 
+const regionalDiyanetFallbacks = {
+  NL: [
+    { name: "Amsterdam", lat: 52.3676, lon: 4.9041 },
+    { name: "Rotterdam", lat: 51.9244, lon: 4.4777 },
+    { name: "Den Haag", lat: 52.0705, lon: 4.3007 },
+    { name: "Utrecht", lat: 52.0907, lon: 5.1214 },
+    { name: "Eindhoven", lat: 51.4416, lon: 5.4697 },
+    { name: "Tilburg", lat: 51.5555, lon: 5.0913 },
+    { name: "Groningen", lat: 53.2194, lon: 6.5665 },
+    { name: "Almere", lat: 52.3508, lon: 5.2647 },
+    { name: "Breda", lat: 51.5719, lon: 4.7683 },
+    { name: "Nijmegen", lat: 51.8126, lon: 5.8372 },
+    { name: "Enschede", lat: 52.2215, lon: 6.8937 },
+    { name: "Haarlem", lat: 52.3874, lon: 4.6462 },
+    { name: "Hoofddorp", lat: 52.3061, lon: 4.6907 },
+    { name: "Zwanenburg", lat: 52.38, lon: 4.75 },
+    { name: "Arnhem", lat: 51.9851, lon: 5.8987 }
+  ]
+};
+
 function countFreshCacheRows(cache) {
   const now = Date.now();
   let fresh = 0;
@@ -413,6 +433,32 @@ async function handleRequest(req, res) {
       return;
     }
 
+    const regionalFallback = await tryRegionalDiyanetMonthlyFallback({
+      token,
+      lat,
+      lon,
+      year,
+      month,
+      countryCode: resolvedCountryCode,
+      countryName: resolvedCountryName
+    });
+    if (regionalFallback?.days && Object.keys(regionalFallback.days).length > 0) {
+      const payload = {
+        year,
+        month,
+        cityId: regionalFallback.cityId,
+        citySource: "regional-diyanet-fallback",
+        cityDistanceKm: formatDistanceKm(regionalFallback.distKm),
+        resolvedCityName: regionalFallback.name,
+        resolvedCountryName: regionalFallback.country,
+        source: "diyanet-proxy",
+        days: regionalFallback.days
+      };
+      cacheTimingsResponse(requestCacheKey, payload);
+      sendJson(res, 200, payload);
+      return;
+    }
+
     const coordinateFallback = await tryCoordinateMonthlyFallback({ lat, lon, year, month });
     if (coordinateFallback?.days && Object.keys(coordinateFallback.days).length > 0) {
       const payload = {
@@ -441,6 +487,7 @@ async function handleRequest(req, res) {
         citiesLoaded: cityResolution.citiesLoaded,
         attempts: attempts.slice(0, 12),
         fallback: fallback?.debug ?? null,
+        regionalFallback: regionalFallback?.debug ?? null,
         coordinateFallback: coordinateFallback?.debug ?? null
       }
     });
@@ -540,6 +587,30 @@ async function handleRequest(req, res) {
       return;
     }
 
+    const regionalFallback = await tryRegionalDiyanetFallback({
+      token,
+      lat,
+      lon,
+      dateKey,
+      countryCode: resolvedCountryCode,
+      countryName: resolvedCountryName
+    });
+    if (regionalFallback?.times) {
+      const payload = {
+        dateKey,
+        cityId: regionalFallback.cityId,
+        citySource: "regional-diyanet-fallback",
+        cityDistanceKm: formatDistanceKm(regionalFallback.distKm),
+        resolvedCityName: regionalFallback.name,
+        resolvedCountryName: regionalFallback.country,
+        source: "diyanet-proxy",
+        times: regionalFallback.times
+      };
+      cacheTimingsResponse(requestCacheKey, payload);
+      sendJson(res, 200, payload);
+      return;
+    }
+
     const coordinateFallback = await tryCoordinateFallback({ lat, lon, dateKey });
     if (coordinateFallback?.times) {
       const payload = {
@@ -565,6 +636,7 @@ async function handleRequest(req, res) {
         resolvedCountryName,
         citiesLoaded: cityResolution.citiesLoaded,
         fallback: fallback?.debug ?? null,
+        regionalFallback: regionalFallback?.debug ?? null,
         coordinateFallback: coordinateFallback?.debug ?? null
       }
     });
@@ -632,6 +704,30 @@ async function handleRequest(req, res) {
     return;
   }
 
+  const regionalFallback = await tryRegionalDiyanetFallback({
+    token,
+    lat,
+    lon,
+    dateKey,
+    countryCode: resolvedCountryCode,
+    countryName: resolvedCountryName
+  });
+  if (regionalFallback?.times) {
+    const payload = {
+      dateKey,
+      cityId: regionalFallback.cityId,
+      citySource: "regional-diyanet-fallback",
+      cityDistanceKm: formatDistanceKm(regionalFallback.distKm),
+      resolvedCityName: regionalFallback.name,
+      resolvedCountryName: regionalFallback.country,
+      source: "diyanet-proxy",
+      times: regionalFallback.times
+    };
+    cacheTimingsResponse(requestCacheKey, payload);
+    sendJson(res, 200, payload);
+    return;
+  }
+
   const coordinateFallback = await tryCoordinateFallback({ lat, lon, dateKey });
   if (coordinateFallback?.times) {
     const payload = {
@@ -657,6 +753,7 @@ async function handleRequest(req, res) {
       resolvedCountryName,
       attempts: attempts.slice(0, 12),
       fallback: fallback?.debug ?? null,
+      regionalFallback: regionalFallback?.debug ?? null,
       coordinateFallback: coordinateFallback?.debug ?? null
     }
   });
@@ -1315,6 +1412,117 @@ async function tryImsakiyemFallback(params) {
   }
 
   return { debug: { ...debug, reason: "no-usable-prayer-times" } };
+}
+
+async function tryRegionalDiyanetFallback(params) {
+  const debug = {
+    provider: "regional-diyanet",
+    countryCode: params.countryCode,
+    countryName: params.countryName,
+    date: params.dateKey
+  };
+
+  if (!params.token) {
+    return { debug: { ...debug, reason: "missing-token" } };
+  }
+
+  const anchors = regionalFallbackAnchors(params.countryCode, params.countryName, params.lat, params.lon);
+  if (anchors.length === 0) {
+    return { debug: { ...debug, reason: "no-country-anchors" } };
+  }
+
+  const cities = await getCities(params.token);
+  const attempts = [];
+  for (const anchor of anchors.slice(0, 8)) {
+    const candidates = matchCities(cities, {
+      lat: anchor.lat,
+      lon: anchor.lon,
+      city: anchor.name,
+      countryCode: params.countryCode,
+      countryName: params.countryName
+    });
+    for (const candidate of candidates.slice(0, 3)) {
+      const daily = await fetchDailyRows(params.token, candidate.cityId, params.dateKey);
+      attempts.push({
+        anchor: anchor.name,
+        cityId: candidate.cityId,
+        source: candidate.source,
+        distanceKm: formatDistanceKm(anchor.distKm),
+        rows: daily.rows.length
+      });
+      const row = daily.row || (daily.rows.length > 0 ? findByDate(daily.rows, params.dateKey) : null);
+      const times = row ? mapTimings(row) : null;
+      if (!times) {
+        continue;
+      }
+      return {
+        cityId: candidate.cityId,
+        distKm: anchor.distKm,
+        name: candidate.name || anchor.name,
+        country: candidate.country,
+        times,
+        debug: { ...debug, chosenAnchor: anchor.name, attempts }
+      };
+    }
+  }
+
+  return { debug: { ...debug, reason: "no-usable-regional-times", attempts } };
+}
+
+async function tryRegionalDiyanetMonthlyFallback(params) {
+  const debug = {
+    provider: "regional-diyanet",
+    countryCode: params.countryCode,
+    countryName: params.countryName,
+    year: params.year,
+    month: params.month
+  };
+
+  if (!params.token) {
+    return { debug: { ...debug, reason: "missing-token" } };
+  }
+
+  const anchors = regionalFallbackAnchors(params.countryCode, params.countryName, params.lat, params.lon);
+  if (anchors.length === 0) {
+    return { debug: { ...debug, reason: "no-country-anchors" } };
+  }
+
+  const cities = await getCities(params.token);
+  const ymdStart = `${params.year}-${String(params.month).padStart(2, "0")}-01`;
+  const attempts = [];
+  for (const anchor of anchors.slice(0, 8)) {
+    const candidates = matchCities(cities, {
+      lat: anchor.lat,
+      lon: anchor.lon,
+      city: anchor.name,
+      countryCode: params.countryCode,
+      countryName: params.countryName
+    });
+    for (const candidate of candidates.slice(0, 3)) {
+      const monthly = await fetchMonthlyRows(params.token, candidate.cityId, ymdStart);
+      attempts.push({
+        anchor: anchor.name,
+        cityId: candidate.cityId,
+        source: candidate.source,
+        distanceKm: formatDistanceKm(anchor.distKm),
+        rows: monthly.rows.length
+      });
+      const days = monthly.rows.length > 0 ? toMonthlyTimesMap(monthly.rows, params.year, params.month) : {};
+      if (Object.keys(days).length === 0) {
+        continue;
+      }
+      return {
+        cityId: candidate.cityId,
+        distKm: anchor.distKm,
+        name: candidate.name || anchor.name,
+        country: candidate.country,
+        days,
+        debug: { ...debug, chosenAnchor: anchor.name, attempts }
+      };
+    }
+  }
+
+  return { debug: { ...debug, reason: "no-usable-regional-monthly-times", attempts } };
 }
 
 async function tryCoordinateFallback(params) {
@@ -2910,6 +3118,21 @@ function compareDistance(a, b) {
   const da = Number.isFinite(a) ? a : Number.POSITIVE_INFINITY;
   const db = Number.isFinite(b) ? b : Number.POSITIVE_INFINITY;
   return da - db;
+}
+
+function regionalFallbackAnchors(countryCode, countryName, lat, lon) {
+  const hints = normalizedCountryHints(countryCode, countryName);
+  const countryKey = Object.keys(regionalDiyanetFallbacks).find((key) => {
+    const keyHints = normalizedCountryHints(key, "");
+    return keyHints.some((hint) => hints.includes(hint));
+  });
+  const anchors = countryKey ? regionalDiyanetFallbacks[countryKey] || [] : [];
+  return anchors
+    .map((anchor) => ({
+      ...anchor,
+      distKm: haversineKm(lat, lon, anchor.lat, anchor.lon)
+    }))
+    .sort((a, b) => a.distKm - b.distKm);
 }
 
 function formatDistanceKm(value) {
