@@ -12,6 +12,10 @@ const TIMINGS_CACHE_TTL_MS = Number(process.env.TIMINGS_CACHE_TTL_MS || 12 * 60 
 const QURAN_CACHE_TTL_MS = Number(process.env.QURAN_CACHE_TTL_MS || 24 * 60 * 60 * 1000);
 const QURAN_CACHE_SCHEMA_VERSION = "v4";
 const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 8000);
+const ALADHAN_BASE = String(process.env.ALADHAN_BASE_URL || "https://api.aladhan.com/v1").replace(/\/+$/, "");
+const COORDINATE_TIMINGS_FALLBACK_ENABLED = String(process.env.COORDINATE_TIMINGS_FALLBACK_ENABLED || "true")
+  .trim()
+  .toLowerCase() !== "false";
 
 let tokenState = null; // { token: string, expMs: number }
 let citiesState = null; // { items: Array<City>, atMs: number }
@@ -409,6 +413,21 @@ async function handleRequest(req, res) {
       return;
     }
 
+    const coordinateFallback = await tryCoordinateMonthlyFallback({ lat, lon, year, month });
+    if (coordinateFallback?.days && Object.keys(coordinateFallback.days).length > 0) {
+      const payload = {
+        year,
+        month,
+        cityId: null,
+        citySource: "coordinate-fallback",
+        source: coordinateFallback.source,
+        days: coordinateFallback.days
+      };
+      cacheTimingsResponse(requestCacheKey, payload);
+      sendJson(res, 200, payload);
+      return;
+    }
+
     sendJson(res, 502, {
       error: "No monthly timing rows returned",
       details: {
@@ -420,7 +439,9 @@ async function handleRequest(req, res) {
         resolvedCountryCode,
         resolvedCountryName,
         citiesLoaded: cityResolution.citiesLoaded,
-        attempts: attempts.slice(0, 12)
+        attempts: attempts.slice(0, 12),
+        fallback: fallback?.debug ?? null,
+        coordinateFallback: coordinateFallback?.debug ?? null
       }
     });
     return;
@@ -519,6 +540,20 @@ async function handleRequest(req, res) {
       return;
     }
 
+    const coordinateFallback = await tryCoordinateFallback({ lat, lon, dateKey });
+    if (coordinateFallback?.times) {
+      const payload = {
+        dateKey,
+        cityId: null,
+        citySource: "coordinate-fallback",
+        source: coordinateFallback.source,
+        times: coordinateFallback.times
+      };
+      cacheTimingsResponse(requestCacheKey, payload);
+      sendJson(res, 200, payload);
+      return;
+    }
+
     sendJson(res, 502, {
       error: "Could not resolve cityId",
       details: {
@@ -529,7 +564,8 @@ async function handleRequest(req, res) {
         resolvedCountryCode,
         resolvedCountryName,
         citiesLoaded: cityResolution.citiesLoaded,
-        fallback: fallback?.debug ?? null
+        fallback: fallback?.debug ?? null,
+        coordinateFallback: coordinateFallback?.debug ?? null
       }
     });
     return;
@@ -596,6 +632,20 @@ async function handleRequest(req, res) {
     return;
   }
 
+  const coordinateFallback = await tryCoordinateFallback({ lat, lon, dateKey });
+  if (coordinateFallback?.times) {
+    const payload = {
+      dateKey,
+      cityId: null,
+      citySource: "coordinate-fallback",
+      source: coordinateFallback.source,
+      times: coordinateFallback.times
+    };
+    cacheTimingsResponse(requestCacheKey, payload);
+    sendJson(res, 200, payload);
+    return;
+  }
+
   sendJson(res, 502, {
     error: "No timing rows returned",
     details: {
@@ -606,7 +656,8 @@ async function handleRequest(req, res) {
       resolvedCountryCode,
       resolvedCountryName,
       attempts: attempts.slice(0, 12),
-      fallback: fallback?.debug ?? null
+      fallback: fallback?.debug ?? null,
+      coordinateFallback: coordinateFallback?.debug ?? null
     }
   });
 }
@@ -1264,6 +1315,89 @@ async function tryImsakiyemFallback(params) {
   }
 
   return { debug: { ...debug, reason: "no-usable-prayer-times" } };
+}
+
+async function tryCoordinateFallback(params) {
+  const debug = {
+    provider: "aladhan",
+    method: 13,
+    school: 1,
+    lat: params.lat,
+    lon: params.lon,
+    date: params.dateKey
+  };
+
+  if (!COORDINATE_TIMINGS_FALLBACK_ENABLED) {
+    return { debug: { ...debug, reason: "disabled" } };
+  }
+
+  try {
+    const url = `${ALADHAN_BASE}/timings/${encodeURIComponent(params.dateKey)}?latitude=${encodeURIComponent(
+      params.lat
+    )}&longitude=${encodeURIComponent(params.lon)}&method=13&school=1`;
+    const response = await fetchWithTimeout(url, { headers: { Accept: "application/json" } });
+    const payload = await safeJson(response);
+    const times = mapAladhanTimings(payload?.data?.timings);
+    if (!times) {
+      return { debug: { ...debug, status: response.status, reason: "unparseable-times" } };
+    }
+    return {
+      source: "aladhan-diyanet-coordinate-fallback",
+      times,
+      debug: { ...debug, status: response.status }
+    };
+  } catch (error) {
+    return { debug: { ...debug, reason: "request-failed", error: String(error) } };
+  }
+}
+
+async function tryCoordinateMonthlyFallback(params) {
+  const debug = {
+    provider: "aladhan",
+    method: 13,
+    school: 1,
+    lat: params.lat,
+    lon: params.lon,
+    year: params.year,
+    month: params.month
+  };
+
+  if (!COORDINATE_TIMINGS_FALLBACK_ENABLED) {
+    return { debug: { ...debug, reason: "disabled" } };
+  }
+
+  try {
+    const url = `${ALADHAN_BASE}/calendar?latitude=${encodeURIComponent(params.lat)}&longitude=${encodeURIComponent(
+      params.lon
+    )}&method=13&school=1&month=${encodeURIComponent(params.month)}&year=${encodeURIComponent(params.year)}`;
+    const response = await fetchWithTimeout(url, { headers: { Accept: "application/json" } });
+    const payload = await safeJson(response);
+    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    const days = {};
+    for (const row of rows) {
+      const normalized = normalizeDate(row?.date?.gregorian?.date);
+      const times = mapAladhanTimings(row?.timings);
+      if (!normalized || !times) {
+        continue;
+      }
+      const parsed = parseDateKey(normalized);
+      if (!parsed || parsed.year !== params.year || parsed.month !== params.month) {
+        continue;
+      }
+      days[normalized] = times;
+    }
+
+    if (Object.keys(days).length === 0) {
+      return { debug: { ...debug, status: response.status, reason: "empty-month" } };
+    }
+    return {
+      source: "aladhan-diyanet-coordinate-fallback",
+      days,
+      debug: { ...debug, status: response.status, dayCount: Object.keys(days).length }
+    };
+  } catch (error) {
+    return { debug: { ...debug, reason: "request-failed", error: String(error) } };
+  }
 }
 
 async function getImsakiyemCountries(lang = "en") {
@@ -2595,6 +2729,23 @@ function mapTimings(row) {
   const Asr = parseTime(row?.ikindiVakti ?? row?.ikindi ?? row?.asr ?? times?.ikindi ?? times?.asr);
   const Maghrib = parseTime(row?.aksamVakti ?? row?.aksam ?? row?.maghrib ?? times?.aksam ?? times?.maghrib);
   const Isha = parseTime(row?.yatsiVakti ?? row?.yatsi ?? row?.isha ?? times?.yatsi ?? times?.isha);
+
+  if (!Fajr || !Sunrise || !Dhuhr || !Asr || !Maghrib || !Isha) {
+    return null;
+  }
+  return { Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha };
+}
+
+function mapAladhanTimings(timings) {
+  if (!timings || typeof timings !== "object") {
+    return null;
+  }
+  const Fajr = parseTime(timings.Fajr ?? timings.fajr);
+  const Sunrise = parseTime(timings.Sunrise ?? timings.sunrise);
+  const Dhuhr = parseTime(timings.Dhuhr ?? timings.dhuhr ?? timings.Zuhr ?? timings.zuhr);
+  const Asr = parseTime(timings.Asr ?? timings.asr);
+  const Maghrib = parseTime(timings.Maghrib ?? timings.maghrib);
+  const Isha = parseTime(timings.Isha ?? timings.isha);
 
   if (!Fajr || !Sunrise || !Dhuhr || !Asr || !Maghrib || !Isha) {
     return null;
