@@ -10,6 +10,7 @@ Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const data = (notification.request.content.data ?? {}) as { playSound?: boolean };
     return {
+      // Sound is a user preference only; silent prayer alerts must still be shown.
       shouldPlaySound: data.playSound !== false,
       shouldSetBadge: false,
       shouldShowBanner: true,
@@ -55,9 +56,9 @@ function toNotificationLocationLabel(value: string | null | undefined): string |
 export function resolveNotificationSound(
   playSound: boolean,
   tone: PrayerNotificationSetting["tone"]
-): string | undefined {
+): boolean | string {
   if (!playSound) {
-    return undefined;
+    return false;
   }
   return tone === "Adhan" ? ADHAN_SOUND_FILE : "default";
 }
@@ -83,11 +84,18 @@ function createReplanSignature(params: {
           lon: Number(params.settings.manualLocation.lon.toFixed(4))
         }
       : null,
-    prayers: PRAYER_NAMES.map((prayer) => ({
-      prayer,
-      enabled: params.settings.prayerNotifications[prayer].enabled,
-      minutesBefore: params.settings.prayerNotifications[prayer].minutesBefore
-    }))
+    prayers: PRAYER_NAMES.map((prayer) => {
+      const setting = params.settings.prayerNotifications[prayer];
+      return {
+        prayer,
+        enabled: setting.enabled,
+        minutesBefore: setting.minutesBefore,
+        playSound: setting.playSound,
+        tone: setting.tone,
+        volume: setting.volume,
+        vibration: setting.vibration
+      };
+    })
   });
 }
 
@@ -99,6 +107,7 @@ async function scheduleOne(params: {
   minutesBefore: number;
   playSound: boolean;
   tone: PrayerNotificationSetting["tone"];
+  vibration: boolean;
   language: AppLanguage;
   locationLabel?: string | null;
   dedupeSet: Set<string>;
@@ -152,6 +161,7 @@ async function scheduleOne(params: {
         minutesBefore: params.minutesBefore,
         playSound: params.playSound,
         tone: params.tone,
+        vibration: params.vibration,
         dedupeKey
       },
       sound: resolveNotificationSound(params.playSound, params.tone)
@@ -190,6 +200,7 @@ export async function schedulePrayerNotificationsForDay(
         minutesBefore: prayerSetting.minutesBefore,
         playSound: prayerSetting.playSound,
         tone: prayerSetting.tone,
+        vibration: prayerSetting.vibration,
         language,
         locationLabel,
         dedupeSet
@@ -204,6 +215,7 @@ export async function schedulePrayerNotificationsForDay(
       minutesBefore: prayerSetting.minutesBefore,
       playSound: prayerSetting.playSound,
       tone: prayerSetting.tone,
+      vibration: prayerSetting.vibration,
       language,
       locationLabel,
       dedupeSet
@@ -285,6 +297,7 @@ async function replanAllOnce(params: {
           minutesBefore: prayerSetting.minutesBefore,
           playSound: prayerSetting.playSound,
           tone: prayerSetting.tone,
+          vibration: prayerSetting.vibration,
           language,
           locationLabel,
           dedupeSet
@@ -304,6 +317,7 @@ async function replanAllOnce(params: {
         minutesBefore: prayerSetting.minutesBefore,
         playSound: prayerSetting.playSound,
         tone: prayerSetting.tone,
+        vibration: prayerSetting.vibration,
         language,
         locationLabel,
         dedupeSet
