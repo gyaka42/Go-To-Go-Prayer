@@ -6,6 +6,12 @@ export interface Timings {
   dateKey: string;
   timezone: string;
   times: Record<PrayerName, string>;
+  source?: string;
+  cityId?: number | null;
+  citySource?: string | null;
+  cityDistanceKm?: number | null;
+  resolvedCityName?: string | null;
+  resolvedCountryName?: string | null;
 }
 
 export interface PrayerNotificationSetting {

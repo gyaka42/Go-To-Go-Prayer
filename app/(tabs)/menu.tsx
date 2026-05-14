@@ -133,6 +133,13 @@ export default function MenuScreen() {
           resizeMode="contain"
         />
       )
+    },
+    {
+      id: "source-check",
+      onPress: () => router.push("/source-check" as never),
+      title: t("menu.source_check.title"),
+      subtitle: t("menu.source_check.subtitle"),
+      icon: <Ionicons name="shield-checkmark-outline" size={21} color="#2B8CEE" />
     }
   ];
 

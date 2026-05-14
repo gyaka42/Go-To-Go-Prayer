@@ -8,6 +8,10 @@ const runtimeCityIdByLocation = new Map<string, number>();
 type ProxyTimingsResponse = {
   dateKey?: unknown;
   cityId?: unknown;
+  citySource?: unknown;
+  cityDistanceKm?: unknown;
+  resolvedCityName?: unknown;
+  resolvedCountryName?: unknown;
   source?: unknown;
   times?: unknown;
   error?: unknown;
@@ -190,6 +194,7 @@ export async function getTimingsByCoordinates(
   }
 
   const resolvedCityId = toFiniteNumber(payload?.cityId);
+  const cityDistanceKm = toFiniteNumber(payload?.cityDistanceKm);
   if (cityIdToUse && resolvedCityId && resolvedCityId !== cityIdToUse) {
     throw new Error(`Diyanet proxy returned different cityId (${resolvedCityId}) than requested (${cityIdToUse}).`);
   }
@@ -208,7 +213,13 @@ export async function getTimingsByCoordinates(
   return {
     dateKey,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    times
+    times,
+    source: typeof payload?.source === "string" ? payload.source : "diyanet-proxy",
+    cityId: resolvedCityId,
+    citySource: typeof payload?.citySource === "string" ? payload.citySource : null,
+    cityDistanceKm,
+    resolvedCityName: typeof payload?.resolvedCityName === "string" ? payload.resolvedCityName : null,
+    resolvedCountryName: typeof payload?.resolvedCountryName === "string" ? payload.resolvedCountryName : null
   };
 }
 

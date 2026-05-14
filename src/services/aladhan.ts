@@ -60,6 +60,7 @@ export async function getTimingsByCoordinates(
   return {
     dateKey,
     timezone,
-    times
+    times,
+    source: "aladhan"
   };
 }
