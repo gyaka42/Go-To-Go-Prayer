@@ -18,9 +18,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { easeEnterTransition, easeInitialFade, easeInitialLift, easeStateTransition, easeVisibleFade, easeVisibleLift } from "@/animation/ease";
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
+import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
 import { replanAll } from "@/services/notifications";
+import { analyzeTimingsSanity, TimingSanityIssue } from "@/services/timingValidation";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
 import { syncWidgetWithTimings } from "@/services/widgetBridge";
 import {
@@ -77,6 +79,7 @@ export default function HomeScreen() {
   const [source, setSource] = useState<"api" | "cache" | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
+  const [sanityIssues, setSanityIssues] = useState<TimingSanityIssue[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [refreshing, setRefreshing] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
@@ -181,6 +184,13 @@ export default function HomeScreen() {
         setTomorrowTimings(resolved.tomorrow);
         setSource(resolved.source);
         setLastUpdated(resolved.lastUpdated);
+        setSanityIssues(
+          analyzeTimingsSanity({
+            timings: resolved.today,
+            nextDayTimings: resolved.tomorrow,
+            provider: savedSettings.timingsProvider
+          })
+        );
         setStatusMessage(resolved.source === "api" ? t("home.live_loaded") : t("home.cache_loaded"));
         syncWidgetWithTimings({
           today: resolved.today,
@@ -238,6 +248,13 @@ export default function HomeScreen() {
         setTomorrowTimings(cachedTomorrowForDate?.timings ?? null);
         setSource("cache");
         setLastUpdated(cachedTodayForDate.lastUpdated);
+        setSanityIssues(
+          analyzeTimingsSanity({
+            timings: cachedTodayForDate.timings,
+            nextDayTimings: cachedTomorrowForDate?.timings ?? null,
+            provider: savedSettings.timingsProvider
+          })
+        );
         setStatusMessage(t("home.cache_loaded"));
         syncWidgetWithTimings({
           today: cachedTodayForDate.timings,
@@ -258,6 +275,13 @@ export default function HomeScreen() {
         setTomorrowTimings(null);
         setSource("cache");
         setLastUpdated(latestCache.lastUpdated);
+        setSanityIssues(
+          analyzeTimingsSanity({
+            timings: latestCache.timings,
+            nextDayTimings: null,
+            provider: latestCache.provider ?? savedSettings.timingsProvider
+          })
+        );
         setStatusMessage(t("home.location_cache_fallback"));
         syncWidgetWithTimings({
           today: latestCache.timings,
@@ -273,6 +297,7 @@ export default function HomeScreen() {
         return;
       }
       setStatusMessage(t("home.no_data_permission"));
+      setSanityIssues([]);
       setLoadState("error");
     }
   }, [localeTag, t]);
@@ -388,6 +413,22 @@ export default function HomeScreen() {
     return t("home.source_unknown");
   }, [source, t]);
 
+  const sourceTrust = useMemo(() => {
+    if (loadState === "loading") {
+      return { label: t("home.source_checking"), tone: "loading" as const };
+    }
+    if (sanityIssues.some((issue) => issue.severity === "error" || issue.severity === "warning")) {
+      return { label: t("home.source_needs_check"), tone: "warning" as const };
+    }
+    if (source === "api") {
+      return { label: t("home.source_live_verified"), tone: "success" as const };
+    }
+    if (source === "cache") {
+      return { label: t("home.source_cache_active"), tone: "info" as const };
+    }
+    return { label: t("home.source_unknown"), tone: "info" as const };
+  }, [loadState, sanityIssues, source, t]);
+
   const scrollToPrayerContext = useCallback(
     (animated: boolean) => {
       if (!scheduleListRef.current) {
@@ -495,12 +536,17 @@ export default function HomeScreen() {
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("home.todays_schedule")}</Text>
         </EaseView>
         <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
-          <Text style={[styles.metaLine, { color: colors.textSecondary }]}>
-            {t("home.source_updated", {
-              source: sourceLabel,
-              updated: lastUpdated ? formatDateTime(lastUpdated, localeTag) : t("home.source_unknown")
-            })}
-          </Text>
+          <View style={styles.sourceTrustRow}>
+            <Text style={[styles.metaLine, { color: colors.textSecondary }]}>
+              {t("home.source_updated", {
+                source: sourceLabel,
+                updated: lastUpdated ? formatDateTime(lastUpdated, localeTag) : t("home.source_unknown")
+              })}
+            </Text>
+            <Pressable onPress={() => router.push("/source-check" as never)} hitSlop={8}>
+              <StatusChip label={sourceTrust.label} tone={sourceTrust.tone} />
+            </Pressable>
+          </View>
         </EaseView>
 
         {loadState === "loading" && !timings ? (
@@ -764,9 +810,17 @@ const styles = StyleSheet.create({
     color: "#8EA4BF"
   },
   metaLine: {
+    flex: 1,
+    minWidth: 180,
     fontSize: 14,
-    color: "#6D829E",
-    marginBottom: 12
+    color: "#6D829E"
+  },
+  sourceTrustRow: {
+    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap"
   },
   listContent: {
     paddingBottom: 40,

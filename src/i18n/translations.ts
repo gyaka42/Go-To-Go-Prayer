@@ -101,6 +101,10 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "home.source_api": "api",
     "home.source_cache": "cache",
     "home.source_unknown": "-",
+    "home.source_checking": "Checking source",
+    "home.source_live_verified": "Live verified",
+    "home.source_cache_active": "Cache active",
+    "home.source_needs_check": "Check source",
     "home.coming_up": "COMING UP",
 
     "settings.title": "App Settings",
@@ -613,6 +617,10 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "home.source_api": "api",
     "home.source_cache": "cache",
     "home.source_unknown": "-",
+    "home.source_checking": "Bron controleren",
+    "home.source_live_verified": "Live gecontroleerd",
+    "home.source_cache_active": "Cache actief",
+    "home.source_needs_check": "Bron controleren",
     "home.coming_up": "BINNENKORT",
 
     "settings.title": "App instellingen",
@@ -1125,6 +1133,10 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "home.source_api": "api",
     "home.source_cache": "önbellek",
     "home.source_unknown": "-",
+    "home.source_checking": "Kaynak kontrol ediliyor",
+    "home.source_live_verified": "Canlı veri doğrulandı",
+    "home.source_cache_active": "Önbellek aktif",
+    "home.source_needs_check": "Kaynağı kontrol et",
     "home.coming_up": "SIRADAKİ",
 
     "settings.title": "Uygulama ayarları",
