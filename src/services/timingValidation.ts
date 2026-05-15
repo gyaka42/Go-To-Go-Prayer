@@ -2,7 +2,16 @@ import { CachedTimings, PRAYER_NAMES, PrayerName, Timings } from "@/types/prayer
 
 const HHMM_REGEX = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
-function timeToMinutes(value: string): number | null {
+export type TimingSanitySeverity = "info" | "warning" | "error";
+
+export type TimingSanityIssue = {
+  severity: TimingSanitySeverity;
+  titleKey: string;
+  bodyKey: string;
+  params?: Record<string, string | number>;
+};
+
+export function timeToMinutes(value: string): number | null {
   const match = value.match(HHMM_REGEX);
   if (!match) {
     return null;
@@ -47,6 +56,119 @@ export function isValidTimings(value: unknown, expectedDateKey?: string): value 
   }
 
   return true;
+}
+
+function normalizedDayDiff(current: number, next: number): number {
+  const direct = Math.abs(next - current);
+  return Math.min(direct, Math.abs(next + 24 * 60 - current), Math.abs(current + 24 * 60 - next));
+}
+
+function gap(current: number | null, next: number | null): number | null {
+  if (current === null || next === null) {
+    return null;
+  }
+  return next > current ? next - current : next + 24 * 60 - current;
+}
+
+function pushGapIssue(
+  issues: TimingSanityIssue[],
+  value: number | null,
+  min: number,
+  max: number,
+  label: string
+) {
+  if (value === null || (value >= min && value <= max)) {
+    return;
+  }
+  issues.push({
+    severity: "warning",
+    titleKey: "source_check.sanity_gap_title",
+    bodyKey: "source_check.sanity_gap_body",
+    params: { label, minutes: value }
+  });
+}
+
+export function analyzeTimingsSanity(params: {
+  timings: Timings;
+  nextDayTimings?: Timings | null;
+  provider?: "aladhan" | "diyanet";
+}): TimingSanityIssue[] {
+  const issues: TimingSanityIssue[] = [];
+
+  if (!isValidTimings(params.timings, params.timings.dateKey)) {
+    issues.push({
+      severity: "error",
+      titleKey: "source_check.sanity_invalid_title",
+      bodyKey: "source_check.sanity_invalid_body"
+    });
+    return issues;
+  }
+
+  const times = params.timings.times;
+  const minutes = {
+    Fajr: timeToMinutes(times.Fajr),
+    Sunrise: timeToMinutes(times.Sunrise),
+    Dhuhr: timeToMinutes(times.Dhuhr),
+    Asr: timeToMinutes(times.Asr),
+    Maghrib: timeToMinutes(times.Maghrib),
+    Isha: timeToMinutes(times.Isha)
+  };
+
+  pushGapIssue(issues, gap(minutes.Fajr, minutes.Sunrise), 45, 220, "Fajr-Sunrise");
+  pushGapIssue(issues, gap(minutes.Sunrise, minutes.Dhuhr), 240, 570, "Sunrise-Dhuhr");
+  pushGapIssue(issues, gap(minutes.Dhuhr, minutes.Asr), 90, 430, "Dhuhr-Asr");
+  pushGapIssue(issues, gap(minutes.Asr, minutes.Maghrib), 90, 430, "Asr-Maghrib");
+  pushGapIssue(issues, gap(minutes.Maghrib, minutes.Isha), 45, 260, "Maghrib-Isha");
+
+  const source = params.timings.source ?? "";
+  if (params.provider === "diyanet" && !params.timings.cityId && !source.includes("aladhan")) {
+    issues.push({
+      severity: "warning",
+      titleKey: "source_check.sanity_city_missing_title",
+      bodyKey: "source_check.sanity_city_missing_body"
+    });
+  }
+
+  if (source.includes("coordinate-fallback")) {
+    issues.push({
+      severity: "warning",
+      titleKey: "source_check.sanity_coordinate_fallback_title",
+      bodyKey: "source_check.sanity_coordinate_fallback_body"
+    });
+  }
+
+  if (params.timings.citySource === "regional-diyanet-fallback") {
+    issues.push({
+      severity: "info",
+      titleKey: "source_check.sanity_regional_fallback_title",
+      bodyKey: "source_check.sanity_regional_fallback_body",
+      params: {
+        city: params.timings.resolvedCityName || "-",
+        distance: typeof params.timings.cityDistanceKm === "number" ? params.timings.cityDistanceKm.toFixed(1) : "-"
+      }
+    });
+  }
+
+  if (params.nextDayTimings && isValidTimings(params.nextDayTimings, params.nextDayTimings.dateKey)) {
+    for (const prayer of PRAYER_NAMES) {
+      const current = timeToMinutes(params.timings.times[prayer]);
+      const next = timeToMinutes(params.nextDayTimings.times[prayer]);
+      if (current === null || next === null) {
+        continue;
+      }
+      const diff = normalizedDayDiff(current, next);
+      if (diff > 20) {
+        issues.push({
+          severity: "warning",
+          titleKey: "source_check.sanity_day_jump_title",
+          bodyKey: "source_check.sanity_day_jump_body",
+          params: { prayer, minutes: diff }
+        });
+      }
+    }
+  }
+
+  return issues;
 }
 
 export function isValidCachedTimings(

@@ -13,6 +13,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
 import { getSettings } from "@/services/storage";
 import { buildTimingsCacheKey, getCachedTimings } from "@/services/storage";
+import { analyzeTimingsSanity, TimingSanityIssue } from "@/services/timingValidation";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { PrayerName, PRAYER_NAMES, Settings, Timings } from "@/types/prayer";
@@ -30,6 +31,7 @@ type CheckResult = {
   lastUpdated: string;
   hadTodayCache: boolean;
   hadTomorrowCache: boolean;
+  sanityIssues: TimingSanityIssue[];
 };
 
 function providerLabel(settings: Settings, t: (key: string, params?: Record<string, string | number>) => string): string {
@@ -123,7 +125,12 @@ export default function SourceCheckScreen() {
         source: timings.source,
         lastUpdated: timings.lastUpdated,
         hadTodayCache: Boolean(cachedToday?.timings),
-        hadTomorrowCache: Boolean(cachedTomorrow?.timings)
+        hadTomorrowCache: Boolean(cachedTomorrow?.timings),
+        sanityIssues: analyzeTimingsSanity({
+          timings: timings.today,
+          nextDayTimings: timings.tomorrow,
+          provider: settings.timingsProvider
+        })
       });
       setState("ready");
     } catch (err) {
@@ -241,6 +248,8 @@ export default function SourceCheckScreen() {
                 </View>
               </EaseView>
 
+              <SanityCard issues={result.sanityIssues} />
+
               <TimingCard
                 title={t("source_check.today_title")}
                 timings={result.today}
@@ -286,6 +295,55 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{label}</Text>
       <Text style={[styles.infoValue, { color: colors.textPrimary }]}>{value}</Text>
     </View>
+  );
+}
+
+function issueTone(severity: TimingSanityIssue["severity"]): "success" | "info" | "warning" | "error" {
+  if (severity === "error") {
+    return "error";
+  }
+  if (severity === "warning") {
+    return "warning";
+  }
+  return "info";
+}
+
+function SanityCard({ issues }: { issues: TimingSanityIssue[] }) {
+  const { colors } = useAppTheme();
+  const { t } = useI18n();
+  const transition = useMotionTransition(easeEnterTransition);
+  const highestSeverity = issues.some((issue) => issue.severity === "error")
+    ? "error"
+    : issues.some((issue) => issue.severity === "warning")
+      ? "warning"
+      : "success";
+
+  return (
+    <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={transition}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("source_check.sanity_title")}</Text>
+        <View style={styles.statusWrapTight}>
+          <StatusChip
+            label={issues.length === 0 ? t("source_check.sanity_ok") : t("source_check.sanity_attention")}
+            tone={highestSeverity}
+          />
+        </View>
+        {issues.length === 0 ? (
+          <Text style={[styles.bodyText, { color: colors.textSecondary }]}>{t("source_check.sanity_ok_body")}</Text>
+        ) : (
+          <View style={styles.issueList}>
+            {issues.map((issue, index) => (
+              <View key={`${issue.titleKey}-${index}`} style={[styles.issueRow, { borderColor: colors.cardBorder }]}>
+                <StatusChip label={t(issue.titleKey)} tone={issueTone(issue.severity)} />
+                <Text style={[styles.issueBody, { color: colors.textSecondary }]}>
+                  {t(issue.bodyKey, issue.params)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    </EaseView>
   );
 }
 
@@ -359,6 +417,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 14
   },
+  statusWrapTight: {
+    marginBottom: 10
+  },
   loadingWrap: {
     minHeight: 260,
     alignItems: "center",
@@ -384,6 +445,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     marginBottom: 14
+  },
+  issueList: {
+    gap: 12
+  },
+  issueRow: {
+    borderTopWidth: 1,
+    paddingTop: 12,
+    gap: 8
+  },
+  issueBody: {
+    fontSize: 13,
+    lineHeight: 19
   },
   detailText: {
     fontSize: 12,
