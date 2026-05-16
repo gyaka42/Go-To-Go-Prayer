@@ -81,6 +81,7 @@ export default function QuranSurahDetailScreen() {
   const [audioResumePosition, setAudioResumePosition] = useState(0);
   const [audioPositionMillis, setAudioPositionMillis] = useState(0);
   const [audioDurationMillis, setAudioDurationMillis] = useState(0);
+  const [resumeReadingAyah, setResumeReadingAyah] = useState<number | null>(null);
   const [readingSettings, setReadingSettings] = useState<ReadingSettings>({
     textSize: "medium",
     showTranslation: true,
@@ -333,6 +334,7 @@ export default function QuranSurahDetailScreen() {
   useEffect(() => {
     didRestoreScrollRef.current = false;
     ayahLayoutYRef.current.clear();
+    setResumeReadingAyah(null);
   }, [surahId]);
 
   const rememberAyahLayout = useCallback((ayahNumber: number, y: number) => {
@@ -368,7 +370,13 @@ export default function QuranSurahDetailScreen() {
     let active = true;
     const timer = setTimeout(() => {
       void getRecentContentById(`quran:${surah.id}`).then((recent) => {
-        if (!active || recent?.id !== `quran:${surah.id}` || !recent.scrollY || recent.scrollY <= 0) {
+        if (!active || recent?.id !== `quran:${surah.id}`) {
+          return;
+        }
+        if (recent.ayahNumber && recent.ayahNumber > 0) {
+          setResumeReadingAyah(recent.ayahNumber);
+        }
+        if (!recent.scrollY || recent.scrollY <= 0) {
           return;
         }
         didRestoreScrollRef.current = true;
@@ -577,6 +585,11 @@ export default function QuranSurahDetailScreen() {
             label={dataSource === "cache" ? t("quran.status_cache") : t("quran.status_network")}
             tone={dataSource === "cache" ? "warning" : "success"}
           />
+          <StatusChip
+            visible={!loading && !error && Boolean(resumeReadingAyah)}
+            label={t("reading.resume_ayah", { ayah: resumeReadingAyah ?? 1 })}
+            tone="info"
+          />
         </View>
 
         {audioInfo.available ? (
@@ -744,7 +757,8 @@ const styles = StyleSheet.create({
   statusWrap: {
     minHeight: 30,
     marginBottom: 8,
-    alignItems: "center"
+    alignItems: "center",
+    gap: 6
   },
   audioButtonText: {
     color: "#FFFFFF",

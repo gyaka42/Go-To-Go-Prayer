@@ -62,6 +62,7 @@ export default function NamazDuaDetailScreen() {
   const [audioResumePosition, setAudioResumePosition] = useState(0);
   const [audioPositionMillis, setAudioPositionMillis] = useState(0);
   const [audioDurationMillis, setAudioDurationMillis] = useState(0);
+  const [resumeReadingSaved, setResumeReadingSaved] = useState(false);
   const [readingSettings, setReadingSettings] = useState<ReadingSettings>({
     textSize: "medium",
     showTranslation: true,
@@ -219,6 +220,7 @@ export default function NamazDuaDetailScreen() {
 
   useEffect(() => {
     didRestoreScrollRef.current = false;
+    setResumeReadingSaved(false);
     void cleanupSound();
   }, [cleanupSound, duaId]);
 
@@ -279,6 +281,7 @@ export default function NamazDuaDetailScreen() {
         if (!active || recent?.id !== `dua:${detail.id}` || !recent.scrollY || recent.scrollY <= 0) {
           return;
         }
+        setResumeReadingSaved(true);
         didRestoreScrollRef.current = true;
         scrollViewRef.current?.scrollTo({ y: recent.scrollY, animated: false });
       });
@@ -463,6 +466,12 @@ export default function NamazDuaDetailScreen() {
         </View>
 
         {detail ? (
+          <View style={styles.statusWrap}>
+            <StatusChip visible={resumeReadingSaved} label={t("reading.resume_position")} tone="info" />
+          </View>
+        ) : null}
+
+        {detail ? (
           <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition} style={styles.scrollWrap}>
             <ScrollView
               ref={scrollViewRef}
@@ -599,6 +608,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
     color: "#EDF4FF"
+  },
+  statusWrap: {
+    minHeight: 30,
+    marginTop: 8,
+    marginBottom: 2,
+    alignItems: "center"
   },
   scrollWrap: {
     flex: 1
