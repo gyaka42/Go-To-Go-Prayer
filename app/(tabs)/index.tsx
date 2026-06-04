@@ -23,6 +23,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
 import { replanAll } from "@/services/notifications";
 import { analyzeTimingsSanity, TimingSanityIssue } from "@/services/timingValidation";
+import { evaluateTimingTrust } from "@/services/timingTrust";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
 import { syncWidgetWithTimings } from "@/services/widgetBridge";
 import {
@@ -417,17 +418,26 @@ export default function HomeScreen() {
     if (loadState === "loading") {
       return { label: t("home.source_checking"), tone: "loading" as const };
     }
-    if (sanityIssues.some((issue) => issue.severity === "error" || issue.severity === "warning")) {
+    const trust = evaluateTimingTrust({
+      source,
+      lastUpdated,
+      hasWarnings: sanityIssues.some((issue) => issue.severity === "error" || issue.severity === "warning")
+    });
+
+    if (trust === "needs-check") {
       return { label: t("home.source_needs_check"), tone: "warning" as const };
     }
-    if (source === "api") {
+    if (trust === "live") {
       return { label: t("home.source_live_verified"), tone: "success" as const };
     }
-    if (source === "cache") {
-      return { label: t("home.source_cache_active"), tone: "info" as const };
+    if (trust === "recent-cache") {
+      return { label: t("home.source_cache_recent"), tone: "info" as const };
+    }
+    if (trust === "stale-cache") {
+      return { label: t("home.source_cache_old"), tone: "warning" as const };
     }
     return { label: t("home.source_unknown"), tone: "info" as const };
-  }, [loadState, sanityIssues, source, t]);
+  }, [lastUpdated, loadState, sanityIssues, source, t]);
 
   const scrollToPrayerContext = useCallback(
     (animated: boolean) => {

@@ -14,6 +14,7 @@ import { resolveLocationForSettings } from "@/services/location";
 import { getSettings } from "@/services/storage";
 import { buildTimingsCacheKey, getCachedTimings } from "@/services/storage";
 import { analyzeTimingsSanity, TimingSanityIssue } from "@/services/timingValidation";
+import { evaluateTimingTrust, TimingTrust } from "@/services/timingTrust";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { PrayerName, PRAYER_NAMES, Settings, Timings } from "@/types/prayer";
@@ -143,6 +144,18 @@ export default function SourceCheckScreen() {
     void load();
   }, [load]);
 
+  const trust = useMemo(
+    () =>
+      result
+        ? evaluateTimingTrust({
+            source: result.source,
+            lastUpdated: result.lastUpdated,
+            hasWarnings: result.sanityIssues.some((issue) => issue.severity === "error" || issue.severity === "warning")
+          })
+        : null,
+    [result]
+  );
+
   const inlineStatus = useMemo(() => {
     if (state === "loading") {
       return { label: t("source_check.status_checking"), tone: "loading" as const };
@@ -150,14 +163,17 @@ export default function SourceCheckScreen() {
     if (state === "error") {
       return { label: t("source_check.status_error"), tone: "error" as const };
     }
-    if (result?.source === "api") {
+    if (trust === "needs-check" || trust === "stale-cache") {
+      return { label: t("source_check.status_attention"), tone: "warning" as const };
+    }
+    if (trust === "live") {
       return { label: t("source_check.status_live"), tone: "success" as const };
     }
-    if (result?.source === "cache") {
+    if (trust === "recent-cache") {
       return { label: t("source_check.status_cache"), tone: "warning" as const };
     }
     return { label: t("source_check.status_idle"), tone: "info" as const };
-  }, [result?.source, state, t]);
+  }, [state, t, trust]);
 
   const renderPrayerRow = (timings: Timings, prayer: PrayerName) => (
     <View key={`${timings.dateKey}-${prayer}`} style={[styles.prayerRow, { borderColor: colors.cardBorder }]}>
@@ -222,6 +238,8 @@ export default function SourceCheckScreen() {
 
           {result ? (
             <>
+              <TrustSummaryCard trust={trust ?? "unknown"} />
+
               <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
                 <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
                   <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
@@ -295,6 +313,51 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{label}</Text>
       <Text style={[styles.infoValue, { color: colors.textPrimary }]}>{value}</Text>
     </View>
+  );
+}
+
+function TrustSummaryCard({ trust }: { trust: TimingTrust }) {
+  const { colors } = useAppTheme();
+  const { t } = useI18n();
+  const transition = useMotionTransition(easeEnterTransition);
+  const content = {
+    live: {
+      label: t("source_check.trust_live_title"),
+      body: t("source_check.trust_live_body"),
+      tone: "success" as const
+    },
+    "recent-cache": {
+      label: t("source_check.trust_cache_title"),
+      body: t("source_check.trust_cache_body"),
+      tone: "info" as const
+    },
+    "stale-cache": {
+      label: t("source_check.trust_stale_title"),
+      body: t("source_check.trust_stale_body"),
+      tone: "warning" as const
+    },
+    "needs-check": {
+      label: t("source_check.trust_attention_title"),
+      body: t("source_check.trust_attention_body"),
+      tone: "warning" as const
+    },
+    unknown: {
+      label: t("source_check.status_idle"),
+      body: t("source_check.trust_unknown_body"),
+      tone: "info" as const
+    }
+  }[trust];
+
+  return (
+    <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={transition}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("source_check.trust_title")}</Text>
+        <View style={styles.statusWrapTight}>
+          <StatusChip label={content.label} tone={content.tone} />
+        </View>
+        <Text style={[styles.bodyTextCompact, { color: colors.textSecondary }]}>{content.body}</Text>
+      </View>
+    </EaseView>
   );
 }
 
@@ -445,6 +508,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     marginBottom: 14
+  },
+  bodyTextCompact: {
+    fontSize: 14,
+    lineHeight: 21
   },
   issueList: {
     gap: 12
