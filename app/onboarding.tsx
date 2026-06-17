@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import * as ExpoLocation from "expo-location";
 import { Magnetometer } from "expo-sensors";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { EaseView } from "react-native-ease";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -34,7 +34,9 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { colors, resolvedTheme } = useAppTheme();
   const { t, mode: languageMode, setMode: setLanguageMode } = useI18n();
+  const { height } = useWindowDimensions();
   const isLight = resolvedTheme === "light";
+  const isCompactHeight = height < 880;
 
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -153,7 +155,13 @@ export default function OnboardingScreen() {
   const renderIllustration = () => {
     if (step === "language") {
       return (
-        <View style={[styles.illustrationCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+        <View
+          style={[
+            styles.illustrationCard,
+            isCompactHeight && styles.illustrationCardCompact,
+            { borderColor: colors.cardBorder, backgroundColor: colors.card }
+          ]}
+        >
           <View style={[styles.centerBlueDot, { width: 116, height: 116, borderRadius: 58 }]}>
             <Ionicons name="language" size={50} color="#EAF4FF" />
           </View>
@@ -170,7 +178,13 @@ export default function OnboardingScreen() {
 
     if (step === "trust") {
       return (
-        <View style={[styles.illustrationCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+        <View
+          style={[
+            styles.illustrationCard,
+            isCompactHeight && styles.illustrationCardCompact,
+            { borderColor: colors.cardBorder, backgroundColor: colors.card }
+          ]}
+        >
           <View style={[styles.compassRing, { borderColor: isLight ? "#BCD8F4" : "#1F4467" }]}>
             <View style={[styles.centerBlueDot, { width: 116, height: 116, borderRadius: 58 }]}>
               <Ionicons name="shield-checkmark" size={52} color="#EAF4FF" />
@@ -182,11 +196,11 @@ export default function OnboardingScreen() {
 
     if (step === "location") {
       return (
-        <View style={styles.illustrationWrap}>
-          <View style={[styles.bigCircle, { backgroundColor: isLight ? "#E7F1FD" : "#0F2A45" }]}>
+        <View style={[styles.illustrationWrap, isCompactHeight && styles.illustrationWrapCompact]}>
+          <View style={[styles.bigCircle, isCompactHeight && styles.bigCircleCompact, { backgroundColor: isLight ? "#E7F1FD" : "#0F2A45" }]}>
             <Ionicons name="location" size={54} color="#2B8CEE" />
           </View>
-          <View style={styles.smallBadge}>
+          <View style={[styles.smallBadge, isCompactHeight && styles.smallBadgeCompact]}>
             <Ionicons name="navigate" size={20} color="#EAF4FF" />
           </View>
         </View>
@@ -195,7 +209,13 @@ export default function OnboardingScreen() {
 
     if (step === "notifications") {
       return (
-        <View style={[styles.illustrationCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+        <View
+          style={[
+            styles.illustrationCard,
+            isCompactHeight && styles.illustrationCardCompact,
+            { borderColor: colors.cardBorder, backgroundColor: colors.card }
+          ]}
+        >
           <View style={styles.centerBlueDot}>
             <Ionicons name="notifications" size={48} color="#EAF4FF" />
           </View>
@@ -205,7 +225,13 @@ export default function OnboardingScreen() {
 
     if (step === "qibla") {
       return (
-        <View style={[styles.illustrationCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+        <View
+          style={[
+            styles.illustrationCard,
+            isCompactHeight && styles.illustrationCardCompact,
+            { borderColor: colors.cardBorder, backgroundColor: colors.card }
+          ]}
+        >
           <View style={[styles.compassRing, { borderColor: isLight ? "#BCD8F4" : "#1F4467" }]}>
             <View style={[styles.centerBlueDot, { width: 116, height: 116, borderRadius: 58 }]}>
               <MaterialCommunityIcons name="compass-outline" size={50} color="#EAF4FF" />
@@ -216,7 +242,13 @@ export default function OnboardingScreen() {
     }
 
     return (
-      <View style={[styles.illustrationCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+      <View
+        style={[
+          styles.illustrationCard,
+          isCompactHeight && styles.illustrationCardCompact,
+          { borderColor: colors.cardBorder, backgroundColor: colors.card }
+        ]}
+      >
         <Image
           source={require("../assets/images/widgets.png")}
           style={[
@@ -259,7 +291,7 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <View style={styles.container}>
         <AppBackground />
 
         <EaseView style={styles.topRow} initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
@@ -306,26 +338,34 @@ export default function OnboardingScreen() {
           ))}
         </EaseView>
 
+        <ScrollView
+          style={styles.contentScroller}
+          contentContainerStyle={[styles.content, isCompactHeight && styles.contentCompact]}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
         <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
           {renderIllustration()}
         </EaseView>
 
         <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+          <Text style={[styles.title, isCompactHeight && styles.titleCompact, { color: colors.textPrimary }]}>{title}</Text>
         </EaseView>
         <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
-          <Text style={[styles.description, { color: colors.textSecondary }]}>{description}</Text>
+          <Text style={[styles.description, isCompactHeight && styles.descriptionCompact, { color: colors.textSecondary }]}>{description}</Text>
         </EaseView>
 
         {statusText ? (
           <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
-            <StatusChip label={statusText} tone={statusTone} />
+            <View style={styles.statusChipWrap}>
+              <StatusChip label={statusText} tone={statusTone} />
+            </View>
           </EaseView>
         ) : null}
 
         {step === "qibla" ? (
           <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
-            <View style={[styles.tipCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+            <View style={[styles.tipCard, isCompactHeight && styles.tipCardCompact, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
               <Ionicons name="bulb-outline" size={18} color="#2B8CEE" />
               <Text style={[styles.tipText, { color: colors.textSecondary }]}>{t("onboarding.qibla_tip")}</Text>
             </View>
@@ -366,7 +406,7 @@ export default function OnboardingScreen() {
 
         {step === "trust" ? (
           <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
-            <View style={[styles.tipCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+            <View style={[styles.tipCard, isCompactHeight && styles.tipCardCompact, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
               <Ionicons name="checkmark-circle-outline" size={18} color="#2B8CEE" />
               <Text style={[styles.tipText, { color: colors.textSecondary }]}>
                 {t("onboarding.trust_tip")}
@@ -374,8 +414,9 @@ export default function OnboardingScreen() {
             </View>
           </EaseView>
         ) : null}
+        </ScrollView>
 
-        <View style={styles.actions}>
+        <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           {step === "language" || step === "trust" ? (
             <OnboardingNextButton busy={busy} pressed={pressedAction === `${step}-next`} label={t("onboarding.next")} onPress={nextStep} onPressIn={() => setPressedAction(`${step}-next`)} onPressOut={() => setPressedAction(null)} />
           ) : null}
@@ -532,7 +573,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     marginTop: 10,
-    marginBottom: 18
+    marginBottom: 12
+  },
+  contentScroller: {
+    flex: 1
+  },
+  content: {
+    paddingBottom: 16
+  },
+  contentCompact: {
+    paddingBottom: 10
   },
   dot: {
     width: 8,
@@ -545,12 +595,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 18
   },
+  illustrationWrapCompact: {
+    marginTop: 0,
+    marginBottom: 8
+  },
   bigCircle: {
     width: 220,
     height: 220,
     borderRadius: 110,
     alignItems: "center",
     justifyContent: "center"
+  },
+  bigCircleCompact: {
+    width: 150,
+    height: 150,
+    borderRadius: 75
   },
   smallBadge: {
     width: 58,
@@ -564,6 +623,13 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: "#FFFFFF"
   },
+  smallBadgeCompact: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    marginTop: -30,
+    marginLeft: 104
+  },
   illustrationCard: {
     height: 220,
     borderRadius: 28,
@@ -571,6 +637,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 20
+  },
+  illustrationCardCompact: {
+    height: 150,
+    marginBottom: 10
   },
   centerBlueDot: {
     width: 112,
@@ -615,17 +685,30 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textAlign: "center"
   },
+  titleCompact: {
+    fontSize: 32,
+    lineHeight: 37
+  },
   description: {
     marginTop: 16,
     fontSize: 25,
     lineHeight: 34,
     textAlign: "center"
   },
+  descriptionCompact: {
+    marginTop: 10,
+    fontSize: 19,
+    lineHeight: 26
+  },
   statusText: {
     marginTop: 12,
     fontSize: 16,
     textAlign: "center",
     fontWeight: "700"
+  },
+  statusChipWrap: {
+    marginTop: 12,
+    alignItems: "center"
   },
   tipCard: {
     marginTop: 16,
@@ -635,6 +718,11 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 12,
     paddingVertical: 12
+  },
+  tipCardCompact: {
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 10
   },
   tipText: {
     flex: 1,
@@ -661,7 +749,7 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
   actions: {
-    marginTop: "auto",
+    paddingTop: 10,
     gap: 12
   },
   primaryButton: {
