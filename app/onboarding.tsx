@@ -17,23 +17,23 @@ import {
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
-import { useI18n } from "@/i18n/I18nProvider";
+import { type LanguageMode, useI18n } from "@/i18n/I18nProvider";
 import { getCurrentLocationDetails } from "@/services/location";
 import { registerForLocalNotifications } from "@/services/notifications";
 import { getSettings, saveOnboardingSeen, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
-type StepId = "location" | "notifications" | "qibla" | "widgets";
+type StepId = "language" | "trust" | "location" | "notifications" | "qibla" | "widgets";
 
 type PermissionState = "idle" | "granted" | "denied";
 
-const STEP_ORDER: StepId[] = ["location", "notifications", "qibla", "widgets"];
+const STEP_ORDER: StepId[] = ["language", "trust", "location", "notifications", "qibla", "widgets"];
 
 export default function OnboardingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, resolvedTheme } = useAppTheme();
-  const { t } = useI18n();
+  const { t, mode: languageMode, setMode: setLanguageMode } = useI18n();
   const isLight = resolvedTheme === "light";
 
   const [index, setIndex] = useState(0);
@@ -58,6 +58,9 @@ export default function OnboardingScreen() {
     if (step === "qibla") {
       return "";
     }
+    if (step === "trust") {
+      return t("onboarding.trust_status");
+    }
     return "";
   }, [locationState, notificationState, step, t]);
 
@@ -65,14 +68,17 @@ export default function OnboardingScreen() {
     if (!statusText) {
       return "info" as const;
     }
-    if (locationState === "denied" || notificationState === "denied") {
-      return "warning" as const;
-    }
-    if (locationState === "granted" || notificationState === "granted") {
+    if (step === "trust") {
       return "success" as const;
     }
+    if (step === "location") {
+      return locationState === "denied" ? "warning" as const : "success" as const;
+    }
+    if (step === "notifications") {
+      return notificationState === "denied" ? "warning" as const : "success" as const;
+    }
     return "info" as const;
-  }, [locationState, notificationState, statusText]);
+  }, [locationState, notificationState, statusText, step]);
 
   const nextStep = () => {
     if (index >= STEP_ORDER.length - 1) {
@@ -145,6 +151,35 @@ export default function OnboardingScreen() {
   };
 
   const renderIllustration = () => {
+    if (step === "language") {
+      return (
+        <View style={[styles.illustrationCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+          <View style={[styles.centerBlueDot, { width: 116, height: 116, borderRadius: 58 }]}>
+            <Ionicons name="language" size={50} color="#EAF4FF" />
+          </View>
+          <View style={styles.languageBadgeRow}>
+            {["NL", "TR", "EN"].map((label) => (
+              <View key={label} style={[styles.languageBadge, { backgroundColor: isLight ? "#EAF2FC" : "#173553" }]}>
+                <Text style={[styles.languageBadgeText, { color: isLight ? "#2369B7" : "#A8D0FF" }]}>{label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      );
+    }
+
+    if (step === "trust") {
+      return (
+        <View style={[styles.illustrationCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+          <View style={[styles.compassRing, { borderColor: isLight ? "#BCD8F4" : "#1F4467" }]}>
+            <View style={[styles.centerBlueDot, { width: 116, height: 116, borderRadius: 58 }]}>
+              <Ionicons name="shield-checkmark" size={52} color="#EAF4FF" />
+            </View>
+          </View>
+        </View>
+      );
+    }
+
     if (step === "location") {
       return (
         <View style={styles.illustrationWrap}>
@@ -197,7 +232,11 @@ export default function OnboardingScreen() {
   };
 
   const title =
-    step === "location"
+    step === "language"
+      ? t("onboarding.language_title")
+      : step === "trust"
+        ? t("onboarding.trust_title")
+        : step === "location"
       ? t("onboarding.location_title")
       : step === "notifications"
         ? t("onboarding.notifications_title")
@@ -206,7 +245,11 @@ export default function OnboardingScreen() {
           : t("onboarding.widgets_title");
 
   const description =
-    step === "location"
+    step === "language"
+      ? t("onboarding.language_body")
+      : step === "trust"
+        ? t("onboarding.trust_body")
+        : step === "location"
       ? t("onboarding.location_body")
       : step === "notifications"
         ? t("onboarding.notifications_body")
@@ -289,7 +332,54 @@ export default function OnboardingScreen() {
           </EaseView>
         ) : null}
 
+        {step === "language" ? (
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
+            <View style={styles.languageOptions}>
+              {(["system", "nl", "tr", "en"] as LanguageMode[]).map((option) => {
+                const selected = languageMode === option;
+                const label =
+                  option === "system"
+                    ? t("settings.lang_system")
+                    : option === "nl"
+                      ? t("settings.lang_nl")
+                      : option === "tr"
+                        ? t("settings.lang_tr")
+                        : t("settings.lang_en");
+                return (
+                  <Pressable
+                    key={option}
+                    style={[
+                      styles.languageOption,
+                      { borderColor: colors.cardBorder, backgroundColor: selected ? colors.accent : colors.card }
+                    ]}
+                    onPress={() => void setLanguageMode(option)}
+                  >
+                    <Text style={[styles.languageOptionText, { color: selected ? "#F2F8FF" : colors.textPrimary }]}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </EaseView>
+        ) : null}
+
+        {step === "trust" ? (
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={enterTransition}>
+            <View style={[styles.tipCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+              <Ionicons name="checkmark-circle-outline" size={18} color="#2B8CEE" />
+              <Text style={[styles.tipText, { color: colors.textSecondary }]}>
+                {t("onboarding.trust_tip")}
+              </Text>
+            </View>
+          </EaseView>
+        ) : null}
+
         <View style={styles.actions}>
+          {step === "language" || step === "trust" ? (
+            <OnboardingNextButton busy={busy} pressed={pressedAction === `${step}-next`} label={t("onboarding.next")} onPress={nextStep} onPressIn={() => setPressedAction(`${step}-next`)} onPressOut={() => setPressedAction(null)} />
+          ) : null}
+
           {step === "location" ? (
             <>
               <EaseView animate={{ scale: pressedAction === "location-primary" ? 0.985 : 1, opacity: busy ? 0.8 : 1 }} transition={pressTransition}>
@@ -382,6 +472,31 @@ export default function OnboardingScreen() {
   );
 }
 
+function OnboardingNextButton({
+  busy,
+  pressed,
+  label,
+  onPress,
+  onPressIn,
+  onPressOut
+}: {
+  busy: boolean;
+  pressed: boolean;
+  label: string;
+  onPress: () => void;
+  onPressIn: () => void;
+  onPressOut: () => void;
+}) {
+  const pressTransition = useMotionTransition(easePressTransition);
+  return (
+    <EaseView animate={{ scale: pressed ? 0.985 : 1, opacity: busy ? 0.8 : 1 }} transition={pressTransition}>
+      <Pressable style={styles.primaryButton} onPress={onPress} disabled={busy} onPressIn={onPressIn} onPressOut={onPressOut}>
+        {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryLabel}>{label}</Text>}
+      </Pressable>
+    </EaseView>
+  );
+}
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1
@@ -469,6 +584,23 @@ const styles = StyleSheet.create({
     width: 110,
     height: 110
   },
+  languageBadgeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 18
+  },
+  languageBadge: {
+    minWidth: 44,
+    minHeight: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10
+  },
+  languageBadgeText: {
+    fontSize: 13,
+    fontWeight: "900"
+  },
   compassRing: {
     width: 190,
     height: 190,
@@ -508,6 +640,25 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     lineHeight: 20
+  },
+  languageOptions: {
+    marginTop: 16,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "center"
+  },
+  languageOption: {
+    minHeight: 46,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  languageOptionText: {
+    fontSize: 16,
+    fontWeight: "800"
   },
   actions: {
     marginTop: "auto",
