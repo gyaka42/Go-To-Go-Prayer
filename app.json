@@ -4,7 +4,7 @@
     "slug": "go-to-go-prayer",
     "scheme": "gotogoprayer",
     "icon": "./assets/images/Light/AppIcon~ios-marketing.png",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -24,7 +24,7 @@
         "light": "./assets/images/Light/AppIcon~ios-marketing.png",
         "dark": "./assets/images/Dark/AppIcon~ios-marketing.png"
       },
-      "buildNumber": "57",
+      "buildNumber": "58",
       "supportsTablet": true,
       "bundleIdentifier": "com.gogo22.gotogoprayer",
       "infoPlist": {
