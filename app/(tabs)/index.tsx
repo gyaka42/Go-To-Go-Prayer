@@ -24,7 +24,7 @@ import { resolveLocationForSettings } from "@/services/location";
 import { replanAll } from "@/services/notifications";
 import { analyzeTimingsSanity, TimingSanityIssue } from "@/services/timingValidation";
 import { evaluateTimingTrust } from "@/services/timingTrust";
-import { getTodayTomorrowTimings } from "@/services/timingsCache";
+import { getTodayTomorrowTimings, warmTimingsCacheRange } from "@/services/timingsCache";
 import { syncWidgetWithTimings } from "@/services/widgetBridge";
 import {
   getCachedTimingsForDate,
@@ -176,7 +176,8 @@ export default function HomeScreen() {
           location,
           locationLabel: location.label,
           settings: savedSettings,
-          forceRefresh
+          forceRefresh,
+          rangeDays: 2
         });
         if (isStale()) {
           return;
@@ -198,6 +199,13 @@ export default function HomeScreen() {
           tomorrow: resolved.tomorrow,
           locationLabel: widgetLocationLabel,
           localeTag
+        });
+        void warmTimingsCacheRange({
+          today,
+          location,
+          locationLabel: location.label,
+          settings: savedSettings,
+          days: savedSettings.timingsProvider === "diyanet" ? 30 : 2
         });
 
         const dayKey = getDateKey(today);
@@ -303,9 +311,6 @@ export default function HomeScreen() {
     }
   }, [localeTag, t]);
 
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
 
   useEffect(() => {
     void (async () => {
@@ -567,6 +572,7 @@ export default function HomeScreen() {
             style={styles.loaderWrap}
           >
             <ActivityIndicator size="large" color="#2B8CEE" />
+            <Text style={[styles.loaderText, { color: colors.textSecondary }]}>{statusMessage}</Text>
           </EaseView>
         ) : (
           <FlatList
@@ -901,6 +907,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center"
+  },
+  loaderText: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center"
   },
   statusText: {
     marginTop: 12,

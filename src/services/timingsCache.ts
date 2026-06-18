@@ -177,6 +177,14 @@ function monthDates(date: Date): Date[] {
   });
 }
 
+function rangeDates(startDate: Date, days: number): Date[] {
+  return Array.from({ length: days }, (_, index) => {
+    const value = new Date(startDate);
+    value.setDate(startDate.getDate() + index);
+    return value;
+  });
+}
+
 async function fetchAndCacheDays(params: {
   dates: Date[];
   location: LocationInput;
@@ -235,6 +243,52 @@ async function fetchAndCacheDays(params: {
   }
 
   return result;
+}
+
+export async function warmTimingsCacheRange(params: {
+  today: Date;
+  location: LocationInput;
+  locationLabel?: string;
+  settings: Settings;
+  days?: number;
+}): Promise<void> {
+  const days = params.days ?? 30;
+  if (days <= 0) {
+    return;
+  }
+
+  try {
+    if (params.settings.timingsProvider === "diyanet") {
+      const months = new Map<string, Date>();
+      for (const day of rangeDates(params.today, days)) {
+        const monthStart = startOfMonth(day);
+        months.set(`${monthStart.getFullYear()}-${monthStart.getMonth()}`, monthStart);
+      }
+
+      await Promise.all(
+        Array.from(months.values()).map((monthStart) =>
+          prefetchMonthTimings({
+            year: monthStart.getFullYear(),
+            monthIndex: monthStart.getMonth(),
+            location: params.location,
+            locationLabel: params.locationLabel,
+            settings: params.settings
+          })
+        )
+      );
+      return;
+    }
+
+    await fetchAndCacheRange({
+      startDate: params.today,
+      days,
+      location: params.location,
+      locationLabel: params.locationLabel,
+      settings: params.settings
+    });
+  } catch {
+    // Background cache warming must never block or downgrade the visible timings.
+  }
 }
 
 export async function getMonthlyCacheSnapshot(params: {
