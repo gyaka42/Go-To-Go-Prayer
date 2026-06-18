@@ -162,10 +162,16 @@ export default function OnboardingScreen() {
             { borderColor: colors.cardBorder, backgroundColor: colors.card }
           ]}
         >
-          <View style={[styles.centerBlueDot, { width: 116, height: 116, borderRadius: 58 }]}>
-            <Ionicons name="language" size={50} color="#EAF4FF" />
+          <View
+            style={[
+              styles.centerBlueDot,
+              { width: 116, height: 116, borderRadius: 58 },
+              isCompactHeight && styles.centerBlueDotCompact
+            ]}
+          >
+            <Ionicons name="language" size={isCompactHeight ? 38 : 50} color="#EAF4FF" />
           </View>
-          <View style={styles.languageBadgeRow}>
+          <View style={[styles.languageBadgeRow, isCompactHeight && styles.languageBadgeRowCompact]}>
             {["NL", "TR", "EN"].map((label) => (
               <View key={label} style={[styles.languageBadge, { backgroundColor: isLight ? "#EAF2FC" : "#173553" }]}>
                 <Text style={[styles.languageBadgeText, { color: isLight ? "#2369B7" : "#A8D0FF" }]}>{label}</Text>
@@ -185,9 +191,15 @@ export default function OnboardingScreen() {
             { borderColor: colors.cardBorder, backgroundColor: colors.card }
           ]}
         >
-          <View style={[styles.compassRing, { borderColor: isLight ? "#BCD8F4" : "#1F4467" }]}>
-            <View style={[styles.centerBlueDot, { width: 116, height: 116, borderRadius: 58 }]}>
-              <Ionicons name="shield-checkmark" size={52} color="#EAF4FF" />
+          <View style={[styles.compassRing, isCompactHeight && styles.compassRingCompact, { borderColor: isLight ? "#BCD8F4" : "#1F4467" }]}>
+            <View
+              style={[
+                styles.centerBlueDot,
+                { width: 116, height: 116, borderRadius: 58 },
+                isCompactHeight && styles.centerBlueDotCompact
+              ]}
+            >
+              <Ionicons name="shield-checkmark" size={isCompactHeight ? 40 : 52} color="#EAF4FF" />
             </View>
           </View>
         </View>
@@ -216,8 +228,8 @@ export default function OnboardingScreen() {
             { borderColor: colors.cardBorder, backgroundColor: colors.card }
           ]}
         >
-          <View style={styles.centerBlueDot}>
-            <Ionicons name="notifications" size={48} color="#EAF4FF" />
+          <View style={[styles.centerBlueDot, isCompactHeight && styles.centerBlueDotCompact]}>
+            <Ionicons name="notifications" size={isCompactHeight ? 38 : 48} color="#EAF4FF" />
           </View>
         </View>
       );
@@ -232,9 +244,15 @@ export default function OnboardingScreen() {
             { borderColor: colors.cardBorder, backgroundColor: colors.card }
           ]}
         >
-          <View style={[styles.compassRing, { borderColor: isLight ? "#BCD8F4" : "#1F4467" }]}>
-            <View style={[styles.centerBlueDot, { width: 116, height: 116, borderRadius: 58 }]}>
-              <MaterialCommunityIcons name="compass-outline" size={50} color="#EAF4FF" />
+          <View style={[styles.compassRing, isCompactHeight && styles.compassRingCompact, { borderColor: isLight ? "#BCD8F4" : "#1F4467" }]}>
+            <View
+              style={[
+                styles.centerBlueDot,
+                { width: 116, height: 116, borderRadius: 58 },
+                isCompactHeight && styles.centerBlueDotCompact
+              ]}
+            >
+              <MaterialCommunityIcons name="compass-outline" size={isCompactHeight ? 38 : 50} color="#EAF4FF" />
             </View>
           </View>
         </View>
@@ -255,7 +273,8 @@ export default function OnboardingScreen() {
             styles.widgetsImage,
             {
               tintColor: isLight ? "#2B8CEE" : "#EAF4FF"
-            }
+            },
+            isCompactHeight && styles.widgetsImageCompact
           ]}
           resizeMode="contain"
         />
@@ -639,7 +658,7 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   illustrationCardCompact: {
-    height: 150,
+    height: 168,
     marginBottom: 10
   },
   centerBlueDot: {
@@ -650,14 +669,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#2B8CEE"
   },
+  centerBlueDotCompact: {
+    width: 84,
+    height: 84,
+    borderRadius: 42
+  },
   widgetsImage: {
     width: 110,
     height: 110
+  },
+  widgetsImageCompact: {
+    width: 82,
+    height: 82
   },
   languageBadgeRow: {
     flexDirection: "row",
     gap: 8,
     marginTop: 18
+  },
+  languageBadgeRowCompact: {
+    marginTop: 10
   },
   languageBadge: {
     minWidth: 44,
@@ -678,6 +709,12 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     alignItems: "center",
     justifyContent: "center"
+  },
+  compassRingCompact: {
+    width: 122,
+    height: 122,
+    borderRadius: 61,
+    borderWidth: 3
   },
   title: {
     fontSize: 42,
