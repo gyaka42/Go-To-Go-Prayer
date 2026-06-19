@@ -511,25 +511,25 @@ export default function MonthlyScreen() {
           <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
             <View style={styles.monthStatsRow}>
               <View style={[styles.monthStatPill, { backgroundColor: isLight ? "#EAF4FF" : "rgba(43,140,238,0.16)" }]}>
-                <Text style={[styles.monthStatText, { color: colors.textPrimary }]}>
+                <Text style={[styles.monthStatText, { color: colors.textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>
                   {t("monthly.available_count", { available: monthStats.available, total: monthStats.total })}
                 </Text>
               </View>
               <View style={[styles.monthStatPill, { backgroundColor: isLight ? "#E8F7EF" : "rgba(34,197,94,0.14)" }]}>
                 <View style={[styles.legendDot, { backgroundColor: "#22C55E" }]} />
-                <Text style={[styles.monthStatText, { color: colors.textPrimary }]}>
+                <Text style={[styles.monthStatText, { color: colors.textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>
                   {t("monthly.network_count", { count: monthStats.network })}
                 </Text>
               </View>
               <View style={[styles.monthStatPill, { backgroundColor: isLight ? "#EDF4FC" : "rgba(43,140,238,0.12)" }]}>
                 <View style={[styles.legendDot, { backgroundColor: "#2B8CEE" }]} />
-                <Text style={[styles.monthStatText, { color: colors.textPrimary }]}>
+                <Text style={[styles.monthStatText, { color: colors.textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>
                   {t("monthly.cache_count", { count: monthStats.cache })}
                 </Text>
               </View>
               <View style={[styles.monthStatPill, { backgroundColor: isLight ? "#FFF0F0" : "rgba(248,113,113,0.12)" }]}>
                 <View style={[styles.legendDot, { backgroundColor: "#F87171" }]} />
-                <Text style={[styles.monthStatText, { color: colors.textPrimary }]}>
+                <Text style={[styles.monthStatText, { color: colors.textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.1}>
                   {t("monthly.missing_count", { count: monthStats.missing })}
                 </Text>
               </View>
@@ -768,27 +768,27 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   monthStatsRow: {
-    marginBottom: 10,
+    marginBottom: 6,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8
-  },
-  monthStatPill: {
-    minHeight: 30,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    flexDirection: "row",
-    alignItems: "center",
     gap: 6
   },
+  monthStatPill: {
+    minHeight: 24,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4
+  },
   monthStatText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "700"
   },
   legendDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4
+    width: 6,
+    height: 6,
+    borderRadius: 3
   },
   tableShell: {
     flex: 1,
