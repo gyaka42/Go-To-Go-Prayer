@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View, Vibration } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Vibration } from "react-native";
 import { EaseView } from "react-native-ease";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -99,6 +99,10 @@ export default function QazaScreen() {
   const [undoPayload, setUndoPayload] = useState<UndoPayload | null>(null);
   const [pressedQuickAdd, setPressedQuickAdd] = useState(false);
   const [pressedReset, setPressedReset] = useState(false);
+  const [pressedGoal, setPressedGoal] = useState(false);
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [goalInput, setGoalInput] = useState("");
+  const [goalError, setGoalError] = useState<string | null>(null);
   const [pressedStepper, setPressedStepper] = useState<string | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enterTransition = useMotionTransition(easeEnterTransition);
@@ -355,6 +359,37 @@ export default function QazaScreen() {
     await persistState(next);
   };
 
+  const openGoalModal = () => {
+    if (!state) {
+      return;
+    }
+    setGoalInput(String(goal));
+    setGoalError(null);
+    setShowGoalModal(true);
+  };
+
+  const handleSaveGoal = () => {
+    if (!state) {
+      return;
+    }
+    const parsed = Number.parseInt(goalInput.trim(), 10);
+    if (!Number.isFinite(parsed) || parsed < state.completed || parsed > 100000) {
+      setGoalError(t("qaza.invalidGoal", { min: state.completed }));
+      return;
+    }
+    setShowGoalModal(false);
+    setGoalError(null);
+    void applyMutation({
+      type: "set_goal",
+      message: t("qaza.actionSetGoal", { goal: parsed }),
+      updater: (prev) => ({
+        ...prev,
+        goal: parsed
+      }),
+      vibrateMs: 8
+    });
+  };
+
   const qazaStatus = useMemo(() => {
     if (!state) {
       return { label: t("qaza.inline_loading"), tone: "loading" as const };
@@ -410,9 +445,20 @@ export default function QazaScreen() {
               <Text style={[styles.progressMetaText, { color: colors.textSecondary }]}>
                 {t("qaza.completed")}: {state?.completed ?? 0}
               </Text>
-              <Text style={[styles.progressMetaText, { color: colors.textSecondary }]}>
-                {t("qaza.goal")}: {goal}
-              </Text>
+              <EaseView animate={{ scale: pressedGoal ? 0.96 : 1 }} transition={pressTransition}>
+                <Pressable
+                  style={styles.goalEditButton}
+                  onPress={openGoalModal}
+                  onPressIn={() => setPressedGoal(true)}
+                  onPressOut={() => setPressedGoal(false)}
+                  disabled={!state}
+                >
+                  <Text style={[styles.progressMetaText, { color: colors.textSecondary }]}>
+                    {t("qaza.goal")}: {goal}
+                  </Text>
+                  <Ionicons name="create-outline" size={14} color={colors.accent} />
+                </Pressable>
+              </EaseView>
             </View>
           </EaseView>
 
@@ -498,6 +544,47 @@ export default function QazaScreen() {
             })}
           </View>
         </ScrollView>
+
+        <Modal visible={showGoalModal} animationType="fade" transparent onRequestClose={() => setShowGoalModal(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>{t("qaza.setGoalTitle")}</Text>
+              <Text style={[styles.modalBody, { color: colors.textSecondary }]}>
+                {t("qaza.setGoalBody", { completed: state?.completed ?? 0 })}
+              </Text>
+              <TextInput
+                value={goalInput}
+                onChangeText={(value) => {
+                  setGoalError(null);
+                  setGoalInput(value.replace(/[^0-9]/g, ""));
+                }}
+                keyboardType="number-pad"
+                placeholder={String(goal)}
+                placeholderTextColor={isLight ? "#8AA0B7" : "#7A94B0"}
+                style={[
+                  styles.goalInput,
+                  {
+                    borderColor: colors.cardBorder,
+                    color: colors.textPrimary,
+                    backgroundColor: isLight ? "#F6FAFF" : "#112235"
+                  }
+                ]}
+              />
+              {goalError ? <Text style={styles.errorText}>{goalError}</Text> : null}
+              <View style={styles.modalActions}>
+                <Pressable
+                  style={[styles.modalButton, { borderColor: colors.cardBorder, backgroundColor: isLight ? "#EFF5FC" : "#1A2D42" }]}
+                  onPress={() => setShowGoalModal(false)}
+                >
+                  <Text style={[styles.modalButtonText, { color: colors.textPrimary }]}>{t("qaza.cancel")}</Text>
+                </Pressable>
+                <Pressable style={[styles.modalButton, styles.modalButtonPrimary]} onPress={handleSaveGoal}>
+                  <Text style={[styles.modalButtonText, styles.modalButtonPrimaryText]}>{t("qaza.saveGoal")}</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {undoPayload ? (
           <View
@@ -605,6 +692,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600"
   },
+  goalEditButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4
+  },
   quickAddButton: {
     marginTop: 12,
     minHeight: 52,
@@ -694,6 +786,68 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     minWidth: 30,
     textAlign: "center"
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "#00000077",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 560,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "800"
+  },
+  modalBody: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 20
+  },
+  goalInput: {
+    marginTop: 14,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 18,
+    fontWeight: "700"
+  },
+  errorText: {
+    marginTop: 8,
+    color: "#B63852",
+    fontSize: 13,
+    fontWeight: "600"
+  },
+  modalActions: {
+    marginTop: 16,
+    flexDirection: "row",
+    gap: 10
+  },
+  modalButton: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  modalButtonPrimary: {
+    borderWidth: 0,
+    backgroundColor: "#2B8CEE"
+  },
+  modalButtonText: {
+    fontSize: 15,
+    fontWeight: "800"
+  },
+  modalButtonPrimaryText: {
+    color: "#FFFFFF"
   },
   snackbar: {
     position: "absolute",

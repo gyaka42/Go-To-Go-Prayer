@@ -75,6 +75,7 @@ export default function ZikrScreen() {
   const [customSubtitleInput, setCustomSubtitleInput] = useState("");
   const [ringPressed, setRingPressed] = useState(false);
   const [resetPressed, setResetPressed] = useState(false);
+  const [decrementPressed, setDecrementPressed] = useState(false);
   const [targetPressed, setTargetPressed] = useState(false);
 
   const activeEntry: ZikrEntry =
@@ -191,6 +192,20 @@ export default function ZikrScreen() {
     updateActiveEntry((entry) => ({
       ...entry,
       count: 0,
+      updatedAt: Date.now()
+    }));
+  };
+
+  const handleDecrement = () => {
+    if (!state || activeEntry.count <= 0) {
+      return;
+    }
+    if (zikrSettings.hapticsEnabled) {
+      Vibration.vibrate(8);
+    }
+    updateActiveEntry((entry) => ({
+      ...entry,
+      count: Math.max(0, entry.count - 1),
       updatedAt: Date.now()
     }));
   };
@@ -401,6 +416,24 @@ export default function ZikrScreen() {
         </EaseView>
 
         <View style={styles.buttonRow}>
+          <EaseView
+            style={styles.actionButtonWrap}
+            animate={{ scale: decrementPressed ? 0.98 : 1, opacity: activeEntry.count > 0 ? 1 : 0.55 }}
+            transition={pressTransition}
+          >
+            <Pressable
+              style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+              onPress={handleDecrement}
+              onPressIn={() => setDecrementPressed(true)}
+              onPressOut={() => setDecrementPressed(false)}
+              disabled={!state || activeEntry.count <= 0}
+            >
+              <View style={styles.actionButtonContent}>
+                <Ionicons name="remove-circle-outline" size={18} color={colors.textPrimary} />
+                <Text style={[styles.actionButtonText, { color: colors.textPrimary }]}>{t("zikr.decrement")}</Text>
+              </View>
+            </Pressable>
+          </EaseView>
           <EaseView
             style={styles.actionButtonWrap}
             animate={{ scale: resetPressed ? 0.98 : 1 }}
@@ -855,21 +888,21 @@ const styles = StyleSheet.create({
     flex: 1
   },
   actionButton: {
-    height: 48,
+    minHeight: 48,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center"
   },
   actionButtonText: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "700"
   },
   actionButtonContent: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8
+    gap: 6
   },
   actionPngIcon: {
     width: 18,
