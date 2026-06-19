@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EaseView } from "react-native-ease";
@@ -59,6 +60,7 @@ export default function QiblaScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t } = useI18n();
   const isFocused = useIsFocused();
+  const tabBarHeight = useBottomTabBarHeight();
   const isLight = resolvedTheme === "light";
   const enterTransition = useMotionTransition(easeEnterTransition);
   const stateTransition = useMotionTransition(easeStateTransition);
@@ -372,7 +374,7 @@ export default function QiblaScreen() {
           </EaseView>
         ) : null}
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarHeight + 34 }]}>
           {loadState === "loading" ? (
             <EaseView
               initialAnimate={easeInitialFade}
@@ -597,14 +599,13 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   qiblaText: {
-    marginTop: 14,
-    fontSize: 22,
+    marginTop: 10,
+    fontSize: 21,
     fontWeight: "800",
     color: "#2B8CEE"
   },
   scrollContent: {
-    paddingTop: 14,
-    paddingBottom: 30
+    paddingTop: 8
   },
   loaderWrap: {
     alignItems: "center",
@@ -645,25 +646,26 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   badge: {
-    marginTop: 14,
-    minHeight: 34
+    marginTop: 8,
+    minHeight: 30
   },
   guidanceCard: {
-    marginTop: 10,
+    marginTop: 8,
     width: "100%",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#244460",
     backgroundColor: "#13283A",
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12
+    gap: 10
   },
   guidanceIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 11,
     backgroundColor: "#1C3550",
     alignItems: "center",
     justifyContent: "center"
@@ -673,24 +675,25 @@ const styles = StyleSheet.create({
   },
   guidanceTitle: {
     color: "#E8F2FF",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800"
   },
   guidanceText: {
-    marginTop: 3,
+    marginTop: 2,
     color: "#B8CCE2",
-    fontSize: 14,
-    lineHeight: 19,
+    fontSize: 13,
+    lineHeight: 17,
     fontWeight: "700"
   },
   confidenceCard: {
-    marginTop: 12,
+    marginTop: 8,
     width: "100%",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#244460",
     backgroundColor: "#13283A",
-    padding: 14
+    paddingHorizontal: 12,
+    paddingVertical: 10
   },
   confidenceHeader: {
     flexDirection: "row",
@@ -701,13 +704,13 @@ const styles = StyleSheet.create({
   confidenceTitle: {
     color: "#E8F2FF",
     fontWeight: "800",
-    fontSize: 15
+    fontSize: 14
   },
   confidenceTip: {
-    marginTop: 8,
+    marginTop: 6,
     color: "#B8CCE2",
-    fontSize: 13,
-    lineHeight: 18
+    fontSize: 12,
+    lineHeight: 16
   },
   confidenceDebug: {
     marginTop: 8,
@@ -739,23 +742,25 @@ const styles = StyleSheet.create({
     borderRadius: 10
   },
   hintsCard: {
-    marginTop: 16,
+    marginTop: 10,
     width: "100%",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#244460",
     backgroundColor: "#13283A",
-    padding: 14,
-    gap: 6
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4
   },
   hintsTitle: {
     color: "#E8F2FF",
     fontWeight: "800",
-    marginBottom: 4
+    fontSize: 14,
+    marginBottom: 2
   },
   hintItem: {
     color: "#B8CCE2",
-    fontSize: 13,
-    lineHeight: 18
+    fontSize: 12,
+    lineHeight: 16
   }
 });
