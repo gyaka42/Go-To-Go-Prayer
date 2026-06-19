@@ -40,6 +40,44 @@ let lastAppliedAt = 0;
 type ScheduledIntent = "offset" | "at_time";
 const ADHAN_SOUND_FILE = "adhan_short.wav";
 
+export interface PrayerNotificationScheduleSummary {
+  total: number;
+  atTime: number;
+  offset: number;
+  byPrayer: Record<(typeof PRAYER_NAMES)[number], number>;
+}
+
+export async function getPrayerNotificationScheduleSummary(): Promise<PrayerNotificationScheduleSummary> {
+  const byPrayer = PRAYER_NAMES.reduce((acc, prayer) => {
+    acc[prayer] = 0;
+    return acc;
+  }, {} as Record<(typeof PRAYER_NAMES)[number], number>);
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  let atTime = 0;
+  let offset = 0;
+
+  for (const request of scheduled) {
+    const data = (request.content.data ?? {}) as { prayer?: string; intent?: ScheduledIntent };
+    if (!PRAYER_NAMES.includes(data.prayer as (typeof PRAYER_NAMES)[number])) {
+      continue;
+    }
+
+    byPrayer[data.prayer as (typeof PRAYER_NAMES)[number]] += 1;
+    if (data.intent === "offset") {
+      offset += 1;
+    } else {
+      atTime += 1;
+    }
+  }
+
+  return {
+    total: atTime + offset,
+    atTime,
+    offset,
+    byPrayer
+  };
+}
+
 function toNotificationLocationLabel(value: string | null | undefined): string | null {
   if (!value) {
     return null;
@@ -236,7 +274,11 @@ async function replanAllOnce(params: {
 
   const signature = createReplanSignature(params);
   if (signature === lastAppliedSignature && Date.now() - lastAppliedAt < 10_000) {
-    return;
+    const hasEnabledPrayer = PRAYER_NAMES.some((prayer) => params.settings.prayerNotifications[prayer]?.enabled);
+    const summary = await getPrayerNotificationScheduleSummary().catch(() => null);
+    if (!hasEnabledPrayer || (summary?.total ?? 0) > 0) {
+      return;
+    }
   }
 
   await cancelAllScheduled();
@@ -254,7 +296,7 @@ async function replanAllOnce(params: {
     location: { lat: params.lat, lon: params.lon },
     settings: params.settings,
     forceRefresh: false,
-    rangeDays: params.settings.timingsProvider === "aladhan" ? 2 : 30
+    rangeDays: 2
   });
   const todayTimings = resolved.today;
   const tomorrowTimings = resolved.tomorrow;

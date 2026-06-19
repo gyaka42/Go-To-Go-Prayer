@@ -24,7 +24,7 @@
         "light": "./assets/images/Light/AppIcon~ios-marketing.png",
         "dark": "./assets/images/Dark/AppIcon~ios-marketing.png"
       },
-      "buildNumber": "58",
+      "buildNumber": "59",
       "supportsTablet": true,
       "bundleIdentifier": "com.gogo22.gotogoprayer",
       "infoPlist": {

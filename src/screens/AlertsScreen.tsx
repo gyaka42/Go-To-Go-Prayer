@@ -12,7 +12,7 @@ import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
-import { registerForLocalNotifications, replanAll } from "@/services/notifications";
+import { getPrayerNotificationScheduleSummary, PrayerNotificationScheduleSummary, registerForLocalNotifications, replanAll } from "@/services/notifications";
 import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
@@ -33,6 +33,8 @@ export default function AlertsScreen({ showBackButton = false }: AlertsScreenPro
   const [pressedPrayer, setPressedPrayer] = useState<PrayerName | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [permissionState, setPermissionState] = useState<PermissionState>("unknown");
+  const [scheduleSummary, setScheduleSummary] = useState<PrayerNotificationScheduleSummary | null>(null);
+  const [checkingSchedule, setCheckingSchedule] = useState(false);
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearFeedbackTimer = useCallback(() => {
@@ -57,12 +59,20 @@ export default function AlertsScreen({ showBackButton = false }: AlertsScreenPro
     };
   }, [clearFeedbackTimer]);
 
+  const refreshScheduleSummary = useCallback(async () => {
+    const summary = await getPrayerNotificationScheduleSummary().catch(() => null);
+    setScheduleSummary(summary);
+    return summary;
+  }, []);
+
   const load = useCallback(async () => {
-    const [saved, permissions] = await Promise.all([
+    const [saved, permissions, summary] = await Promise.all([
       getSettings(),
-      Notifications.getPermissionsAsync().catch(() => null)
+      Notifications.getPermissionsAsync().catch(() => null),
+      getPrayerNotificationScheduleSummary().catch(() => null)
     ]);
     setSettings(saved);
+    setScheduleSummary(summary);
     setPermissionState(
       permissions?.granted || permissions?.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
         ? "granted"
@@ -103,12 +113,13 @@ export default function AlertsScreen({ showBackButton = false }: AlertsScreenPro
           methodId: nextSettings.methodId,
           settings: nextSettings
         });
+        await refreshScheduleSummary();
         showFeedback(t("alerts.inline_replanned"));
       } catch {
         showFeedback(t("alerts.inline_saved_replan_later"), 2800);
       }
     },
-    [showFeedback, t]
+    [refreshScheduleSummary, showFeedback, t]
   );
 
   const ensureNotificationPermission = useCallback(async () => {
@@ -157,6 +168,24 @@ export default function AlertsScreen({ showBackButton = false }: AlertsScreenPro
       await replanWithSettings(settings);
     }
   }, [ensureNotificationPermission, replanWithSettings, settings]);
+
+  const checkSchedule = useCallback(async () => {
+    if (!settings || checkingSchedule) {
+      return;
+    }
+
+    setCheckingSchedule(true);
+    try {
+      const granted = await ensureNotificationPermission();
+      if (granted) {
+        await replanWithSettings(settings);
+      } else {
+        await refreshScheduleSummary();
+      }
+    } finally {
+      setCheckingSchedule(false);
+    }
+  }, [checkingSchedule, ensureNotificationPermission, refreshScheduleSummary, replanWithSettings, settings]);
 
   const notificationMeta = useCallback(
     (prayer: PrayerName) => {
@@ -217,6 +246,11 @@ export default function AlertsScreen({ showBackButton = false }: AlertsScreenPro
                     <Text style={[styles.summaryBody, { color: colors.textSecondary }]}>
                       {t("alerts.active_summary", { active: activeCount, total: PRAYER_NAMES.length })}
                     </Text>
+                    <Text style={[styles.summaryBody, { color: colors.textSecondary }]}>
+                      {scheduleSummary
+                        ? t("alerts.scheduled_summary", { scheduled: scheduleSummary.total })
+                        : t("alerts.schedule_checking")}
+                    </Text>
                   </View>
                 </View>
                 <StatusChip
@@ -235,7 +269,14 @@ export default function AlertsScreen({ showBackButton = false }: AlertsScreenPro
                   <Ionicons name="notifications" size={16} color="#F2F8FF" />
                   <Text style={styles.summaryButtonText}>{t("alerts.enable_notifications")}</Text>
                 </Pressable>
-              ) : null}
+              ) : (
+                <Pressable style={styles.summaryButton} onPress={() => void checkSchedule()}>
+                  <Ionicons name="refresh" size={16} color="#F2F8FF" />
+                  <Text style={styles.summaryButtonText}>
+                    {checkingSchedule ? t("alerts.checking_schedule") : t("alerts.check_schedule")}
+                  </Text>
+                </Pressable>
+              )}
             </View>
           </EaseView>
           {PRAYER_NAMES.map((prayer) => {
