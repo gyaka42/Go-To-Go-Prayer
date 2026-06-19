@@ -51,6 +51,10 @@ function shortestDiff(a: number, b: number): number {
   return diff > 180 ? 360 - diff : diff;
 }
 
+function signedTurnDiff(from: number, to: number): number {
+  return ((to - from + 540) % 360) - 180;
+}
+
 export default function QiblaScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t } = useI18n();
@@ -247,6 +251,46 @@ export default function QiblaScreen() {
     return "warning" as const;
   }, [confidence.status]);
 
+  const guidance = useMemo(() => {
+    if (typeof bearing !== "number") {
+      return null;
+    }
+
+    if (!headingAvailable) {
+      return {
+        icon: "compass-outline" as const,
+        label: t("qibla.guidance.unavailable"),
+        tone: "warning" as const
+      };
+    }
+
+    if (!headingStable || typeof deviceHeading !== "number") {
+      return {
+        icon: "sync-outline" as const,
+        label: t("qibla.guidance.calibrate"),
+        tone: "warning" as const
+      };
+    }
+
+    const turn = signedTurnDiff(deviceHeading, bearing);
+    const degrees = Math.round(Math.abs(turn));
+    if (degrees <= 3) {
+      return {
+        icon: "checkmark-circle" as const,
+        label: t("qibla.guidance.aligned"),
+        tone: "success" as const
+      };
+    }
+
+    return {
+      icon: turn > 0 ? "arrow-redo" as const : "arrow-undo" as const,
+      label: t(turn > 0 ? "qibla.guidance.turn_right" : "qibla.guidance.turn_left", { deg: degrees }),
+      tone: "info" as const
+    };
+  }, [bearing, deviceHeading, headingAvailable, headingStable, t]);
+
+  const guidanceIconColor = guidance?.tone === "success" ? "#2BAE66" : guidance?.tone === "info" ? "#2B8CEE" : "#E6A23C";
+
   const fallbackImageUrl = useMemo(() => {
     if (!coords) {
       return null;
@@ -384,6 +428,32 @@ export default function QiblaScreen() {
                   tone={mode === "live" ? "success" : "warning"}
                 />
               </View>
+
+              {guidance ? (
+                <EaseView
+                  style={[
+                    styles.guidanceCard,
+                    isLight
+                      ? { borderColor: "#C7DAEE", backgroundColor: "#F7FBFF" }
+                      : null
+                  ]}
+                  initialAnimate={easeInitialFade}
+                  animate={easeVisibleFade}
+                  transition={stateTransition}
+                >
+                  <View style={[styles.guidanceIconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
+                    <Ionicons name={guidance.icon} size={20} color={guidanceIconColor} />
+                  </View>
+                  <View style={styles.guidanceCopy}>
+                    <Text style={[styles.guidanceTitle, isLight ? { color: "#173A59" } : null]}>
+                      {t("qibla.guidance.title")}
+                    </Text>
+                    <Text style={[styles.guidanceText, isLight ? { color: "#355777" } : null]}>
+                      {guidance.label}
+                    </Text>
+                  </View>
+                </EaseView>
+              ) : null}
 
               <EaseView
                 style={[
@@ -577,6 +647,41 @@ const styles = StyleSheet.create({
   badge: {
     marginTop: 14,
     minHeight: 34
+  },
+  guidanceCard: {
+    marginTop: 10,
+    width: "100%",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#244460",
+    backgroundColor: "#13283A",
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+  guidanceIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#1C3550",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  guidanceCopy: {
+    flex: 1
+  },
+  guidanceTitle: {
+    color: "#E8F2FF",
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  guidanceText: {
+    marginTop: 3,
+    color: "#B8CCE2",
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "700"
   },
   confidenceCard: {
     marginTop: 12,
