@@ -48,6 +48,8 @@ export function syncWidgetWithTimings(params: {
   const currentPrayerName = currentPrayer ?? prayer;
   const tomorrowFajr = params.tomorrow?.times.Fajr ?? "--:--";
   const payload: Record<string, string> = {
+    dateKey: params.today.dateKey,
+    tomorrowDateKey: params.tomorrow?.dateKey ?? "",
     currentPrayer: currentPrayerName,
     nextPrayer: prayer,
     nextTime: time,
@@ -59,7 +61,12 @@ export function syncWidgetWithTimings(params: {
     asr: params.today.times.Asr,
     maghrib: params.today.times.Maghrib,
     isha: params.today.times.Isha,
-    tomorrowFajr
+    tomorrowFajr,
+    tomorrowSunrise: params.tomorrow?.times.Sunrise ?? "--:--",
+    tomorrowDhuhr: params.tomorrow?.times.Dhuhr ?? "--:--",
+    tomorrowAsr: params.tomorrow?.times.Asr ?? "--:--",
+    tomorrowMaghrib: params.tomorrow?.times.Maghrib ?? "--:--",
+    tomorrowIsha: params.tomorrow?.times.Isha ?? "--:--"
   };
 
   try {

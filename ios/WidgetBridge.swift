@@ -27,6 +27,8 @@ class WidgetBridge: NSObject {
       shared?.set((payload["nextTime"] as? String) ?? "--:--", forKey: "widget_next_time")
       shared?.set((payload["location"] as? String) ?? "Location", forKey: "widget_location")
       shared?.set((payload["localeTag"] as? String) ?? "", forKey: "widget_locale_tag")
+      shared?.set((payload["dateKey"] as? String) ?? "", forKey: "widget_date_key")
+      shared?.set((payload["tomorrowDateKey"] as? String) ?? "", forKey: "widget_tomorrow_date_key")
       shared?.set((payload["fajr"] as? String) ?? "--:--", forKey: "widget_time_fajr")
       shared?.set((payload["sunrise"] as? String) ?? "--:--", forKey: "widget_time_sunrise")
       shared?.set((payload["dhuhr"] as? String) ?? "--:--", forKey: "widget_time_dhuhr")
@@ -34,6 +36,11 @@ class WidgetBridge: NSObject {
       shared?.set((payload["maghrib"] as? String) ?? "--:--", forKey: "widget_time_maghrib")
       shared?.set((payload["isha"] as? String) ?? "--:--", forKey: "widget_time_isha")
       shared?.set((payload["tomorrowFajr"] as? String) ?? "--:--", forKey: "widget_time_tomorrow_fajr")
+      shared?.set((payload["tomorrowSunrise"] as? String) ?? "--:--", forKey: "widget_time_tomorrow_sunrise")
+      shared?.set((payload["tomorrowDhuhr"] as? String) ?? "--:--", forKey: "widget_time_tomorrow_dhuhr")
+      shared?.set((payload["tomorrowAsr"] as? String) ?? "--:--", forKey: "widget_time_tomorrow_asr")
+      shared?.set((payload["tomorrowMaghrib"] as? String) ?? "--:--", forKey: "widget_time_tomorrow_maghrib")
+      shared?.set((payload["tomorrowIsha"] as? String) ?? "--:--", forKey: "widget_time_tomorrow_isha")
     }
   }
 

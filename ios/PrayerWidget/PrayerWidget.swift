@@ -45,6 +45,11 @@ struct PrayerProvider: TimelineProvider {
   private func loadEntry(for date: Date) -> PrayerWidgetEntry {
     let shared = UserDefaults(suiteName: appGroupSuite)
     let localeTag = shared?.string(forKey: "widget_locale_tag") ?? ""
+    let storedDateKey = shared?.string(forKey: "widget_date_key") ?? ""
+    let tomorrowDateKey = shared?.string(forKey: "widget_tomorrow_date_key") ?? ""
+    let shouldPromoteTomorrow = !tomorrowDateKey.isEmpty && tomorrowDateKey == dateKey(for: date) && storedDateKey != tomorrowDateKey
+    let timePrefix = shouldPromoteTomorrow ? "widget_time_tomorrow" : "widget_time"
+
     return PrayerWidgetEntry(
       date: date,
       localeTag: localeTag,
@@ -54,14 +59,22 @@ struct PrayerProvider: TimelineProvider {
       nextTime: shared?.string(forKey: "widget_next_time") ?? "--:--",
       tomorrowFajr: shared?.string(forKey: "widget_time_tomorrow_fajr") ?? "--:--",
       times: [
-        ("Fajr", shared?.string(forKey: "widget_time_fajr") ?? "--:--"),
-        ("Sunrise", shared?.string(forKey: "widget_time_sunrise") ?? "--:--"),
-        ("Dhuhr", shared?.string(forKey: "widget_time_dhuhr") ?? "--:--"),
-        ("Asr", shared?.string(forKey: "widget_time_asr") ?? "--:--"),
-        ("Maghrib", shared?.string(forKey: "widget_time_maghrib") ?? "--:--"),
-        ("Isha", shared?.string(forKey: "widget_time_isha") ?? "--:--")
+        ("Fajr", shared?.string(forKey: "\(timePrefix)_fajr") ?? "--:--"),
+        ("Sunrise", shared?.string(forKey: "\(timePrefix)_sunrise") ?? "--:--"),
+        ("Dhuhr", shared?.string(forKey: "\(timePrefix)_dhuhr") ?? "--:--"),
+        ("Asr", shared?.string(forKey: "\(timePrefix)_asr") ?? "--:--"),
+        ("Maghrib", shared?.string(forKey: "\(timePrefix)_maghrib") ?? "--:--"),
+        ("Isha", shared?.string(forKey: "\(timePrefix)_isha") ?? "--:--")
       ]
     )
+  }
+
+  private func dateKey(for date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd"
+    return formatter.string(from: date)
   }
 
   private func sampleTimes() -> [(key: String, value: String)] {
