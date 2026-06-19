@@ -7,9 +7,29 @@ import { easeEnterTransition, easeInitialLift, easePressTransition, easeVisibleL
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
-import { ContentFavorite, getContentFavorites, getRecentContent, getRecentContents } from "@/services/storage";
+import { ContentFavorite, getContentFavorites, getQazaState, getRecentContent, getRecentContents, getZikrState } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+
+type MenuQazaKey = "fajr" | "dhuhr" | "asr" | "maghrib" | "isha" | "witr";
+type MenuZikrKey = "subhanallah" | "alhamdulillah" | "allahuakbar" | "la_ilaha_illallah" | "custom";
+
+const QAZA_KEYS: MenuQazaKey[] = ["fajr", "dhuhr", "asr", "maghrib", "isha", "witr"];
+
+function zikrMenuNameKey(key: MenuZikrKey): string {
+  switch (key) {
+    case "subhanallah":
+      return "zikr.subhanallah";
+    case "alhamdulillah":
+      return "zikr.alhamdulillah";
+    case "allahuakbar":
+      return "zikr.allahuakbar";
+    case "la_ilaha_illallah":
+      return "zikr.lailahaillallah";
+    default:
+      return "zikr.custom";
+  }
+}
 
 export default function MenuScreen() {
   const router = useRouter();
@@ -23,31 +43,49 @@ export default function MenuScreen() {
   const [recentContent, setRecentContent] = useState<ContentFavorite | null>(null);
   const [savedReadingCount, setSavedReadingCount] = useState(0);
   const [recentReadingCount, setRecentReadingCount] = useState(0);
+  const [zikrSummary, setZikrSummary] = useState<string | null>(null);
+  const [qazaSummary, setQazaSummary] = useState<string | null>(null);
 
   const recentSubtitle =
     recentContent?.ayahNumber && recentContent.ayahNumber > 0
       ? `${recentContent.kind === "namaz_dua" ? t("favorites.kind_dua") : recentContent.kind === "namaz_asir" ? t("favorites.kind_asir") : t("favorites.kind_quran")} • ${t("favorites.progress_ayah", { ayah: recentContent.ayahNumber })}`
       : recentContent?.subtitle;
 
+  const buildZikrSummary = useCallback((value: Awaited<ReturnType<typeof getZikrState>>) => {
+    const entry = value.entries[value.activeKey];
+    const label =
+      value.activeKey === "custom"
+        ? entry.label?.trim() || t("zikr.custom")
+        : t(zikrMenuNameKey(value.activeKey));
+    return t("menu.zikr.subtitle_status", { label, count: entry.count, target: entry.target });
+  }, [t]);
+
+  const buildQazaSummary = useCallback((value: Awaited<ReturnType<typeof getQazaState>>) => {
+    const remaining = QAZA_KEYS.reduce((sum, key) => sum + value.remaining[key], 0);
+    return t("menu.qaza.subtitle_status", { remaining, completed: value.completed });
+  }, [t]);
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      void Promise.all([getRecentContent(), getContentFavorites(), getRecentContents(10)]).then(
-        ([value, favorites, recent]) => {
+      void Promise.all([getRecentContent(), getContentFavorites(), getRecentContents(10), getZikrState(), getQazaState()]).then(
+        ([value, favorites, recent, zikr, qaza]) => {
           if (active) {
             setRecentContent(value);
             setSavedReadingCount(favorites.length);
             setRecentReadingCount(recent.length);
+            setZikrSummary(buildZikrSummary(zikr));
+            setQazaSummary(buildQazaSummary(qaza));
           }
         }
       );
       return () => {
         active = false;
       };
-    }, [])
+    }, [buildQazaSummary, buildZikrSummary])
   );
 
-  const menuItems = [
+  const menuItems = useMemo(() => [
     {
       id: "mosques",
       onPress: () => router.push("/mosques" as never),
@@ -72,7 +110,7 @@ export default function MenuScreen() {
       id: "zikr",
       onPress: () => router.push("/zikr" as never),
       title: t("menu.zikr.title"),
-      subtitle: t("menu.zikr.subtitle"),
+      subtitle: zikrSummary ?? t("menu.zikr.subtitle"),
       icon: (
         <Image
           source={require("../../assets/images/zikir.png")}
@@ -85,7 +123,7 @@ export default function MenuScreen() {
       id: "qaza",
       onPress: () => router.push("/qaza" as never),
       title: t("menu.qaza.title"),
-      subtitle: t("menu.qaza.subtitle"),
+      subtitle: qazaSummary ?? t("menu.qaza.subtitle"),
       icon: (
         <Image
           source={require("../../assets/images/praying.png")}
@@ -150,7 +188,7 @@ export default function MenuScreen() {
       subtitle: t("menu.source_check.subtitle"),
       icon: <Ionicons name="shield-checkmark-outline" size={21} color="#2B8CEE" />
     }
-  ];
+  ], [qazaSummary, recentReadingCount, savedReadingCount, t, zikrSummary]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
