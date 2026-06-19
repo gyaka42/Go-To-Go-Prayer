@@ -7,7 +7,7 @@ import { easeEnterTransition, easeInitialLift, easePressTransition, easeVisibleL
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
-import { ContentFavorite, getRecentContent } from "@/services/storage";
+import { ContentFavorite, getContentFavorites, getRecentContent, getRecentContents } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { useCallback, useState } from "react";
 
@@ -21,6 +21,8 @@ export default function MenuScreen() {
   const pressTransition = useMotionTransition(easePressTransition);
   const [pressedCard, setPressedCard] = useState<string | null>(null);
   const [recentContent, setRecentContent] = useState<ContentFavorite | null>(null);
+  const [savedReadingCount, setSavedReadingCount] = useState(0);
+  const [recentReadingCount, setRecentReadingCount] = useState(0);
 
   const recentSubtitle =
     recentContent?.ayahNumber && recentContent.ayahNumber > 0
@@ -30,11 +32,15 @@ export default function MenuScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      void getRecentContent().then((value) => {
-        if (active) {
-          setRecentContent(value);
+      void Promise.all([getRecentContent(), getContentFavorites(), getRecentContents(10)]).then(
+        ([value, favorites, recent]) => {
+          if (active) {
+            setRecentContent(value);
+            setSavedReadingCount(favorites.length);
+            setRecentReadingCount(recent.length);
+          }
         }
-      });
+      );
       return () => {
         active = false;
       };
@@ -118,7 +124,10 @@ export default function MenuScreen() {
       id: "content-favorites",
       onPress: () => router.push("/favorites" as never),
       title: t("menu.content_favorites.title"),
-      subtitle: t("menu.content_favorites.subtitle"),
+      subtitle:
+        savedReadingCount > 0 || recentReadingCount > 0
+          ? t("menu.content_favorites.subtitle_counts", { saved: savedReadingCount, recent: recentReadingCount })
+          : t("menu.content_favorites.subtitle"),
       icon: <Ionicons name="bookmark-outline" size={21} color="#2B8CEE" />
     },
     {

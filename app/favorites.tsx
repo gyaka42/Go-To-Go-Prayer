@@ -11,7 +11,8 @@ import {
   getContentFavorites,
   getRecentContents,
   removeRecentContent,
-  setContentFavorites
+  setContentFavorites,
+  toggleContentFavorite
 } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
@@ -83,7 +84,27 @@ export default function FavoritesScreen() {
     await clearRecentContents();
   }, []);
 
+  const toggleRecentFavorite = useCallback(async (item: ContentFavorite) => {
+    const nextSaved = await toggleContentFavorite({
+      id: item.id,
+      kind: item.kind,
+      route: item.route,
+      title: item.title,
+      titleKey: item.titleKey,
+      subtitle: item.subtitle,
+      scrollY: item.scrollY,
+      ayahNumber: item.ayahNumber
+    });
+    setItems((current) => {
+      if (!nextSaved) {
+        return current.filter((row) => row.id !== item.id);
+      }
+      return [{ ...item, updatedAt: Date.now() }, ...current.filter((row) => row.id !== item.id)];
+    });
+  }, []);
+
   const recentById = new Map(recentItems.map((item) => [item.id, item]));
+  const favoriteIds = new Set(items.map((item) => item.id));
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -123,6 +144,7 @@ export default function FavoritesScreen() {
                 {recentItems.map((item) => {
                   const rowId = `recent:${item.id}`;
                   const pressed = pressedId === rowId;
+                  const isFavorite = favoriteIds.has(item.id);
                   return (
                     <View
                       key={rowId}
@@ -152,16 +174,36 @@ export default function FavoritesScreen() {
                             {subtitleForItem(item, t)}
                           </Text>
                         </View>
-                        <Pressable
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            void removeRecent(item.id);
-                          }}
-                          hitSlop={10}
-                          style={styles.removeButton}
-                        >
-                          <Ionicons name="close-circle-outline" size={22} color={isLight ? "#617990" : "#8EA4BF"} />
-                        </Pressable>
+                        <View style={styles.rowActions}>
+                          <Pressable
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              void toggleRecentFavorite(item);
+                            }}
+                            hitSlop={10}
+                            style={styles.actionButton}
+                            accessibilityRole="button"
+                            accessibilityLabel={isFavorite ? t("favorites.remove_saved") : t("favorites.save_recent")}
+                          >
+                            <Ionicons
+                              name={isFavorite ? "star" : "star-outline"}
+                              size={21}
+                              color={isFavorite ? "#F5B942" : "#2B8CEE"}
+                            />
+                          </Pressable>
+                          <Pressable
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              void removeRecent(item.id);
+                            }}
+                            hitSlop={10}
+                            style={styles.actionButton}
+                            accessibilityRole="button"
+                            accessibilityLabel={t("favorites.remove_recent")}
+                          >
+                            <Ionicons name="close-circle-outline" size={22} color={isLight ? "#617990" : "#8EA4BF"} />
+                          </Pressable>
+                        </View>
                       </Pressable>
                     </View>
                   );
@@ -211,7 +253,8 @@ export default function FavoritesScreen() {
                         void removeFavorite(item.id);
                       }}
                       hitSlop={10}
-                      style={styles.removeButton}
+                      style={styles.actionButton}
+                      accessibilityLabel={t("favorites.remove_saved")}
                     >
                       <Ionicons name="star" size={20} color="#F5B942" />
                     </Pressable>
@@ -335,7 +378,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#8FA2BC"
   },
-  removeButton: {
+  rowActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2
+  },
+  actionButton: {
     width: 34,
     height: 34,
     alignItems: "center",
