@@ -154,6 +154,20 @@ export default function MonthlyScreen() {
     Math.floor((tableInnerWidth - dateColumnWidth) / COLUMN_ORDER.length)
   );
 
+  const monthStats = useMemo(() => {
+    const total = rows.length;
+    const missing = rows.filter((row) => !row.timings).length;
+    const network = rows.filter((row) => row.source === "network").length;
+    const cache = rows.filter((row) => row.source === "cache").length;
+    return {
+      total,
+      available: total - missing,
+      network,
+      cache,
+      missing
+    };
+  }, [rows]);
+
   const todayDate = useMemo(() => new Date(), []);
   const shouldHighlightToday = sameMonth(selectedMonth, todayDate);
   const monthlyStatus = useMemo(() => {
@@ -285,9 +299,13 @@ export default function MonthlyScreen() {
             return;
           }
 
-          setRows(afterForce.rows);
+          const fetchedKeys = new Set(Object.keys(fetched));
+          const forceRows = afterForce.rows.map((row) =>
+            fetchedKeys.has(row.dateKey) ? { ...row, source: "network" as const } : row
+          );
+          setRows(forceRows);
           setSource("network");
-          setPartialError(Object.keys(fetched).length < afterForce.rows.length);
+          setPartialError(forceRows.some((row) => !row.timings));
           setLoadState("ready");
           setIsPrefetching(false);
           return;
@@ -351,10 +369,14 @@ export default function MonthlyScreen() {
           return;
         }
 
-        const hadNetworkRows = Object.keys(fetched).length > 0;
-        setRows(refreshed.rows);
+        const fetchedKeys = new Set(Object.keys(fetched));
+        const refreshedRows = refreshed.rows.map((row) =>
+          fetchedKeys.has(row.dateKey) ? { ...row, source: "network" as const } : row
+        );
+        const hadNetworkRows = fetchedKeys.size > 0;
+        setRows(refreshedRows);
         setSource(hadNetworkRows ? "network" : "cache");
-        setPartialError(refreshed.missingDates.length > 0);
+        setPartialError(refreshedRows.some((row) => !row.timings));
         setIsPrefetching(false);
       } catch (error) {
         if (isStale()) {
@@ -485,6 +507,36 @@ export default function MonthlyScreen() {
           </View>
         </EaseView>
 
+        {monthStats.total > 0 ? (
+          <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
+            <View style={styles.monthStatsRow}>
+              <View style={[styles.monthStatPill, { backgroundColor: isLight ? "#EAF4FF" : "rgba(43,140,238,0.16)" }]}>
+                <Text style={[styles.monthStatText, { color: colors.textPrimary }]}>
+                  {t("monthly.available_count", { available: monthStats.available, total: monthStats.total })}
+                </Text>
+              </View>
+              <View style={[styles.monthStatPill, { backgroundColor: isLight ? "#E8F7EF" : "rgba(34,197,94,0.14)" }]}>
+                <View style={[styles.legendDot, { backgroundColor: "#22C55E" }]} />
+                <Text style={[styles.monthStatText, { color: colors.textPrimary }]}>
+                  {t("monthly.network_count", { count: monthStats.network })}
+                </Text>
+              </View>
+              <View style={[styles.monthStatPill, { backgroundColor: isLight ? "#EDF4FC" : "rgba(43,140,238,0.12)" }]}>
+                <View style={[styles.legendDot, { backgroundColor: "#2B8CEE" }]} />
+                <Text style={[styles.monthStatText, { color: colors.textPrimary }]}>
+                  {t("monthly.cache_count", { count: monthStats.cache })}
+                </Text>
+              </View>
+              <View style={[styles.monthStatPill, { backgroundColor: isLight ? "#FFF0F0" : "rgba(248,113,113,0.12)" }]}>
+                <View style={[styles.legendDot, { backgroundColor: "#F87171" }]} />
+                <Text style={[styles.monthStatText, { color: colors.textPrimary }]}>
+                  {t("monthly.missing_count", { count: monthStats.missing })}
+                </Text>
+              </View>
+            </View>
+          </EaseView>
+        ) : null}
+
         <EaseView
           style={[styles.tableShell, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
           initialAnimate={easeInitialFade}
@@ -554,13 +606,31 @@ export default function MonthlyScreen() {
                           }
                         ]}
                       >
-                        <Text style={[styles.dateCell, { color: colors.textPrimary, width: dateColumnWidth }]}>
-                          {`${row.date.getDate()} ${t(monthShortNameKey(row.date.getMonth()))}`}
-                        </Text>
+                        <View style={[styles.dateCellWrap, { width: dateColumnWidth }]}>
+                          <View
+                            style={[
+                              styles.rowSourceDot,
+                              {
+                                backgroundColor:
+                                  row.source === "network" ? "#22C55E" : row.source === "cache" ? "#2B8CEE" : "#F87171"
+                              }
+                            ]}
+                          />
+                          <Text style={[styles.dateCell, { color: colors.textPrimary }]} numberOfLines={1}>
+                            {`${row.date.getDate()} ${t(monthShortNameKey(row.date.getMonth()))}`}
+                          </Text>
+                        </View>
                         {COLUMN_ORDER.map((column) => (
                           <Text
                             key={`${row.dateKey}-${column.key}`}
-                            style={[styles.timeCell, { color: colors.textPrimary, width: timeColumnWidth }]}
+                            style={[
+                              styles.timeCell,
+                              {
+                                color: row.timings ? colors.textPrimary : colors.textSecondary,
+                                width: timeColumnWidth,
+                                opacity: row.timings ? 1 : 0.55
+                              }
+                            ]}
                             numberOfLines={1}
                           >
                             {row.timings?.times[column.key] ?? "—"}
@@ -695,7 +765,30 @@ const styles = StyleSheet.create({
   },
   statusChipWrap: {
     minHeight: 32,
-    marginBottom: 10
+    marginBottom: 8
+  },
+  monthStatsRow: {
+    marginBottom: 10,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  monthStatPill: {
+    minHeight: 30,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  monthStatText: {
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  legendDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4
   },
   tableShell: {
     flex: 1,
@@ -753,8 +846,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700"
   },
+  dateCellWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingRight: 4
+  },
+  rowSourceDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4
+  },
   dateCell: {
-    width: 64,
+    flex: 1,
     fontSize: 15,
     fontWeight: "700"
   },
