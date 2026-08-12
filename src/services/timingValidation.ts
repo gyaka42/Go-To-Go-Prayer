@@ -150,6 +150,20 @@ export function analyzeTimingsSanity(params: {
   }
 
   if (params.nextDayTimings && isValidTimings(params.nextDayTimings, params.nextDayTimings.dateKey)) {
+    const nextSource = params.nextDayTimings.source ?? "";
+    const currentFallback = source.includes("coordinate-fallback") || params.timings.citySource === "coordinate-fallback";
+    const nextFallback =
+      nextSource.includes("coordinate-fallback") || params.nextDayTimings.citySource === "coordinate-fallback";
+    if (source !== nextSource || currentFallback !== nextFallback) {
+      issues.push({
+        severity: "warning",
+        titleKey: "source_check.sanity_source_mismatch_title",
+        bodyKey: "source_check.sanity_source_mismatch_body",
+        params: { today: source || "-", tomorrow: nextSource || "-" }
+      });
+      return issues;
+    }
+
     for (const prayer of PRAYER_NAMES) {
       const current = timeToMinutes(params.timings.times[prayer]);
       const next = timeToMinutes(params.nextDayTimings.times[prayer]);

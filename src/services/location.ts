@@ -117,8 +117,16 @@ function localeLanguage(localeTag?: string): string {
 function normalizeQuery(input: string): string {
   return input
     .toLowerCase()
-    .normalize("NFD")
+    .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i")
+    .replace(/ł/g, "l")
+    .replace(/[đð]/g, "d")
+    .replace(/þ/g, "th")
+    .replace(/ø/g, "o")
+    .replace(/æ/g, "ae")
+    .replace(/œ/g, "oe")
+    .replace(/ß/g, "ss")
     .trim();
 }
 

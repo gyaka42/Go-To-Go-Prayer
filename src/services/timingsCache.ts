@@ -36,6 +36,24 @@ export interface MonthlyCacheSnapshot {
   missingDates: Date[];
 }
 
+function isCoordinateFallback(timings: Timings): boolean {
+  const source = timings.source ?? "";
+  return source.includes("coordinate-fallback") || timings.citySource === "coordinate-fallback";
+}
+
+function haveCompatibleDiyanetSources(today: Timings, tomorrow: Timings, provider: Settings["timingsProvider"]): boolean {
+  if (provider !== "diyanet") {
+    return true;
+  }
+  if (Boolean(isCoordinateFallback(today)) !== Boolean(isCoordinateFallback(tomorrow))) {
+    return false;
+  }
+  if (today.cityId && tomorrow.cityId && today.cityId !== tomorrow.cityId) {
+    return false;
+  }
+  return (today.source ?? "") === (tomorrow.source ?? "") || (!isCoordinateFallback(today) && !isCoordinateFallback(tomorrow));
+}
+
 async function fetchAndCacheRange(params: {
   startDate: Date;
   days: number;
@@ -44,7 +62,8 @@ async function fetchAndCacheRange(params: {
   settings: Settings;
 }): Promise<Map<string, Timings>> {
   const result = new Map<string, Timings>();
-  const batchSize = 4;
+  // Diyanet cityId is learned at runtime; keep requests sequential so later days can reuse it.
+  const batchSize = params.settings.timingsProvider === "diyanet" ? 1 : 4;
   const dates = Array.from({ length: params.days }, (_, index) => {
     const d = new Date(params.startDate);
     d.setDate(d.getDate() + index);
@@ -127,7 +146,11 @@ export async function getTodayTomorrowTimings(params: {
       getCachedTimings(tomorrowCacheKey)
     ]);
 
-    if (cachedToday?.timings && cachedTomorrow?.timings) {
+    if (
+      cachedToday?.timings &&
+      cachedTomorrow?.timings &&
+      haveCompatibleDiyanetSources(cachedToday.timings, cachedTomorrow.timings, params.settings.timingsProvider)
+    ) {
       return {
         today: cachedToday.timings,
         tomorrow: cachedTomorrow.timings,
@@ -192,7 +215,8 @@ async function fetchAndCacheDays(params: {
   settings: Settings;
 }): Promise<Map<string, { timings: Timings; lastUpdated: string }>> {
   const result = new Map<string, { timings: Timings; lastUpdated: string }>();
-  const batchSize = 3;
+  // Diyanet cityId is learned at runtime; keep explicit day fetches sequential too.
+  const batchSize = params.settings.timingsProvider === "diyanet" ? 1 : 3;
 
   for (let offset = 0; offset < params.dates.length; offset += batchSize) {
     const slice = params.dates.slice(offset, offset + batchSize);

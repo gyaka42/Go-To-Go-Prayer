@@ -239,6 +239,8 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "source_check.sanity_regional_fallback_body": "This location is matched to {{city}} around {{distance}} km away.",
     "source_check.sanity_day_jump_title": "Large day-to-day jump",
     "source_check.sanity_day_jump_body": "{{prayer}} changes by {{minutes}} minutes compared with tomorrow.",
+    "source_check.sanity_source_mismatch_title": "Mixed timing sources",
+    "source_check.sanity_source_mismatch_body": "Today uses {{today}}, while tomorrow uses {{tomorrow}}. Refresh the source before trusting these times.",
 
     "alerts.title": "Alerts",
     "alerts.subtitle": "Tap a prayer to open notification preferences.",
@@ -812,6 +814,8 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "source_check.sanity_regional_fallback_body": "Deze locatie is gekoppeld aan {{city}}, ongeveer {{distance}} km verderop.",
     "source_check.sanity_day_jump_title": "Grote dag-op-dag sprong",
     "source_check.sanity_day_jump_body": "{{prayer}} verandert {{minutes}} minuten ten opzichte van morgen.",
+    "source_check.sanity_source_mismatch_title": "Gemengde tijdbronnen",
+    "source_check.sanity_source_mismatch_body": "Vandaag gebruikt {{today}}, terwijl morgen {{tomorrow}} gebruikt. Vernieuw de bron voordat je deze tijden vertrouwt.",
 
     "alerts.title": "Meldingen",
     "alerts.subtitle": "Tik op een gebed om notificatie-instellingen te openen.",
@@ -1385,6 +1389,8 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     "source_check.sanity_regional_fallback_body": "Bu konum yaklaşık {{distance}} km uzaklıktaki {{city}} ile eşleşti.",
     "source_check.sanity_day_jump_title": "Günler arası büyük fark",
     "source_check.sanity_day_jump_body": "{{prayer}} yarına göre {{minutes}} dakika değişiyor.",
+    "source_check.sanity_source_mismatch_title": "Karışık vakit kaynakları",
+    "source_check.sanity_source_mismatch_body": "Bugün {{today}} kullanıyor, yarın ise {{tomorrow}} kullanıyor. Bu vakitlere güvenmeden önce kaynağı yenileyin.",
 
     "alerts.title": "Uyarılar",
     "alerts.subtitle": "Bildirim tercihlerini açmak için bir namaza dokunun.",

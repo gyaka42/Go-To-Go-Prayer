@@ -103,7 +103,7 @@ function locationRuntimeKey(lat: number, lon: number): string {
   return `${latRounded}|${lonRounded}`;
 }
 
-function buildCityHintParams(cityHint?: string): { city?: string; country?: string } {
+function buildCityHintParams(cityHint?: string): { city?: string; state?: string; country?: string } {
   if (!cityHint || cityHint.trim().length === 0) {
     return {};
   }
@@ -113,6 +113,7 @@ function buildCityHintParams(cityHint?: string): { city?: string; country?: stri
     .filter((part) => part.length > 0);
   return {
     city: parts[0],
+    state: parts.length > 2 ? parts[parts.length - 2] : undefined,
     country: parts.length > 1 ? parts[parts.length - 1] : undefined
   };
 }
@@ -135,6 +136,9 @@ async function resolveCityIdProbe(
   url.searchParams.set("date", dateKey);
   if (hint.city) {
     url.searchParams.set("city", hint.city);
+  }
+  if (hint.state) {
+    url.searchParams.set("state", hint.state);
   }
   if (hint.country) {
     url.searchParams.set("country", hint.country);
@@ -170,6 +174,9 @@ export async function getTimingsByCoordinates(
   const hint = buildCityHintParams(cityHint);
   if (hint.city) {
     url.searchParams.set("city", hint.city);
+  }
+  if (hint.state) {
+    url.searchParams.set("state", hint.state);
   }
   if (hint.country) {
     url.searchParams.set("country", hint.country);
@@ -242,6 +249,9 @@ export async function getMonthlyTimingsByCoordinates(
   const hint = buildCityHintParams(cityHint);
   if (hint.city) {
     url.searchParams.set("city", hint.city);
+  }
+  if (hint.state) {
+    url.searchParams.set("state", hint.state);
   }
   if (hint.country) {
     url.searchParams.set("country", hint.country);

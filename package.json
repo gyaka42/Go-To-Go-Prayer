@@ -5,6 +5,7 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "diagnose:timings": "node scripts/diagnose-timings.mjs",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
     "android": "expo run:android",

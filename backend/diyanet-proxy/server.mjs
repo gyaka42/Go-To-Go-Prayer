@@ -1,4 +1,10 @@
 import http from "node:http";
+import {
+  buildLocationSearchTerms,
+  nameMatchScore,
+  normalizedCountryHints,
+  normalizeText
+} from "./location-normalization.mjs";
 
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
 const DIYANET_QURAN_DEFAULT_BASE = "https://api.diyanet.gov.tr";
@@ -24,14 +30,6 @@ const quranCache = new Map(); // key -> { payload, expMs }
 const countriesCache = new Map(); // lang -> { atMs, items }
 const statesCache = new Map(); // countryId -> { atMs, items }
 const districtsCache = new Map(); // stateId -> { atMs, items }
-
-const countryAliases = {
-  DE: ["germany", "deutschland", "almanya"],
-  NL: ["netherlands", "nederland", "holland", "hollanda"],
-  TR: ["turkey", "turkiye", "tuerkiye"],
-  GB: ["uk", "unitedkingdom", "england", "birlesikkrallik"],
-  US: ["usa", "unitedstates", "amerika"]
-};
 
 const regionalDiyanetFallbacks = {
   NL: [
@@ -243,16 +241,8 @@ async function handleRequest(req, res) {
 
     let countryId = Number.isFinite(countryIdQuery) && countryIdQuery > 0 ? countryIdQuery : null;
     if (!countryId && (countryCode || countryName)) {
-      const countries = await getImsakiyemCountries(lang);
-      const codeNorm = normalizeText(countryCode);
-      const nameNorm = normalizeText(countryName);
-      const hit =
-        countries.find((item) => normalizeText(item.code) === codeNorm) ||
-        countries.find((item) => normalizeText(item.name) === nameNorm) ||
-        countries.find((item) => normalizeText(item.name).includes(nameNorm));
-      if (hit) {
-        countryId = hit.id;
-      }
+      const hit = await resolveImsakiyemCountry(countryCode, countryName, lang);
+      countryId = hit?.id ?? null;
     }
 
     if (!countryId) {
@@ -309,6 +299,7 @@ async function handleRequest(req, res) {
     const month = Number(url.searchParams.get("month"));
     const cityIdParam = Number(url.searchParams.get("cityId"));
     const cityQuery = String(url.searchParams.get("city") || "").trim();
+    const stateQuery = String(url.searchParams.get("state") || "").trim();
     const countryQuery = String(url.searchParams.get("country") || "").trim();
     const countryCodeQuery = String(url.searchParams.get("countryCode") || "").trim().toUpperCase();
 
@@ -328,6 +319,7 @@ async function handleRequest(req, res) {
       month,
       cityId: cityIdParam,
       city: cityQuery,
+      state: stateQuery,
       country: countryQuery,
       countryCode: countryCodeQuery
     });
@@ -346,6 +338,8 @@ async function handleRequest(req, res) {
 
     const reverse = await reverseGeocode(lat, lon);
     const resolvedCity = cityQuery || reverse.city || "";
+    const resolvedCities = [cityQuery, reverse.city, reverse.district].filter(Boolean);
+    const resolvedState = stateQuery || reverse.state || reverse.district || "";
     const resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
     const resolvedCountryName = countryQuery || reverse.country || "";
 
@@ -364,6 +358,8 @@ async function handleRequest(req, res) {
           lon,
           cityIdParam,
           resolvedCity,
+          resolvedCities,
+          resolvedState,
           resolvedCountryCode,
           resolvedCountryName
         })
@@ -415,6 +411,8 @@ async function handleRequest(req, res) {
       year,
       month,
       city: resolvedCity,
+      cities: resolvedCities,
+      state: resolvedState,
       countryCode: resolvedCountryCode,
       countryName: resolvedCountryName
     });
@@ -425,6 +423,10 @@ async function handleRequest(req, res) {
         month,
         cityId: fallback.districtId,
         citySource: "imsakiyem-fallback",
+        cityDistanceKm: formatDistanceKm(fallback.distKm),
+        resolvedCityName: fallback.cityName,
+        resolvedStateName: fallback.stateName,
+        resolvedCountryName: fallback.countryName,
         source: "diyanet-proxy",
         days: fallback.days
       };
@@ -482,6 +484,8 @@ async function handleRequest(req, res) {
         year,
         month,
         resolvedCity,
+        resolvedCities,
+        resolvedState,
         resolvedCountryCode,
         resolvedCountryName,
         citiesLoaded: cityResolution.citiesLoaded,
@@ -504,6 +508,7 @@ async function handleRequest(req, res) {
   const dateKey = String(url.searchParams.get("date") || "");
   const cityIdParam = Number(url.searchParams.get("cityId"));
   const cityQuery = String(url.searchParams.get("city") || "").trim();
+  const stateQuery = String(url.searchParams.get("state") || "").trim();
   const countryQuery = String(url.searchParams.get("country") || "").trim();
   const countryCodeQuery = String(url.searchParams.get("countryCode") || "").trim().toUpperCase();
 
@@ -522,6 +527,7 @@ async function handleRequest(req, res) {
     dateKey,
     cityId: cityIdParam,
     city: cityQuery,
+    state: stateQuery,
     country: countryQuery,
     countryCode: countryCodeQuery
   });
@@ -540,6 +546,8 @@ async function handleRequest(req, res) {
 
     const reverse = await reverseGeocode(lat, lon);
     const resolvedCity = cityQuery || reverse.city || "";
+    const resolvedCities = [cityQuery, reverse.city, reverse.district].filter(Boolean);
+    const resolvedState = stateQuery || reverse.state || reverse.district || "";
     const resolvedCountryCode = countryCodeQuery || reverse.countryCode || "";
     const resolvedCountryName = countryQuery || reverse.country || "";
 
@@ -558,6 +566,8 @@ async function handleRequest(req, res) {
           lon,
           cityIdParam,
           resolvedCity,
+          resolvedCities,
+          resolvedState,
           resolvedCountryCode,
           resolvedCountryName
         })
@@ -570,6 +580,8 @@ async function handleRequest(req, res) {
       lon,
       dateKey,
       city: resolvedCity,
+      cities: resolvedCities,
+      state: resolvedState,
       countryCode: resolvedCountryCode,
       countryName: resolvedCountryName
     });
@@ -579,6 +591,10 @@ async function handleRequest(req, res) {
         dateKey,
         cityId: fallback.districtId,
         citySource: "imsakiyem-fallback",
+        cityDistanceKm: formatDistanceKm(fallback.distKm),
+        resolvedCityName: fallback.cityName,
+        resolvedStateName: fallback.stateName,
+        resolvedCountryName: fallback.countryName,
         source: "diyanet-proxy",
         times: fallback.times
       };
@@ -632,6 +648,8 @@ async function handleRequest(req, res) {
         lon,
         date: dateKey,
         resolvedCity,
+        resolvedCities,
+        resolvedState,
         resolvedCountryCode,
         resolvedCountryName,
         citiesLoaded: cityResolution.citiesLoaded,
@@ -687,6 +705,8 @@ async function handleRequest(req, res) {
     lon,
     dateKey,
     city: resolvedCity,
+    cities: resolvedCities,
+    state: resolvedState,
     countryCode: resolvedCountryCode,
     countryName: resolvedCountryName
   });
@@ -696,6 +716,10 @@ async function handleRequest(req, res) {
       dateKey,
       cityId: fallback.districtId,
       citySource: "imsakiyem-fallback",
+      cityDistanceKm: formatDistanceKm(fallback.distKm),
+      resolvedCityName: fallback.cityName,
+      resolvedStateName: fallback.stateName,
+      resolvedCountryName: fallback.countryName,
       source: "diyanet-proxy",
       times: fallback.times
     };
@@ -749,6 +773,8 @@ async function handleRequest(req, res) {
       lon,
       date: dateKey,
       resolvedCity,
+      resolvedCities,
+      resolvedState,
       resolvedCountryCode,
       resolvedCountryName,
       attempts: attempts.slice(0, 12),
@@ -860,24 +886,18 @@ async function getCities(token) {
 }
 
 function matchCities(cities, context) {
-  const cityNorm = normalizeText(context.city || "");
+  const cityHints = buildLocationSearchTerms(context.city, ...(context.cities || []));
+  const stateHints = buildLocationSearchTerms(context.state);
   const countryNorms = normalizedCountryHints(context.countryCode || "", context.countryName || "");
   const hasCountryHint = countryNorms.length > 0;
 
   const scored = [];
   for (const city of cities) {
     let score = 0;
-    let nameScore = 0;
-    if (cityNorm) {
-      if (city.nameNorm === cityNorm) {
-        nameScore = 160;
-      } else if (city.nameNorm.startsWith(cityNorm) || cityNorm.startsWith(city.nameNorm)) {
-        nameScore = 95;
-      } else if (city.nameNorm.includes(cityNorm) || cityNorm.includes(city.nameNorm)) {
-        nameScore = 45;
-      }
-    }
-    if (cityNorm && nameScore === 0) {
+    const cityNameScore = nameMatchScore(city.name, cityHints);
+    const stateNameScore = nameMatchScore(city.name, stateHints);
+    const nameScore = Math.max(cityNameScore * 1.6, stateNameScore * 0.9);
+    if ((cityHints.length > 0 || stateHints.length > 0) && nameScore === 0) {
       continue;
     }
     score += nameScore;
@@ -947,7 +967,9 @@ async function reverseGeocode(lat, lon) {
     const payload = await safeJson(response);
     const first = Array.isArray(payload?.results) ? payload.results[0] : null;
     return {
-      city: String(first?.city || first?.name || first?.admin2 || first?.admin1 || "").trim(),
+      city: String(first?.city || first?.name || first?.admin3 || first?.admin2 || first?.admin1 || "").trim(),
+      district: String(first?.admin2 || first?.admin3 || "").trim(),
+      state: String(first?.admin1 || first?.admin2 || "").trim(),
       country: String(first?.country || "").trim(),
       countryCode: String(first?.country_code || "").trim().toUpperCase()
     };
@@ -968,11 +990,14 @@ async function reverseGeocode(lat, lon) {
       address.town ||
       address.village ||
       address.municipality ||
+      address.city_district ||
       address.county ||
       payload?.name ||
       "";
     return {
       city: String(cityRaw || "").trim(),
+      district: String(address.city_district || address.county || address.municipality || "").trim(),
+      state: String(address.state || address.region || address.county || "").trim(),
       country: String(address.country || payload?.display_name || "").trim(),
       countryCode: String(address.country_code || "").trim().toUpperCase()
     };
@@ -996,24 +1021,7 @@ async function reverseGeocode(lat, lon) {
     // ignore and return empty
   }
 
-  return { city: "", country: "", countryCode: "" };
-}
-
-function normalizedCountryHints(countryCode, countryName) {
-  const hints = new Set();
-  const cc = normalizeText(countryCode);
-  const cn = normalizeText(countryName);
-  if (cc) {
-    hints.add(cc);
-    const aliases = countryAliases[countryCode.toUpperCase()] || [];
-    for (const alias of aliases) {
-      hints.add(normalizeText(alias));
-    }
-  }
-  if (cn) {
-    hints.add(cn);
-  }
-  return Array.from(hints);
+  return { city: "", district: "", state: "", country: "", countryCode: "" };
 }
 
 async function fetchDailyRows(token, cityId, dateKey) {
@@ -1135,6 +1143,8 @@ async function resolveCityCandidates(params) {
     lat: params.lat,
     lon: params.lon,
     city: params.resolvedCity,
+    cities: params.resolvedCities,
+    state: params.resolvedState,
     countryCode: params.resolvedCountryCode,
     countryName: params.resolvedCountryName
   });
@@ -1150,268 +1160,287 @@ async function resolveCityCandidates(params) {
   };
 }
 
-async function tryImsakiyemMonthlyFallback(params) {
-  const debug = {
-    provider: "imsakiyem",
-    city: params.city,
-    countryCode: params.countryCode,
-    countryName: params.countryName
-  };
-
-  if (!params.city) {
-    return { debug: { ...debug, reason: "missing-city" } };
+async function resolveImsakiyemCountry(countryCode, countryName, lang = "en") {
+  const hints = normalizedCountryHints(countryCode, countryName);
+  if (hints.length === 0) {
+    return null;
   }
 
-  const districtCandidates = [];
-  const seenDistricts = new Set();
-  const addDistrict = (item, source) => {
+  const languages = Array.from(new Set([normalizeLang(lang), "en", "tr"]));
+  const countriesById = new Map();
+  for (const language of languages) {
+    const countries = await getImsakiyemCountries(language);
+    for (const country of countries) {
+      if (!countriesById.has(country.id)) {
+        countriesById.set(country.id, country);
+      }
+    }
+  }
+
+  const codeNorm = normalizeText(countryCode);
+  return (
+    Array.from(countriesById.values())
+      .map((country) => {
+        const countryCodeNorm = normalizeText(country.code);
+        const countryNameNorm = normalizeText(country.name);
+        let score = 0;
+        if (codeNorm && countryCodeNorm && codeNorm === countryCodeNorm) {
+          score = 300;
+        }
+        for (const hint of hints) {
+          if (countryNameNorm === hint) {
+            score = Math.max(score, 220);
+          } else if (countryNameNorm && (countryNameNorm.includes(hint) || hint.includes(countryNameNorm))) {
+            score = Math.max(score, 80);
+          }
+        }
+        return { ...country, score };
+      })
+      .filter((country) => country.score > 0)
+      .sort((a, b) => b.score - a.score || a.id - b.id)[0] ?? null
+  );
+}
+
+async function collectImsakiyemDistrictCandidates(params) {
+  const cityTerms = buildLocationSearchTerms(params.city, ...(params.cities || []));
+  const stateTerms = buildLocationSearchTerms(params.state);
+  const countryHints = normalizedCountryHints(params.countryCode, params.countryName);
+  const districtCandidates = new Map();
+  const stateCandidates = new Map();
+
+  const addDistrict = (item, source, context = {}) => {
     if (!item || typeof item !== "object") {
       return;
     }
     const districtId = Number(
-      item.districtId ||
-        item.DistrictId ||
-        item._id ||
-        item.id ||
-        item.ID ||
-        item.placeId ||
-        0
+      item.districtId || item.DistrictId || item._id || item.id || item.ID || item.placeId || 0
     );
-    if (!(districtId > 0) || seenDistricts.has(districtId)) {
+    if (!(districtId > 0)) {
       return;
     }
-    seenDistricts.add(districtId);
-    districtCandidates.push({
+    const latRaw = Number(item.latitude ?? item.lat ?? context.lat ?? NaN);
+    const lonRaw = Number(item.longitude ?? item.lon ?? item.lng ?? context.lon ?? NaN);
+    const candidate = {
       districtId,
       name: String(item.districtName || item.name || item.DistrictName || "").trim(),
-      stateName: String(item.stateName || item.cityName || item.StateName || "").trim(),
-      countryName: String(item.countryName || item.CountryName || "").trim(),
+      stateName: String(context.stateName || item.stateName || item.cityName || item.StateName || "").trim(),
+      countryName: String(context.countryName || item.countryName || item.CountryName || "").trim(),
+      lat: Number.isFinite(latRaw) ? latRaw : null,
+      lon: Number.isFinite(lonRaw) ? lonRaw : null,
       source
-    });
+    };
+    const existing = districtCandidates.get(districtId);
+    districtCandidates.set(
+      districtId,
+      existing
+        ? {
+            ...existing,
+            name: candidate.name || existing.name,
+            stateName: candidate.stateName || existing.stateName,
+            countryName: candidate.countryName || existing.countryName,
+            lat: Number.isFinite(candidate.lat) ? candidate.lat : existing.lat,
+            lon: Number.isFinite(candidate.lon) ? candidate.lon : existing.lon,
+            source: `${existing.source},${candidate.source}`
+          }
+        : candidate
+    );
   };
 
-  const districtsSearch = await imsakiyemGet(
-    `/api/locations/search/districts?q=${encodeURIComponent(params.city)}`,
-    "en"
-  );
-  for (const item of collectAnyRows(districtsSearch)) {
-    addDistrict(item, "search-districts");
-  }
-
-  const statesSearch = await imsakiyemGet(
-    `/api/locations/search/states?q=${encodeURIComponent(params.city)}`,
-    "en"
-  );
-  const states = collectAnyRows(statesSearch);
-  for (const state of states.slice(0, 8)) {
-    const stateId = Number(state.stateId || state.state_id || state.id || state.StateId || state._id || 0);
+  const addState = (item, source, context = {}) => {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    const stateId = Number(item.stateId || item.state_id || item.id || item.StateId || item._id || 0);
     if (!(stateId > 0)) {
-      continue;
+      return;
     }
-    const districtsByState = await imsakiyemGet(`/api/locations/districts?stateId=${stateId}`, "en");
-    for (const item of collectAnyRows(districtsByState)) {
-      addDistrict(item, "state->districts");
+    const candidate = {
+      stateId,
+      name: String(item.stateName || item.name || item.StateName || "").trim(),
+      countryName: String(context.countryName || item.countryName || item.CountryName || "").trim(),
+      source
+    };
+    if (!stateCandidates.has(stateId)) {
+      stateCandidates.set(stateId, candidate);
+    }
+  };
+
+  for (const term of cityTerms.slice(0, 4)) {
+    const payload = await imsakiyemGet(
+      `/api/locations/search/districts?q=${encodeURIComponent(term)}`,
+      "en"
+    );
+    for (const item of collectAnyRows(payload)) {
+      addDistrict(item, `search-districts:${term}`);
     }
   }
 
-  const countryHints = normalizedCountryHints(params.countryCode, params.countryName);
-  const cityNorm = normalizeText(params.city);
+  for (const term of [...stateTerms, ...cityTerms].slice(0, 6)) {
+    const payload = await imsakiyemGet(`/api/locations/search/states?q=${encodeURIComponent(term)}`, "en");
+    for (const item of collectAnyRows(payload)) {
+      addState(item, `search-states:${term}`);
+    }
+  }
 
-  const scored = districtCandidates
-    .map((row) => {
-      let score = 0;
-      const districtNorm = normalizeText(row.name);
-      const stateNorm = normalizeText(row.stateName);
-      const countryNorm = normalizeText(row.countryName);
+  const country = await resolveImsakiyemCountry(params.countryCode, params.countryName, "en");
+  if (country) {
+    const states = await getImsakiyemStates(country.id, "en");
+    for (const state of states) {
+      addState(state, "country->states", { countryName: country.name });
+    }
+  }
 
-      if (districtNorm === cityNorm || stateNorm === cityNorm) {
-        score += 100;
-      } else if (
-        districtNorm.includes(cityNorm) ||
-        cityNorm.includes(districtNorm) ||
-        stateNorm.includes(cityNorm) ||
-        cityNorm.includes(stateNorm)
-      ) {
-        score += 50;
-      }
+  const scoredStates = Array.from(stateCandidates.values())
+    .map((state) => ({
+      ...state,
+      score: Math.max(nameMatchScore(state.name, stateTerms), nameMatchScore(state.name, cityTerms) * 0.55)
+    }))
+    .filter((state) => state.score >= 35)
+    .sort((a, b) => b.score - a.score || a.stateId - b.stateId)
+    .slice(0, 8);
 
+  for (const state of scoredStates) {
+    const districts = await getImsakiyemDistricts(state.stateId, "en");
+    for (const district of districts) {
+      addDistrict(district, `${state.source}->districts`, {
+        stateName: state.name,
+        countryName: state.countryName
+      });
+    }
+  }
+
+  const scored = Array.from(districtCandidates.values())
+    .map((candidate) => {
+      const cityScore = nameMatchScore(candidate.name, cityTerms);
+      const stateScore = Math.max(
+        nameMatchScore(candidate.stateName, stateTerms),
+        nameMatchScore(candidate.stateName, cityTerms) * 0.45
+      );
+      const stateCenterScore = nameMatchScore(candidate.name, stateTerms);
+      const countryNorm = normalizeText(candidate.countryName);
+      let countryScore = 0;
       for (const hint of countryHints) {
-        if (!hint) continue;
         if (countryNorm === hint) {
-          score += 25;
-        } else if (countryNorm.includes(hint) || hint.includes(countryNorm)) {
-          score += 10;
+          countryScore = Math.max(countryScore, 40);
+        } else if (countryNorm && (countryNorm.includes(hint) || hint.includes(countryNorm))) {
+          countryScore = Math.max(countryScore, 15);
         }
       }
 
-      return { ...row, score };
-    })
-    .sort((a, b) => b.score - a.score || a.districtId - b.districtId);
+      const distKm =
+        Number.isFinite(candidate.lat) && Number.isFinite(candidate.lon)
+          ? haversineKm(params.lat, params.lon, candidate.lat, candidate.lon)
+          : null;
+      const score =
+        cityScore * 2.2 + stateScore * 0.9 + stateCenterScore * 1.4 + countryScore + distanceScore(distKm);
+      const safeByName = cityScore >= 65;
+      const safeByLocation = Number.isFinite(distKm) && distKm <= 60;
+      const safeByStateAndLocation = stateScore >= 65 && Number.isFinite(distKm) && distKm <= 120;
+      const safeByOfficialStateCenter = stateScore >= 65 && stateCenterScore === 100;
+      const tooFarForWeakName = Number.isFinite(distKm) && distKm > 180 && cityScore < 100;
 
+      return {
+        ...candidate,
+        cityScore,
+        stateScore,
+        stateCenterScore,
+        countryScore,
+        distKm,
+        score,
+        safe:
+          !tooFarForWeakName &&
+          (safeByName || safeByLocation || safeByStateAndLocation || safeByOfficialStateCenter)
+      };
+    })
+    .filter((candidate) => candidate.safe && candidate.score >= 100)
+    .sort(
+      (a, b) =>
+        Number(b.cityScore === 100) - Number(a.cityScore === 100) ||
+        b.score - a.score ||
+        compareDistance(a.distKm, b.distKm)
+    );
+
+  return {
+    candidates: scored,
+    debug: {
+      provider: "imsakiyem",
+      city: params.city,
+      cities: params.cities,
+      state: params.state,
+      countryCode: params.countryCode,
+      countryName: params.countryName,
+      cityTerms,
+      stateTerms,
+      resolvedCountryId: country?.id ?? null,
+      candidateCount: scored.length,
+      topCandidates: scored.slice(0, 5).map((candidate) => ({
+        districtId: candidate.districtId,
+        name: candidate.name,
+        stateName: candidate.stateName,
+        countryName: candidate.countryName,
+        distanceKm: formatDistanceKm(candidate.distKm),
+        score: Number(candidate.score.toFixed(1)),
+        source: candidate.source
+      }))
+    }
+  };
+}
+
+async function tryImsakiyemMonthlyFallback(params) {
+  const resolution = await collectImsakiyemDistrictCandidates(params);
   const ymdMonthStart = `${params.year}-${String(params.month).padStart(2, "0")}-01`;
-  for (const candidate of scored.slice(0, 8)) {
+
+  for (const candidate of resolution.candidates.slice(0, 8)) {
     const timingsData = await imsakiyemGet(
       `/api/prayer-times/${candidate.districtId}/monthly?startDate=${ymdMonthStart}`,
       "en"
     );
     const timingsRows = collectAnyRows(timingsData);
-    if (!Array.isArray(timingsRows) || timingsRows.length === 0) {
-      continue;
-    }
-
     const days = toMonthlyTimesMap(timingsRows, params.year, params.month);
     if (Object.keys(days).length === 0) {
       continue;
     }
-
     return {
       districtId: candidate.districtId,
+      cityName: candidate.name,
+      stateName: candidate.stateName,
+      countryName: candidate.countryName,
+      distKm: candidate.distKm,
       days,
-      debug: {
-        ...debug,
-        chosen: candidate.districtId,
-        candidateCount: scored.length
-      }
+      debug: { ...resolution.debug, chosen: candidate.districtId }
     };
   }
 
-  return { debug: { ...debug, reason: "no-usable-monthly-times" } };
+  return { debug: { ...resolution.debug, reason: "no-usable-monthly-times" } };
 }
 
 async function tryImsakiyemFallback(params) {
-  const debug = {
-    provider: "imsakiyem",
-    city: params.city,
-    countryCode: params.countryCode,
-    countryName: params.countryName
-  };
-
-  if (!params.city) {
-    return { debug: { ...debug, reason: "missing-city" } };
-  }
-
-  const districtCandidates = [];
-  const seenDistricts = new Set();
-  const addDistrict = (item, source) => {
-    if (!item || typeof item !== "object") {
-      return;
-    }
-    const districtId = Number(
-      item.districtId ||
-        item.DistrictId ||
-        item._id ||
-        item.id ||
-        item.ID ||
-        item.placeId ||
-        0
-    );
-    if (!(districtId > 0) || seenDistricts.has(districtId)) {
-      return;
-    }
-    seenDistricts.add(districtId);
-    districtCandidates.push({
-      districtId,
-      name: String(item.districtName || item.name || item.DistrictName || "").trim(),
-      stateName: String(item.stateName || item.cityName || item.StateName || "").trim(),
-      countryName: String(item.countryName || item.CountryName || "").trim(),
-      source
-    });
-  };
-
-  const districtsSearch = await imsakiyemGet(
-    `/api/locations/search/districts?q=${encodeURIComponent(params.city)}`,
-    "en"
-  );
-  for (const item of collectAnyRows(districtsSearch)) {
-    addDistrict(item, "search-districts");
-  }
-
-  const statesSearch = await imsakiyemGet(
-    `/api/locations/search/states?q=${encodeURIComponent(params.city)}`,
-    "en"
-  );
-  const states = collectAnyRows(statesSearch);
-  for (const state of states.slice(0, 8)) {
-    const stateId = Number(state.stateId || state.state_id || state.id || state.StateId || state._id || 0);
-    if (!(stateId > 0)) {
-      continue;
-    }
-    const districtsByState = await imsakiyemGet(`/api/locations/districts?stateId=${stateId}`, "en");
-    for (const item of collectAnyRows(districtsByState)) {
-      addDistrict(item, "state->districts");
-    }
-  }
-
-  const countryHints = normalizedCountryHints(params.countryCode, params.countryName);
-  const cityNorm = normalizeText(params.city);
-
-  const scored = districtCandidates
-    .map((row) => {
-      let score = 0;
-      const districtNorm = normalizeText(row.name);
-      const stateNorm = normalizeText(row.stateName);
-      const countryNorm = normalizeText(row.countryName);
-
-      if (districtNorm === cityNorm || stateNorm === cityNorm) {
-        score += 100;
-      } else if (
-        districtNorm.includes(cityNorm) ||
-        cityNorm.includes(districtNorm) ||
-        stateNorm.includes(cityNorm) ||
-        cityNorm.includes(stateNorm)
-      ) {
-        score += 50;
-      }
-
-      for (const hint of countryHints) {
-        if (!hint) continue;
-        if (countryNorm === hint) {
-          score += 25;
-        } else if (countryNorm.includes(hint) || hint.includes(countryNorm)) {
-          score += 10;
-        }
-      }
-
-      return { ...row, score };
-    })
-    .sort((a, b) => b.score - a.score || a.districtId - b.districtId);
-
-  debug.candidateCount = scored.length;
-  debug.topCandidates = scored.slice(0, 5).map((item) => ({
-    districtId: item.districtId,
-    name: item.name,
-    stateName: item.stateName,
-    countryName: item.countryName,
-    score: item.score,
-    source: item.source
-  }));
-
+  const resolution = await collectImsakiyemDistrictCandidates(params);
   const ymd = toYmd(params.dateKey);
-  for (const candidate of scored.slice(0, 8)) {
+
+  for (const candidate of resolution.candidates.slice(0, 8)) {
     const timingsData = await imsakiyemGet(
       `/api/prayer-times/${candidate.districtId}/monthly?startDate=${ymd}`,
       "en"
     );
     const timingsRows = collectAnyRows(timingsData);
-    if (!Array.isArray(timingsRows) || timingsRows.length === 0) {
-      continue;
-    }
     const row = findByDate(timingsRows, params.dateKey);
-    if (!row) {
-      continue;
-    }
-    const times = mapTimings(row);
+    const times = row ? mapTimings(row) : null;
     if (!times) {
       continue;
     }
     return {
       districtId: candidate.districtId,
+      cityName: candidate.name,
+      stateName: candidate.stateName,
+      countryName: candidate.countryName,
+      distKm: candidate.distKm,
       times,
-      debug: { ...debug, chosen: candidate.districtId }
+      debug: { ...resolution.debug, chosen: candidate.districtId }
     };
   }
 
-  return { debug: { ...debug, reason: "no-usable-prayer-times" } };
+  return { debug: { ...resolution.debug, reason: "no-usable-prayer-times" } };
 }
 
 async function tryRegionalDiyanetFallback(params) {
@@ -2839,6 +2868,7 @@ function buildRequestCacheKey(input) {
     lonRounded,
     Number.isFinite(input.cityId) && input.cityId > 0 ? `cid:${Number(input.cityId)}` : "cid:none",
     `city:${normalizeText(input.city || "")}`,
+    `state:${normalizeText(input.state || "")}`,
     `country:${normalizeText(input.country || "")}`,
     `cc:${normalizeText(input.countryCode || "")}`
   ].join("|");
@@ -2853,6 +2883,7 @@ function buildMonthlyRequestCacheKey(input) {
     lonRounded,
     Number.isFinite(input.cityId) && input.cityId > 0 ? `cid:${Number(input.cityId)}` : "cid:none",
     `city:${normalizeText(input.city || "")}`,
+    `state:${normalizeText(input.state || "")}`,
     `country:${normalizeText(input.country || "")}`,
     `cc:${normalizeText(input.countryCode || "")}`
   ].join("|");
@@ -3063,14 +3094,6 @@ function collectObjects(payload) {
     }
   }
   return rows;
-}
-
-function normalizeText(value) {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "");
 }
 
 function normalizeLang(raw) {
