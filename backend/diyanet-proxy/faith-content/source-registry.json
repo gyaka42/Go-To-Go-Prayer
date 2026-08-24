@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "registryId": "faith-assistant-v1-sources",
+  "lastReviewed": "2026-08-24",
+  "defaultPolicy": "deny",
+  "allowedReviewStates": ["approved", "review_required", "blocked"],
+  "sources": [
+    {
+      "id": "diyanet-quran",
+      "name": "Diyanet Quran API and official Quran portal",
+      "owner": "Presidency of Religious Affairs of the Republic of Turkiye",
+      "authorityType": "official_religious_institution",
+      "url": "https://kuran.diyanet.gov.tr/",
+      "languages": ["ar", "tr"],
+      "perspectives": ["general_sunni"],
+      "topics": ["quran_lookup", "creed_basics", "prayer", "fasting", "zakat_basics", "hajj_umrah", "dua_dhikr", "daily_ethics"],
+      "reviewState": "approved",
+      "runtimeEnabled": true,
+      "allowedUses": ["live_api_verse_lookup", "citation", "short_excerpt", "manual_summary"],
+      "forbiddenUses": ["bulk_scrape", "full_text_model_training", "model_generated_tafsir"],
+      "rights": {
+        "status": "existing_api_integration",
+        "note": "Use verse-level retrieval through the existing backend integration. Do not treat API access as permission for bulk republication."
+      },
+      "citationRequirements": ["surah_number", "ayah_number", "source_url", "translation_name_when_known"]
+    },
+    {
+      "id": "diyanet-high-board",
+      "name": "Diyanet High Board of Religious Affairs",
+      "owner": "High Board of Religious Affairs, Presidency of Religious Affairs of the Republic of Turkiye",
+      "authorityType": "official_fatwa_board",
+      "url": "https://kurul.diyanet.gov.tr/",
+      "languages": ["tr", "en"],
+      "perspectives": ["general_sunni", "hanafi_when_explicit"],
+      "topics": ["creed_basics", "ritual_purity", "prayer", "travel_prayer", "fasting", "zakat_basics", "hajj_umrah", "dua_dhikr", "daily_ethics", "madhhab_differences"],
+      "reviewState": "approved",
+      "runtimeEnabled": true,
+      "allowedUses": ["manual_curation", "citation", "short_excerpt", "link_to_original"],
+      "forbiddenUses": ["live_bulk_scrape", "full_text_corpus_copy", "full_text_model_training", "infer_hanafi_label"],
+      "rights": {
+        "status": "all_rights_reserved",
+        "note": "Runtime may use reviewed summaries, short excerpts and links only. Obtain permission before bulk ingestion or republication."
+      },
+      "citationRequirements": ["page_title", "page_url", "publication_or_decision_date_when_available", "hanafi_wording_when_tagged_hanafi"]
+    },
+    {
+      "id": "diyanet-hadislerle-islam",
+      "name": "Diyanet Hadislerle Islam",
+      "owner": "Presidency of Religious Affairs of the Republic of Turkiye",
+      "authorityType": "official_hadith_education_collection",
+      "url": "https://hadislerleislam.diyanet.gov.tr/",
+      "languages": ["tr"],
+      "perspectives": ["general_sunni"],
+      "topics": ["creed_basics", "ritual_purity", "prayer", "fasting", "zakat_basics", "hajj_umrah", "quran_lookup", "dua_dhikr", "daily_ethics"],
+      "reviewState": "approved",
+      "runtimeEnabled": true,
+      "allowedUses": ["manual_curation", "citation", "short_excerpt", "link_to_original"],
+      "forbiddenUses": ["live_bulk_scrape", "full_text_corpus_copy", "full_text_model_training", "model_generated_hadith_grading"],
+      "rights": {
+        "status": "all_rights_reserved",
+        "note": "Use reviewed summaries, short excerpts and links only. Preserve the collection's own hadith references and context."
+      },
+      "citationRequirements": ["volume_or_section", "chapter_or_entry", "source_url", "underlying_hadith_reference_when_available"]
+    },
+    {
+      "id": "alquran-cloud-existing-fallback",
+      "name": "Al Quran Cloud editions used by the existing Quran fallback",
+      "owner": "Al Quran Cloud and named translation edition owners",
+      "authorityType": "technical_aggregator",
+      "url": "https://alquran.cloud/api",
+      "languages": ["ar", "en", "tr"],
+      "perspectives": ["general_sunni"],
+      "topics": ["quran_lookup"],
+      "reviewState": "review_required",
+      "runtimeEnabled": false,
+      "allowedUses": [],
+      "forbiddenUses": ["faith_assistant_evidence_without_exact_edition", "model_generated_tafsir", "full_text_model_training"],
+      "rights": {
+        "status": "per_edition_review_required",
+        "note": "The current Quran feature may use this technical fallback, but the Faith Assistant must wait until exact edition provenance and rights are exposed."
+      },
+      "citationRequirements": ["surah_number", "ayah_number", "edition_identifier", "translator_name", "source_url"]
+    },
+    {
+      "id": "egypt-dar-al-ifta",
+      "name": "Egypt's Dar al-Ifta",
+      "owner": "Egypt's Dar al-Ifta",
+      "authorityType": "official_fatwa_board",
+      "url": "https://www.dar-alifta.org/en/fatwa",
+      "languages": ["ar", "en"],
+      "perspectives": ["general_sunni"],
+      "topics": ["ritual_purity", "prayer", "travel_prayer", "fasting", "zakat_basics", "hajj_umrah", "dua_dhikr", "daily_ethics", "madhhab_differences"],
+      "reviewState": "review_required",
+      "runtimeEnabled": false,
+      "allowedUses": [],
+      "forbiddenUses": ["runtime_retrieval_before_editorial_review", "infer_hanafi_label", "full_text_model_training"],
+      "rights": {
+        "status": "review_required",
+        "note": "Potential English-language secondary authority. Review methodology, topic fit and content rights before enabling."
+      },
+      "citationRequirements": ["fatwa_title", "fatwa_number_when_available", "author_or_council", "date", "source_url"]
+    },
+    {
+      "id": "classical-hanafi-works",
+      "name": "Reviewed classical Hanafi works",
+      "owner": "Varies by edition, translation, commentary and scan",
+      "authorityType": "classical_hanafi_jurisprudence",
+      "url": "https://example.invalid/requires-specific-edition",
+      "languages": ["ar", "en", "tr"],
+      "perspectives": ["hanafi"],
+      "topics": ["ritual_purity", "prayer", "travel_prayer", "fasting", "zakat_basics", "hajj_umrah", "madhhab_differences"],
+      "reviewState": "blocked",
+      "runtimeEnabled": false,
+      "allowedUses": [],
+      "forbiddenUses": ["unspecified_edition", "unreviewed_translation", "unlicensed_scan", "runtime_retrieval"],
+      "rights": {
+        "status": "specific_edition_required",
+        "note": "Replace this placeholder with individually reviewed works and editions. A classical original does not make a modern edition or translation free to ingest."
+      },
+      "citationRequirements": ["work", "author", "edition", "publisher", "page_or_section", "translator_when_applicable", "rights_record"]
+    }
+  ]
+}

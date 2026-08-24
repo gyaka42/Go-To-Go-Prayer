@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "policyId": "faith-assistant-v1",
+  "lastReviewed": "2026-08-24",
+  "supportedLanguages": ["en", "nl", "tr"],
+  "supportedPerspectives": ["general_sunni", "hanafi"],
+  "unsupportedPersonalisedPerspectives": ["shafii", "maliki", "hanbali", "other"],
+  "responseOutcomes": [
+    "answer",
+    "clarification_needed",
+    "insufficient_sources",
+    "out_of_scope",
+    "qualified_referral"
+  ],
+  "rules": {
+    "defaultDeny": true,
+    "sourceRequiredForEveryMaterialReligiousClaim": true,
+    "noSourceMeansNoAnswer": true,
+    "generalSourceMayNotBeRelabelledAsHanafi": true,
+    "exactCitationLocatorRequired": true,
+    "modelMemoryIsNotEvidence": true,
+    "personalisedFatwasAllowed": false
+  },
+  "allowedTopics": [
+    {
+      "id": "creed_basics",
+      "label": "Basic creed",
+      "risk": "standard",
+      "requiresContext": false
+    },
+    {
+      "id": "ritual_purity",
+      "label": "Wudu, ghusl, tayammum and ritual purity",
+      "risk": "context_sensitive",
+      "requiresContext": true
+    },
+    {
+      "id": "prayer",
+      "label": "Prayer rules and common mistakes",
+      "risk": "standard",
+      "requiresContext": false
+    },
+    {
+      "id": "travel_prayer",
+      "label": "Prayer while travelling, shortening and combining",
+      "risk": "context_sensitive",
+      "requiresContext": true
+    },
+    {
+      "id": "fasting",
+      "label": "Ramadan and voluntary fasting basics",
+      "risk": "context_sensitive",
+      "requiresContext": true
+    },
+    {
+      "id": "zakat_basics",
+      "label": "Zakat and charity basics without binding calculations",
+      "risk": "context_sensitive",
+      "requiresContext": true
+    },
+    {
+      "id": "hajj_umrah",
+      "label": "Hajj and Umrah basics",
+      "risk": "standard",
+      "requiresContext": false
+    },
+    {
+      "id": "quran_lookup",
+      "label": "Quran lookup, approved translation and recitation etiquette",
+      "risk": "standard",
+      "requiresContext": false
+    },
+    {
+      "id": "dua_dhikr",
+      "label": "Dua, dhikr and worship etiquette",
+      "risk": "standard",
+      "requiresContext": false
+    },
+    {
+      "id": "daily_ethics",
+      "label": "Everyday Islamic ethics and manners",
+      "risk": "standard",
+      "requiresContext": false
+    },
+    {
+      "id": "madhhab_differences",
+      "label": "Source-backed madhhab differences",
+      "risk": "context_sensitive",
+      "requiresContext": true
+    }
+  ],
+  "referralTopics": [
+    "personalised_fatwa",
+    "marriage_divorce_custody",
+    "inheritance_wills_court",
+    "complex_islamic_finance",
+    "medical_or_mental_health",
+    "self_harm_abuse_emergency",
+    "criminal_violence_extremism",
+    "political_mobilisation",
+    "takfir_or_judging_people",
+    "private_disputes",
+    "dreams_possession_magic_personalised_ruqyah",
+    "model_generated_hadith_grading_or_tafsir"
+  ],
+  "deterministicToolTopics": [
+    "current_prayer_times",
+    "qibla_bearing",
+    "binding_zakat_calculation"
+  ]
+}

@@ -5,6 +5,16 @@ import {
   normalizedCountryHints,
   normalizeText
 } from "./location-normalization.mjs";
+import {
+  faithPublicStatus,
+  faithUnavailableResponse,
+  resolveFaithRuntimeConfig,
+  validateFaithAskInput
+} from "./faith-assistant.mjs";
+import { createFaithAnswerService } from "./faith-answer-service.mjs";
+import { createFaithRetriever } from "./faith-retrieval.mjs";
+import { createGroqClient, GroqClientError } from "./groq-client.mjs";
+import { HttpBodyError, readJsonBody } from "./http-json.mjs";
 
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
 const DIYANET_QURAN_DEFAULT_BASE = "https://api.diyanet.gov.tr";
@@ -22,6 +32,17 @@ const ALADHAN_BASE = String(process.env.ALADHAN_BASE_URL || "https://api.aladhan
 const COORDINATE_TIMINGS_FALLBACK_ENABLED = String(process.env.COORDINATE_TIMINGS_FALLBACK_ENABLED || "true")
   .trim()
   .toLowerCase() !== "false";
+const faithRetriever = createFaithRetriever();
+const faithKnowledgeStatus = faithRetriever.status();
+const faithRuntimeConfig = resolveFaithRuntimeConfig(process.env, {
+  knowledge: {
+    ready: faithKnowledgeStatus.ready,
+    status: "approved_passages_loaded",
+    passageCount: faithKnowledgeStatus.passageCount
+  }
+});
+const groqClient = createGroqClient({ config: faithRuntimeConfig.groq });
+const faithAnswerService = createFaithAnswerService({ groqClient, retriever: faithRetriever });
 
 let tokenState = null; // { token: string, expMs: number }
 let citiesState = null; // { items: Array<City>, atMs: number }
@@ -119,6 +140,7 @@ async function handleRequest(req, res) {
       quranAudioFallbackEnabled: QURAN_AUDIO_FALLBACK_ENABLED,
       quranAudioFallbackReciter: QURAN_AUDIO_FALLBACK_RECITER,
       quranAudioFallbackBitrate: QURAN_AUDIO_FALLBACK_BITRATE,
+      faithAssistant: faithPublicStatus(faithRuntimeConfig),
       cache: {
         timings: countFreshCacheRows(timingsCache),
         quran: countFreshCacheRows(quranCache),
@@ -128,6 +150,57 @@ async function handleRequest(req, res) {
         citiesLoaded: Boolean(citiesState?.items?.length)
       }
     });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/faith/health") {
+    sendJson(res, 200, {
+      ok: true,
+      service: "faith-assistant",
+      ...faithPublicStatus(faithRuntimeConfig)
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/faith/ask") {
+    let body;
+    try {
+      body = await readJsonBody(req, { maxBytes: 4096 });
+    } catch (error) {
+      if (error instanceof HttpBodyError) {
+        sendJson(res, error.status, { error: error.message, code: error.code });
+        return;
+      }
+      throw error;
+    }
+
+    const validated = validateFaithAskInput(body);
+    if (!validated.ok) {
+      sendJson(res, 400, { error: validated.error, code: validated.code });
+      return;
+    }
+
+    const unavailable = faithUnavailableResponse(faithRuntimeConfig);
+    if (unavailable) {
+      sendJson(res, unavailable.status, unavailable.payload);
+      return;
+    }
+
+    try {
+      const answer = await faithAnswerService.answer(validated.value);
+      sendJson(res, 200, answer);
+    } catch (error) {
+      if (error instanceof GroqClientError) {
+        sendJson(res, error.status, {
+          error: error.message,
+          code: error.code,
+          retryable: error.retryable,
+          retryAfterSeconds: error.retryAfterSeconds
+        });
+        return;
+      }
+      throw error;
+    }
     return;
   }
 
@@ -3179,7 +3252,7 @@ function sendJson(res, status, payload) {
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization"
   };
 }

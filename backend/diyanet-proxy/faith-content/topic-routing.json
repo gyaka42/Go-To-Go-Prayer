@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "policyId": "faith-assistant-v1",
+  "referralRoutes": [
+    {
+      "id": "marriage_divorce_custody",
+      "terms": ["divorce", "talaq", "custody", "marriage valid", "scheiding", "echtscheiding", "talaq", "voogdij", "huwelijk geldig", "boşanma", "talak", "velayet", "nikah geçerli"]
+    },
+    {
+      "id": "inheritance_wills_court",
+      "terms": ["inheritance", "will distribution", "court case", "erfenis", "testament verdelen", "rechtszaak", "miras", "vasiyet paylaş", "mahkeme"]
+    },
+    {
+      "id": "complex_islamic_finance",
+      "terms": ["mortgage", "interest loan", "crypto halal", "investment contract", "hypotheek", "rentelening", "crypto halal", "beleggingscontract", "faizli kredi", "konut kredisi", "kripto helal", "yatırım sözleşmesi"]
+    },
+    {
+      "id": "medical_or_mental_health",
+      "terms": ["diagnose me", "medicine dosage", "stop medication", "depression treatment", "diagnoseer mij", "medicijndosering", "stoppen met medicatie", "depressie behandelen", "teşhis koy", "ilaç dozu", "ilacı bırak", "depresyon tedavisi"]
+    },
+    {
+      "id": "self_harm_abuse_emergency",
+      "terms": ["suicide", "kill myself", "self harm", "abuse emergency", "zelfmoord", "mezelf doden", "zelfbeschadiging", "misbruik nood", "intihar", "kendimi öldür", "kendime zarar", "istismar acil"]
+    },
+    {
+      "id": "criminal_violence_extremism",
+      "terms": ["attack people", "religious violence", "extremist group", "mensen aanvallen", "religieus geweld", "extremistische groep", "insanlara saldır", "dini şiddet", "aşırıcı grup"]
+    },
+    {
+      "id": "takfir_or_judging_people",
+      "terms": ["is he kafir", "is she kafir", "declare kafir", "is hij kafir", "is zij kafir", "kafir verklaren", "o kafir mi", "tekfir et"]
+    },
+    {
+      "id": "dreams_possession_magic_personalised_ruqyah",
+      "terms": ["interpret my dream", "am i possessed", "magic on me", "personal ruqyah", "duid mijn droom", "ben ik bezeten", "magie op mij", "persoonlijke ruqyah", "rüyamı yorumla", "cinli miyim", "bana büyü", "kişisel rukye"]
+    }
+  ],
+  "deterministicRoutes": [
+    {
+      "id": "current_prayer_times",
+      "terms": ["prayer time now", "what time is fajr", "when is maghrib", "gebedstijd nu", "hoe laat is fajr", "wanneer is maghrib", "namaz vakti şimdi", "imsak saat kaçta", "akşam namazı saat kaçta"]
+    },
+    {
+      "id": "qibla_bearing",
+      "terms": ["qibla degrees", "qibla bearing", "which direction qibla", "qibla graden", "qibla richting", "welke kant qibla", "kıble kaç derece", "kıble yönü", "kıble hangi taraf"]
+    },
+    {
+      "id": "binding_zakat_calculation",
+      "terms": ["calculate my zakat", "exact zakat amount", "bereken mijn zakat", "exact zakatbedrag", "zekatımı hesapla", "tam zekat miktarı"]
+    }
+  ],
+  "topicRoutes": [
+    {
+      "id": "travel_prayer",
+      "priority": 110,
+      "terms": ["combine", "combine prayers", "join dhuhr asr", "join maghrib isha", "shorten prayer", "traveller prayer", "travel prayer", "combineer", "combineren", "gebeden combineren", "dhuhr en asr samen", "maghrib en isha samen", "gebed verkorten", "reizigersgebed", "cem etmek", "birleştir", "birleştirmek", "namazları cem", "öğle ikindi birleştir", "akşam yatsı birleştir", "namaz kısalt", "seferi namaz", "yolcu namaz", "cem-i takdim", "cem-i tehir"]
+    },
+    {
+      "id": "ritual_purity",
+      "priority": 100,
+      "terms": ["wudu", "ablution", "ghusl", "tayammum", "purity", "impurity", "break wudu", "abdest", "wassing", "grote wassing", "tayammum", "reinheid", "abdest bozulur", "gusül", "teyemmüm", "taharet", "necaset"]
+    },
+    {
+      "id": "fasting",
+      "priority": 95,
+      "terms": ["fasting", "fast", "ramadan", "break the fast", "make up fast", "vasten", "ramadan", "verbreekt vasten", "inhaalvasten", "oruç", "ramazan", "orucu bozar", "oruç kazası"]
+    },
+    {
+      "id": "zakat_basics",
+      "priority": 95,
+      "terms": ["zakat", "nisab", "charity recipient", "who receives zakat", "zakaat", "nisab", "wie krijgt zakat", "zekat", "nisap", "zekat kime verilir"]
+    },
+    {
+      "id": "hajj_umrah",
+      "priority": 95,
+      "terms": ["hajj", "umrah", "ihram", "miqat", "tawaf", "sa'i", "hadj", "umrah", "ihram", "mikat", "tawaf", "hac", "umre", "ihram", "mikat", "tavaf", "say"]
+    },
+    {
+      "id": "quran_lookup",
+      "priority": 90,
+      "terms": ["quran verse", "ayah", "surah", "quran meaning", "koranvers", "aya", "soera", "betekenis koran", "kuran ayeti", "ayet", "sure", "kuran anlamı"]
+    },
+    {
+      "id": "dua_dhikr",
+      "priority": 85,
+      "terms": ["dua", "supplication", "dhikr", "zikr", "remember allah", "smeekbede", "dhikr", "zikr", "dua", "zikir", "tesbih"]
+    },
+    {
+      "id": "daily_ethics",
+      "priority": 80,
+      "terms": ["lying", "backbiting", "neighbour rights", "people's rights", "manners", "liegen", "roddelen", "burenrecht", "rechten van anderen", "omgangsvormen", "yalan", "gıybet", "komşu hakkı", "kul hakkı", "ahlak"]
+    },
+    {
+      "id": "madhhab_differences",
+      "priority": 75,
+      "terms": ["madhhab difference", "hanafi view", "school difference", "verschil madhhab", "hanafi mening", "mezhep farkı", "hanefi görüşü", "şafii görüşü"]
+    },
+    {
+      "id": "creed_basics",
+      "priority": 70,
+      "terms": ["pillars of faith", "belief in allah", "angels", "prophets", "last day", "geloofspunten", "geloof in allah", "engelen", "profeten", "laatste dag", "imanın şartları", "allaha iman", "melekler", "peygamberler", "ahiret"]
+    },
+    {
+      "id": "prayer",
+      "priority": 60,
+      "terms": ["prayer", "salah", "salat", "fajr", "dhuhr", "asr", "maghrib", "isha", "friday prayer", "congregation", "missed prayer", "gebed", "fajr", "dhuhr", "asr", "maghrib", "isha", "vrijdaggebed", "gemeenschappelijk gebed", "gemist gebed", "namaz", "sabah", "öğle", "ikindi", "akşam", "yatsı", "cuma namazı", "cemaat", "kaza namazı"]
+    }
+  ]
+}
