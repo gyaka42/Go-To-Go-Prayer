@@ -115,6 +115,7 @@ function buildMessages(input, retrieval) {
         `Answer in ${languageName(input.language)} and use the requested perspective ${input.perspective}.`,
         "A general source may not be relabelled as Hanafi. A Hanafi claim requires evidence whose perspectives include hanafi.",
         "If the evidence does not directly support the material claim, return insufficient_sources.",
+        "For a multi-part question, answer every directly supported part and explicitly say which part still needs clarification or approved evidence. Do not discard a supported answer merely because a separate part is unsupported.",
         "If facts such as travel status, duration, illness or necessity materially change the ruling, either state the general sourced rule with a concise follow-up question or return clarification_needed.",
         "Do not issue a personalised fatwa. Keep the answer concise and calm.",
         "Return sourceIds only from the supplied evidence. Never invent a source ID, title, URL, quotation or ruling."

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "registryId": "faith-assistant-v1-sources",
-  "lastReviewed": "2026-08-24",
+  "lastReviewed": "2026-08-25",
   "defaultPolicy": "deny",
   "allowedReviewStates": ["approved", "review_required", "blocked"],
   "sources": [
@@ -61,6 +61,44 @@
         "note": "Use reviewed summaries, short excerpts and links only. Preserve the collection's own hadith references and context."
       },
       "citationRequirements": ["volume_or_section", "chapter_or_entry", "source_url", "underlying_hadith_reference_when_available"]
+    },
+    {
+      "id": "diyanet-islam-handbook",
+      "name": "Diyanet Islam Ilmihali",
+      "owner": "Presidency of Religious Affairs of the Republic of Turkiye",
+      "authorityType": "official_religious_education_publication",
+      "url": "https://diniyayinlar.diyanet.gov.tr/",
+      "languages": ["tr"],
+      "perspectives": ["general_sunni", "hanafi_when_explicit"],
+      "topics": ["creed_basics", "ritual_purity", "prayer", "fasting", "zakat_basics", "hajj_umrah", "quran_lookup", "dua_dhikr", "daily_ethics", "madhhab_differences"],
+      "reviewState": "approved",
+      "runtimeEnabled": true,
+      "allowedUses": ["manual_curation", "citation", "short_excerpt", "link_to_original"],
+      "forbiddenUses": ["live_bulk_scrape", "full_text_corpus_copy", "full_text_model_training", "infer_hanafi_label_without_section_review"],
+      "rights": {
+        "status": "all_rights_reserved",
+        "note": "Use only manually reviewed summaries with page locators and links. Do not republish or ingest the complete handbook."
+      },
+      "citationRequirements": ["publication_title", "page_or_section", "source_url", "hanafi_wording_when_tagged_hanafi"]
+    },
+    {
+      "id": "diyanet-prayer-handbook",
+      "name": "Diyanet Namaz Ilmihali",
+      "owner": "Presidency of Religious Affairs of the Republic of Turkiye",
+      "authorityType": "official_prayer_education_publication",
+      "url": "https://namaz.diyanet.gov.tr/",
+      "languages": ["tr"],
+      "perspectives": ["general_sunni", "hanafi_when_explicit"],
+      "topics": ["ritual_purity", "prayer", "travel_prayer", "dua_dhikr", "madhhab_differences"],
+      "reviewState": "approved",
+      "runtimeEnabled": true,
+      "allowedUses": ["manual_curation", "citation", "short_excerpt", "link_to_original"],
+      "forbiddenUses": ["live_bulk_scrape", "full_text_corpus_copy", "full_text_model_training", "hide_material_school_differences"],
+      "rights": {
+        "status": "all_rights_reserved",
+        "note": "Use only manually reviewed summaries with page locators and links. The handbook states that prayer is presented primarily according to the Hanafi school with important Shafii differences noted."
+      },
+      "citationRequirements": ["publication_title", "page_or_section", "source_url", "perspective_label"]
     },
     {
       "id": "alquran-cloud-existing-fallback",

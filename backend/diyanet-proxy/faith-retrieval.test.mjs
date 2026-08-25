@@ -7,7 +7,7 @@ test("faith knowledge loads only approved sources and reviewed passages", () => 
   const retriever = createFaithRetriever({ knowledge });
 
   assert.equal(retriever.status().ready, true);
-  assert.equal(retriever.status().passageCount, 12);
+  assert.equal(retriever.status().passageCount, 51);
   assert.ok(knowledge.corpus.passages.every((passage) => passage.summary && !passage.excerpt));
 });
 
@@ -33,7 +33,7 @@ test("retrieval finds exact evidence and refuses weak topical matches", () => {
   assert.ok(combine.passages.every((passage) => passage.perspectives.includes("hanafi")));
 
   const unsupported = retriever.retrieve({
-    question: "Does sleeping invalidate wudu?",
+    question: "Does nail polish invalidate wudu?",
     perspective: "general_sunni"
   });
   assert.equal(unsupported.classification.topicId, "ritual_purity");
@@ -44,6 +44,61 @@ test("retrieval finds exact evidence and refuses weak topical matches", () => {
     perspective: "general_sunni"
   });
   assert.ok(dua.passages.some((passage) => passage.id === "diyanet-dua-etiquette"));
+});
+
+test("practical prayer retrieval supports compound questions in every app language", () => {
+  const retriever = createFaithRetriever();
+  const rows = [
+    "My mind wandered during prayer and I forgot which surah to recite.",
+    "Tijdens het gebed raakte ik afgeleid en vergat ik welke soera ik moest lezen.",
+    "Namaz kılarken bir anda dünyevi şeyler aklıma geldi ve okuyacağım sureyi unuttum, ne yapmam lazım?"
+  ];
+
+  for (const question of rows) {
+    const result = retriever.retrieve({ question, perspective: "general_sunni" });
+    const passageIds = new Set(result.passages.map((passage) => passage.id));
+    assert.equal(result.classification.kind, "allowed");
+    assert.ok(passageIds.has("diyanet-prayer-worldly-thoughts"), question);
+    assert.ok(passageIds.has("diyanet-forgot-supplementary-surah"), question);
+  }
+});
+
+test("common Islamic essentials retrieve evidence in both answer perspectives", () => {
+  const retriever = createFaithRetriever();
+  const rows = [
+    ["Akşam namazı nasıl kılınır?", "diyanet-maghrib-prayer-method"],
+    ["İslamın şartı kaç?", "diyanet-islam-meaning-and-five-pillars"],
+    ["Öğlen namazı kaç rekat?", "diyanet-five-daily-prayers-and-rakats"]
+  ];
+
+  for (const perspective of ["general_sunni", "hanafi"]) {
+    for (const [question, expectedPassageId] of rows) {
+      const result = retriever.retrieve({ question, perspective });
+      assert.equal(result.classification.kind, "allowed", `${perspective}: ${question}`);
+      assert.ok(
+        result.passages.some((passage) => passage.id === expectedPassageId),
+        `${perspective}: ${question}`
+      );
+    }
+  }
+});
+
+test("Hanafi retrieval remains restricted to explicitly tagged evidence", () => {
+  const retriever = createFaithRetriever();
+  const result = retriever.retrieve({
+    question: "Hanefi olarak namazda güldüm. Namazım ve abdestim bozuldu mu?",
+    perspective: "hanafi"
+  });
+
+  assert.ok(result.passages.some((passage) => passage.id === "diyanet-laughing-in-prayer"));
+  assert.ok(result.passages.every((passage) => passage.perspectives.includes("hanafi")));
+
+  const compound = retriever.retrieve({
+    question: "Hanefi olarak namazda aklıma dünyevi şeyler geldi ve Fatiha sonrası sureyi unuttum. Ne yapmalıyım?",
+    perspective: "hanafi"
+  });
+  assert.ok(compound.passages.some((passage) => passage.id === "diyanet-fatiha-only-prayer"));
+  assert.ok(compound.passages.every((passage) => passage.perspectives.includes("hanafi")));
 });
 
 test("faith search normalization folds Turkish characters", () => {

@@ -45,6 +45,7 @@ test("source-bound generation maps citations from server-owned metadata", async 
   assert.equal(groq.calls.length, 1);
   assert.equal(providerQuotaCalls, 1);
   assert.match(groq.calls[0].messages[0].content, /Model memory.*forbidden/);
+  assert.match(groq.calls[0].messages[0].content, /multi-part question/);
 });
 
 test("invented citations turn a generated answer into insufficient sources", async () => {
@@ -103,15 +104,15 @@ test("out-of-scope, referral and unsupported evidence never call Groq", async ()
     language: "nl",
     perspective: "general_sunni"
   }, hooks);
-  const sleep = await service.answer({
-    question: "Does sleeping invalidate wudu?",
+  const unsupported = await service.answer({
+    question: "Does nail polish invalidate wudu?",
     language: "en",
     perspective: "general_sunni"
   }, hooks);
 
   assert.equal(coding.outcome, "out_of_scope");
   assert.equal(divorce.outcome, "qualified_referral");
-  assert.equal(sleep.outcome, "insufficient_sources");
+  assert.equal(unsupported.outcome, "insufficient_sources");
   assert.equal(groq.calls.length, 0);
   assert.equal(providerQuotaCalls, 0);
 });

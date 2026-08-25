@@ -18,7 +18,7 @@ export function loadFaithKnowledge() {
 
 export function createFaithRetriever(options = {}) {
   const knowledge = options.knowledge || loadFaithKnowledge();
-  const maxPassages = Number.isFinite(options.maxPassages) ? Math.max(1, Math.min(6, options.maxPassages)) : 4;
+  const maxPassages = Number.isFinite(options.maxPassages) ? Math.max(1, Math.min(6, options.maxPassages)) : 6;
 
   return {
     status() {
@@ -168,22 +168,36 @@ function allRouteMatches(normalizedQuestion, routes) {
   return routes
     .map((route) => {
       const normalizedTerms = [...new Set(route.terms.map((term) => normalizeForFaithSearch(term)))];
-      const matchedTerms = normalizedTerms.filter((term) => termMatches(normalizedQuestion, term));
+      const matchedByMeaning = new Map();
+      for (const term of normalizedTerms.filter((candidate) => termMatches(normalizedQuestion, candidate))) {
+        const meaningful = [...meaningfulTokens(term)].sort().join(" ") || term;
+        if (!matchedByMeaning.has(meaningful)) matchedByMeaning.set(meaningful, term);
+      }
+      const matchedTerms = [...matchedByMeaning.values()];
       const score = matchedTerms.reduce((total, term) => total + 4 + meaningfulTokens(term).size * 2, 0);
       return { route, matchedTerms, score };
     })
     .filter((match) => match.score > 0)
-    .sort((a, b) => b.score - a.score || (b.route.priority || 0) - (a.route.priority || 0));
+    .sort((a, b) => {
+      const aPriority = a.route.priority || 0;
+      const bPriority = b.route.priority || 0;
+      if (aPriority >= 1000 || bPriority >= 1000) return bPriority - aPriority || b.score - a.score;
+      return b.score - a.score || bPriority - aPriority;
+    });
 }
 
 function scorePassage(passage, classification, normalizedQuestion, questionTokens) {
   const primaryTopic = classification.topicId;
   let score = passage.topics.includes(primaryTopic) ? 20 : 8;
   let relevanceSignals = 0;
+  const matchedSearchMeanings = new Set();
 
   for (const term of passage.searchTerms) {
     const normalizedTerm = normalizeForFaithSearch(term);
     if (termMatches(normalizedQuestion, normalizedTerm)) {
+      const meaning = [...meaningfulTokens(normalizedTerm)].sort().join(" ") || normalizedTerm;
+      if (matchedSearchMeanings.has(meaning)) continue;
+      matchedSearchMeanings.add(meaning);
       score += 8 + meaningfulTokens(normalizedTerm).size * 2;
       relevanceSignals += 2;
     }
@@ -208,13 +222,20 @@ function termMatches(normalizedQuestion, normalizedTerm) {
   if (!normalizedTerm) return false;
   if (` ${normalizedQuestion} `.includes(` ${normalizedTerm} `)) return true;
 
-  const questionTokens = normalizedQuestion.split(" ").filter(Boolean);
-  const termTokens = normalizedTerm.split(" ").filter(Boolean);
+  const questionTokens = [...meaningfulTokens(normalizedQuestion)];
+  const meaningfulTermTokens = [...meaningfulTokens(normalizedTerm)];
+  const termTokens = meaningfulTermTokens.length >= 2
+    ? meaningfulTermTokens
+    : normalizedTerm.split(" ").filter(Boolean);
   return termTokens.every((termToken) =>
-    questionTokens.some(
-      (questionToken) => questionToken === termToken || (termToken.length >= 5 && questionToken.startsWith(termToken))
-    )
+    questionTokens.some((questionToken) => tokensMatch(questionToken, termToken))
   );
+}
+
+function tokensMatch(questionToken, termToken) {
+  if (questionToken === termToken) return true;
+  if (questionToken.length < 5 || termToken.length < 5) return false;
+  return questionToken.startsWith(termToken) || termToken.startsWith(questionToken);
 }
 
 function meaningfulTokens(value) {

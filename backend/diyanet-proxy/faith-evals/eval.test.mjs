@@ -54,6 +54,12 @@ test("all V1 eval questions route and retrieve exactly as expected", () => {
         `${row.id}: expected one of ${row.expected.anyPassageIds.join(", ")}`
       );
     }
+    if (Array.isArray(row.expected.allPassageIds)) {
+      const passageIds = new Set(result.passages.map((passage) => passage.id));
+      for (const id of row.expected.allPassageIds) {
+        assert.ok(passageIds.has(id), `${row.id}: expected passage ${id}`);
+      }
+    }
     if (row.perspective === "hanafi") {
       assert.ok(
         result.passages.every((passage) => passage.perspectives.includes("hanafi")),

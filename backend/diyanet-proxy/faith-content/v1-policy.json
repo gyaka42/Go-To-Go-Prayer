@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "policyId": "faith-assistant-v1",
-  "lastReviewed": "2026-08-24",
+  "lastReviewed": "2026-08-25",
   "supportedLanguages": ["en", "nl", "tr"],
   "supportedPerspectives": ["general_sunni", "hanafi"],
   "unsupportedPersonalisedPerspectives": ["shafii", "maliki", "hanbali", "other"],

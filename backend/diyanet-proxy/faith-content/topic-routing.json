@@ -75,7 +75,7 @@
     {
       "id": "ritual_purity",
       "priority": 100,
-      "terms": ["wudu", "ablution", "ghusl", "tayammum", "purity", "impurity", "break wudu", "abdest", "wassing", "grote wassing", "tayammum", "reinheid", "abdest bozulur", "gusül", "teyemmüm", "taharet", "necaset"]
+      "terms": ["wudu", "ablution", "make wudu", "perform wudu", "ghusl", "ritual bath", "tayammum", "purity", "impurity", "break wudu", "wassing", "wudu doen", "wudu maken", "grote wassing", "tayammum", "reinheid", "abdest", "abdest almak", "abdest nasıl", "abdest nasil", "abdest bozulur", "gusül", "gusul", "boy abdesti", "teyemmüm", "teyemmum", "taharet", "necaset"]
     },
     {
       "id": "fasting",
@@ -90,12 +90,12 @@
     {
       "id": "hajj_umrah",
       "priority": 95,
-      "terms": ["hajj", "umrah", "ihram", "miqat", "tawaf", "sa'i", "hadj", "umrah", "ihram", "mikat", "tawaf", "hac", "umre", "ihram", "mikat", "tavaf", "say"]
+      "terms": ["hajj", "umrah", "ihram", "miqat", "tawaf", "sa'i", "sa i rite", "hadj", "umrah", "ihram", "mikat", "tawaf", "hac", "umre", "ihram", "mikat", "tavaf", "hacda say", "umrede say"]
     },
     {
       "id": "quran_lookup",
       "priority": 90,
-      "terms": ["quran verse", "ayah", "surah", "quran meaning", "koranvers", "aya", "soera", "betekenis koran", "kuran ayeti", "ayet", "sure", "kuran anlamı"]
+      "terms": ["quran", "quran verse", "ayah", "surah", "quran meaning", "what is quran", "koran", "koranvers", "aya", "soera", "betekenis koran", "wat is de koran", "kuran", "kuran ayeti", "ayet", "sure", "kuran anlamı", "kuran nedir"]
     },
     {
       "id": "dua_dhikr",
@@ -105,7 +105,7 @@
     {
       "id": "daily_ethics",
       "priority": 80,
-      "terms": ["lying", "backbiting", "neighbour rights", "people's rights", "manners", "liegen", "roddelen", "burenrecht", "rechten van anderen", "omgangsvormen", "yalan", "gıybet", "komşu hakkı", "kul hakkı", "ahlak"]
+      "terms": ["lying", "backbiting", "neighbour rights", "people's rights", "manners", "good character", "islamic ethics", "honesty", "patience", "mercy", "liegen", "roddelen", "burenrecht", "rechten van anderen", "omgangsvormen", "goed karakter", "islamitische ethiek", "eerlijkheid", "geduld", "barmhartigheid", "yalan", "gıybet", "komşu hakkı", "kul hakkı", "ahlak", "güzel ahlak", "guzel ahlak", "doğruluk", "dogruluk", "sabır", "sabir", "merhamet"]
     },
     {
       "id": "madhhab_differences",
@@ -115,12 +115,12 @@
     {
       "id": "creed_basics",
       "priority": 70,
-      "terms": ["pillars of faith", "belief in allah", "angels", "prophets", "last day", "geloofspunten", "geloof in allah", "engelen", "profeten", "laatste dag", "imanın şartları", "allaha iman", "melekler", "peygamberler", "ahiret"]
+      "terms": ["what is islam", "islam meaning", "five pillars", "pillars of islam", "how many pillars islam", "what is faith", "what is iman", "articles of faith", "pillars of faith", "belief in allah", "who is allah", "tawhid", "angels", "prophets", "final prophet", "revealed books", "afterlife", "last day", "divine decree", "qadar", "wat is islam", "betekenis islam", "vijf zuilen", "zuilen van islam", "hoeveel zuilen islam", "wat is geloof", "wat is iman", "geloofspunten", "geloof in allah", "wie is allah", "tawhid", "engelen", "profeten", "laatste profeet", "geopenbaarde boeken", "hiernamaals", "laatste dag", "voorbeschikking", "islam nedir", "islamın anlamı", "islamin anlami", "islamın şartları", "islamin sartlari", "islamın şartı kaç", "islamin sarti kac", "iman nedir", "imanın şartları", "imanin sartlari", "allaha iman", "allah kimdir", "tevhid", "melekler", "peygamberler", "son peygamber", "ilahi kitaplar", "ahiret", "kader", "kaza"]
     },
     {
       "id": "prayer",
-      "priority": 60,
-      "terms": ["prayer", "salah", "salat", "fajr", "dhuhr", "asr", "maghrib", "isha", "friday prayer", "congregation", "missed prayer", "gebed", "fajr", "dhuhr", "asr", "maghrib", "isha", "vrijdaggebed", "gemeenschappelijk gebed", "gemist gebed", "namaz", "sabah", "öğle", "ikindi", "akşam", "yatsı", "cuma namazı", "cemaat", "kaza namazı"]
+      "priority": 72,
+      "terms": ["prayer", "pray", "prayed", "salah", "salat", "fajr", "dhuhr", "asr", "maghrib", "isha", "friday prayer", "congregation", "missed prayer", "forgot surah", "forgot which surah", "prayer mistake", "doubt rakats", "three or four rakats", "unsure how many rakats", "prayer intention", "intention aloud", "distracted while praying", "mind wandered during prayer", "gebed", "gebeden", "bidden", "bid", "fajr", "dhuhr", "asr", "maghrib", "isha", "vrijdaggebed", "gemeenschappelijk gebed", "gemist gebed", "soera vergeten", "vergeten welke soera", "fout tijdens gebed", "twijfel rakaat", "drie of vier rakaat", "hoeveel rakaat", "intentie voor gebed", "intentie hardop", "afgeleid tijdens bidden", "afgeleid tijdens gebed", "namaz", "namazım", "namaz kılmak", "namaz kilmak", "sabah", "öğle", "ikindi", "akşam", "yatsı", "cuma namazı", "cemaat", "kaza namazı", "sureyi unuttum", "okuyacağım sureyi unuttum", "okuyacagim sureyi unuttum", "namazda hata", "rekatta şüphe", "rekatta suphe", "üç mü dört mü", "uc mu dort mu", "kaç rekat", "kac rekat", "namaza niyet", "niyeti sesli", "namazda dikkatim dağıldı", "namazda dikkatim dagildi", "dünyevi şeyler aklıma geldi", "dunyevi seyler aklima geldi"]
     }
   ]
 }
