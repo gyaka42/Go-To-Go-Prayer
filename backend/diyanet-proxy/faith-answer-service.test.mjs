@@ -17,6 +17,18 @@ function mockGroq(data) {
   };
 }
 
+function mockGroqSequence(...responses) {
+  const calls = [];
+  return {
+    calls,
+    async createStructuredCompletion(input) {
+      calls.push(input);
+      const data = responses[Math.min(calls.length - 1, responses.length - 1)];
+      return { data, meta: { requestId: `groq-request-${calls.length}` } };
+    }
+  };
+}
+
 test("source-bound generation maps citations from server-owned metadata", async () => {
   let providerQuotaCalls = 0;
   const groq = mockGroq({
@@ -49,34 +61,56 @@ test("source-bound generation maps citations from server-owned metadata", async 
   assert.match(groq.calls[0].messages[0].content, /multi-part question/);
 });
 
-test("invented citations turn a generated answer into insufficient sources", async () => {
-  const groq = mockGroq({
-    outcome: "answer",
-    answer: "Invented answer",
-    sourceIds: ["made-up-source"],
-    caveat: null,
-    followUpQuestion: null
-  });
+test("invalid sourced citations fall back to labelled general AI without citations", async () => {
+  let providerQuotaCalls = 0;
+  const groq = mockGroqSequence(
+    {
+      outcome: "answer",
+      answer: "Invented sourced answer",
+      sourceIds: ["made-up-source"],
+      caveat: null,
+      followUpQuestion: null
+    },
+    {
+      outcome: "answer",
+      answer: "General educational answer without a claimed source.",
+      sourceIds: [],
+      caveat: null,
+      followUpQuestion: null
+    }
+  );
   const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
 
   const result = await service.answer({
     question: "Can I combine Dhuhr and Asr while travelling?",
     language: "en",
     perspective: "hanafi"
-  });
+  }, { beforeProviderCall: () => { providerQuotaCalls += 1; } });
 
-  assert.equal(result.outcome, "insufficient_sources");
+  assert.equal(result.outcome, "answer");
+  assert.equal(result.meta.answerMode, "general_ai");
   assert.deepEqual(result.citations, []);
+  assert.equal(groq.calls.length, 2);
+  assert.equal(providerQuotaCalls, 2);
 });
 
-test("generated clarification without a supplied source fails closed", async () => {
-  const groq = mockGroq({
-    outcome: "clarification_needed",
-    answer: "First clarify whether you are travelling.",
-    sourceIds: [],
-    caveat: null,
-    followUpQuestion: "Are you currently travelling?"
-  });
+test("source clarification without evidence switches to general clarification", async () => {
+  const groq = mockGroqSequence(
+    {
+      outcome: "clarification_needed",
+      answer: "First clarify whether you are travelling.",
+      sourceIds: [],
+      caveat: null,
+      followUpQuestion: "Are you currently travelling?"
+    },
+    {
+      outcome: "clarification_needed",
+      answer: "Your circumstances can affect the general answer.",
+      sourceIds: [],
+      caveat: null,
+      followUpQuestion: "Are you currently travelling?"
+    }
+  );
   const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
 
   const result = await service.answer({
@@ -85,8 +119,10 @@ test("generated clarification without a supplied source fails closed", async () 
     perspective: "hanafi"
   });
 
-  assert.equal(result.outcome, "insufficient_sources");
+  assert.equal(result.outcome, "clarification_needed");
+  assert.equal(result.meta.answerMode, "clarification");
   assert.deepEqual(result.citations, []);
+  assert.equal(groq.calls.length, 2);
 });
 
 test("out-of-scope and referral boundaries never call Groq", async () => {

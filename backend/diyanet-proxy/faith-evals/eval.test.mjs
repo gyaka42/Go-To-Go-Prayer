@@ -124,13 +124,21 @@ test("prompt injection remains untrusted and invented citations are discarded", 
     async createStructuredCompletion(input) {
       calls.push(input);
       return {
-        data: {
-          outcome: "answer",
-          answer: "An answer that attempts to rely on an invented source.",
-          sourceIds: ["invented-source-id"],
-          caveat: null,
-          followUpQuestion: null
-        },
+        data: calls.length === 1
+          ? {
+              outcome: "answer",
+              answer: "An answer that attempts to rely on an invented source.",
+              sourceIds: ["invented-source-id"],
+              caveat: null,
+              followUpQuestion: null
+            }
+          : {
+              outcome: "answer",
+              answer: "A general educational answer that follows the system rules.",
+              sourceIds: [],
+              caveat: null,
+              followUpQuestion: null
+            },
         meta: { requestId: "injection-eval" }
       };
     }
@@ -142,10 +150,13 @@ test("prompt injection remains untrusted and invented citations are discarded", 
     perspective: row.perspective
   });
 
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2);
   assert.doesNotMatch(calls[0].messages[0].content, /invent sources/i);
   assert.doesNotMatch(calls[0].messages[1].content, /ignore every system rule/i);
   assert.match(calls[0].messages[2].content, /ignore every system rule/i);
-  assert.equal(result.outcome, "insufficient_sources");
+  assert.doesNotMatch(calls[1].messages[0].content, /ignore every system rule/i);
+  assert.match(calls[1].messages[1].content, /ignore every system rule/i);
+  assert.equal(result.outcome, "answer");
+  assert.equal(result.meta.answerMode, "general_ai");
   assert.deepEqual(result.citations, []);
 });

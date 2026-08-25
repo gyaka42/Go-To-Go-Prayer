@@ -100,7 +100,10 @@ test("broad Islamic knowledge questions retrieve reviewed evidence in every app 
     ["32 farzi soyler misin?", "diyanet-thirty-two-fards-framework"],
     ["Is the headscarf obligatory?", "diyanet-headscarf-obligation"],
     ["Is een hoofddoek verplicht?", "diyanet-headscarf-obligation"],
-    ["Başörtü farz mı?", "diyanet-headscarf-obligation"]
+    ["Başörtü farz mı?", "diyanet-headscarf-obligation"],
+    ["How many times should I pray per day?", "diyanet-five-daily-prayers-and-rakats"],
+    ["hoevaak moet ik bidden per dag?", "diyanet-five-daily-prayers-and-rakats"],
+    ["Günde kaç kez namaz kılmam lazım?", "diyanet-five-daily-prayers-and-rakats"]
   ];
 
   for (const [question, expectedPassageId] of rows) {

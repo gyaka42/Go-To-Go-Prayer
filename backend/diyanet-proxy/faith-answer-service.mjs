@@ -114,8 +114,16 @@ export function createFaithAnswerService(options) {
         schemaName: "faith_answer",
         schema: RESPONSE_SCHEMA
       });
+      const sourcedResult = normalizeGeneratedResult(completion.data, input, retrieval, completion.meta);
+      if (sourcedResult.outcome !== "insufficient_sources") return sourcedResult;
 
-      return normalizeGeneratedResult(completion.data, input, retrieval, completion.meta);
+      await hooks.beforeProviderCall?.();
+      const fallbackCompletion = await groqClient.createStructuredCompletion({
+        messages: buildGeneralMessages(input),
+        schemaName: "faith_general_answer",
+        schema: GENERAL_RESPONSE_SCHEMA
+      });
+      return normalizeGeneralResult(fallbackCompletion.data, input, retrieval, fallbackCompletion.meta);
     }
   };
 }

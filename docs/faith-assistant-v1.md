@@ -110,7 +110,7 @@ The general Islamic knowledge pack adds reviewed answers for the Quran's verse c
 
 The expanded daily-practice pack adds the shahada, Quran surah structure, adhan and iqamah, prayer invalidators, Eid prayer, funeral prayer, prayer during illness, repentance, eating etiquette, halal-food basics, mosque etiquette, the purpose of fasting, Laylat al-Qadr, and sadaqah. Specific prayer forms exclude the generic prayer-method passage so a near-match cannot replace the dedicated evidence.
 
-Allowed V1 subjects that are not represented by a sufficiently relevant passage use the controlled general-AI fallback. The interface distinguishes this from a reviewed-source answer. Ambiguous questions ask for clarification, while high-risk personal matters remain referrals. The operational release gate is recorded in `docs/faith-assistant-release-checklist.md`.
+Allowed V1 subjects that are not represented by a sufficiently relevant passage use the controlled general-AI fallback. The same fallback is used when a candidate passage is found but the source-bound model determines that it does not support the answer. The interface distinguishes this from a reviewed-source answer. Ambiguous questions ask for clarification, while high-risk personal matters remain referrals. The operational release gate is recorded in `docs/faith-assistant-release-checklist.md`.
 
 ## Privacy and abuse controls
 
