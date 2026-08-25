@@ -15,13 +15,29 @@
 - `GROQ_API_BASE_URL` (optional, default: `https://api.groq.com/openai/v1`)
 - `GROQ_TIMEOUT_MS` (optional, default: `15000`, clamped to 3000-30000)
 - `GROQ_MAX_COMPLETION_TOKENS` (optional, default: `700`, clamped to 128-1600)
+- `FAITH_RATE_LIMIT_SECRET` (required when enabled; a separate random secret of at least 32 characters)
+- `FAITH_INSTALL_MINUTE_LIMIT` (optional, default: `4`, maximum: `30`)
+- `FAITH_INSTALL_DAILY_LIMIT` (optional, default: `10`, maximum: `100`)
+- `FAITH_IP_MINUTE_LIMIT` (optional, default: `8`, maximum: `120`)
+- `FAITH_IP_DAILY_LIMIT` (optional, default: `60`, maximum: `500`)
+- `FAITH_GLOBAL_MINUTE_LIMIT` (optional, default: `25`, maximum: `30`)
+- `FAITH_GLOBAL_DAILY_LIMIT` (optional, default: `800`, maximum: `1000`)
 - `FAITH_ASSISTANT_ENABLED` (optional, default: `false`)
 
 The Faith Assistant is fail-closed. It classifies questions locally, retrieves only manually reviewed
 passages from runtime-approved sources, and allows Groq to cite only server-controlled passage IDs.
 Questions without matching evidence return `insufficient_sources` without calling Groq.
-Keep `FAITH_ASSISTANT_ENABLED=false` on the public Railway deployment until the privacy,
-per-installation limit and abuse-protection step is complete.
+The backend does not persist questions, generated answers, raw installation IDs, or IP addresses.
+Rate-limit keys are HMAC hashes and their counters expire in memory at the end of the minute or UTC day.
+Only requests that reach Groq consume the daily AI allowance; locally rejected or unsupported questions do not.
+
+The limiter is intended for one Railway application instance. A restart clears its counters, and multiple
+instances do not share counters. Keep a single instance for V1; use a shared store before scaling horizontally.
+Groq's account-level limits remain the final provider backstop. Before public release, review Groq's current
+data controls and enable Zero Data Retention for the project if the account is eligible.
+
+Generate a dedicated rate-limit secret with `openssl rand -hex 32`. Never add either backend secret to the app,
+source control, logs, public health output, or an `EXPO_PUBLIC_` variable.
 
 ## Local run
 
@@ -35,7 +51,10 @@ DIYANET_USERNAME="your_email" DIYANET_PASSWORD="your_password" npm start
 
 - `GET /health`
 - `GET /faith/health` (public status only; never returns secrets)
-- `POST /faith/ask` with JSON `{ "question": "...", "language": "en|nl|tr", "perspective": "general_sunni|hanafi" }`
+- `POST /faith/ask` with JSON `{ "question": "...", "language": "en|nl|tr", "perspective": "general_sunni|hanafi", "installationId": "anonymous-stable-id" }`
+
+Successful Faith Assistant responses include `rateLimit` with the installation's daily `limit`, `remaining`,
+and UTC `resetAt`. A `429` response includes `retryAfterSeconds` and the `Retry-After` header.
 - `GET /timings?lat=52.3676&lon=4.9041&date=12-02-2026`
 - Optional query params: `city`, `country`, `countryCode`, `cityId`
 - `GET /quran/surahs?lang=tr`

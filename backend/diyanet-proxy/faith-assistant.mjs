@@ -1,13 +1,16 @@
 import { groqPublicStatus, resolveGroqConfig } from "./groq-client.mjs";
+import { faithRateLimitPublicStatus, resolveFaithRateLimitConfig } from "./faith-rate-limit.mjs";
 
 const POLICY_ID = "faith-assistant-v1";
 const SUPPORTED_LANGUAGES = new Set(["en", "nl", "tr"]);
 const SUPPORTED_PERSPECTIVES = new Set(["general_sunni", "hanafi"]);
 const MIN_QUESTION_CHARS = 3;
 const MAX_QUESTION_CHARS = 800;
+const INSTALLATION_ID_PATTERN = /^[A-Za-z0-9._:-]{16,128}$/;
 
 export function resolveFaithRuntimeConfig(env = process.env, options = {}) {
   const groq = resolveGroqConfig(env);
+  const abuseProtection = options.abuseProtection || resolveFaithRateLimitConfig(env);
   const knowledge = options.knowledge || {
     ready: true,
     status: "approved_passages_loaded",
@@ -17,25 +20,36 @@ export function resolveFaithRuntimeConfig(env = process.env, options = {}) {
     enabled: parseBoolean(env.FAITH_ASSISTANT_ENABLED, false),
     policyId: POLICY_ID,
     knowledge,
-    groq
+    groq,
+    abuseProtection
   };
 }
 
 export function faithPublicStatus(config = resolveFaithRuntimeConfig()) {
   return {
     enabled: config.enabled,
-    ready: config.enabled && config.groq.configured && config.knowledge.ready,
+    ready:
+      config.enabled && config.groq.configured && config.knowledge.ready && config.abuseProtection.configured,
     policyId: config.policyId,
     knowledgeStatus: config.knowledge.status,
     knowledgePassageCount: config.knowledge.passageCount,
     provider: "groq",
-    providerStatus: groqPublicStatus(config.groq)
+    providerStatus: groqPublicStatus(config.groq),
+    abuseProtection: faithRateLimitPublicStatus(config.abuseProtection)
   };
 }
 
 export function validateFaithAskInput(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return invalid("invalid_body", "Request body must be a JSON object.");
+  }
+
+  const installationId = String(value.installationId || "").trim();
+  if (!INSTALLATION_ID_PATTERN.test(installationId)) {
+    return invalid(
+      "invalid_installation_id",
+      "installationId must be an anonymous identifier between 16 and 128 characters."
+    );
   }
 
   const question = normalizeQuestion(value.question);
@@ -58,7 +72,7 @@ export function validateFaithAskInput(value) {
 
   return {
     ok: true,
-    value: { question, language, perspective }
+    value: { question, language, perspective, installationId }
   };
 }
 
@@ -79,6 +93,16 @@ export function faithUnavailableResponse(config = resolveFaithRuntimeConfig()) {
       payload: {
         error: "Faith Assistant provider is not configured.",
         code: "faith_provider_not_configured",
+        retryable: false
+      }
+    };
+  }
+  if (!config.abuseProtection.configured) {
+    return {
+      status: 503,
+      payload: {
+        error: "Faith Assistant abuse protection is not configured.",
+        code: "faith_abuse_protection_not_configured",
         retryable: false
       }
     };

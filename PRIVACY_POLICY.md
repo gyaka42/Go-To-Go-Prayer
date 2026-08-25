@@ -1,6 +1,6 @@
 # Privacy Policy — Go-To-Go Prayer
 
-Last updated: 06-03-2026
+Last updated: 25-08-2026
 
 This Privacy Policy explains how Go-To-Go Prayer ("the App", "we", "us") collects, uses, and protects your information when you use the App.
 
@@ -32,6 +32,14 @@ If you enable notifications, the App schedules local notifications on your devic
 ### D) Technical data
 The App may process basic technical information required for network requests (e.g., your IP address, device network details) when contacting external services. This is standard for internet communication.
 
+### E) Faith Assistant information (optional)
+If you choose to use the Faith Assistant, the App sends the following information to our backend:
+- Your question
+- Your selected answer language and perspective (general Sunni or Hanafi)
+- An app-generated installation identifier used to enforce usage limits
+
+Do not include names, contact details, medical information, or other sensitive personal information in your question. The Faith Assistant is an educational feature and does not provide a personalised or binding fatwa.
+
 ## 2. How We Use Your Information
 
 We use information only to provide and improve core app functionality, including:
@@ -41,6 +49,8 @@ We use information only to provide and improve core app functionality, including
 - Scheduling and managing prayer notifications
 - Saving your personal tools data (Zikr Counter, Qaza Tracker)
 - Caching data for offline use and reliability
+- Finding approved source passages and generating a source-bound Faith Assistant response when requested
+- Preventing automated abuse and keeping the Faith Assistant within its usage limits
 
 ## 3. Storage on Your Device
 
@@ -49,8 +59,9 @@ Go-To-Go Prayer stores certain data locally on your device (for example via devi
 - Cached prayer times
 - Zikr Counter and Qaza Tracker data
 - Mosque Finder preferences (e.g., radius, travel mode, favorites)
+- Up to 20 recent Faith Assistant questions and answers, so you can reopen them locally
 
-This data remains on your device unless you delete the App or reset data within the App (if available).
+This data remains on your device unless you delete the App or reset data within the App. Faith Assistant history can also be cleared from the Faith Assistant screen.
 
 ## 4. Third-Party Services
 
@@ -58,8 +69,11 @@ To provide core features, the App may connect to third-party services:
 - Prayer time data providers (depending on the provider you select)
 - Map/routing apps (e.g., Apple Maps) when you choose "Open in Maps"
 - OpenStreetMap/Overpass API for Mosque Finder (nearby mosques)
+- Groq for generating a Faith Assistant response from the approved source passages supplied by our backend
 
 When the App requests data from third-party services, those services may receive standard request data such as your IP address and, where relevant, approximate location derived from your request. Their use of data is governed by their own privacy policies.
+
+When you use the Faith Assistant, your question and selected source passages are sent through our backend to Groq. Our application code requests that Groq does not store the completion, and Groq states that inference input and output data is not retained by default. Groq may still temporarily retain data for service reliability or abuse monitoring under its current policy, potentially for up to 30 days. Groq processes customer data in the United States. For current details, see [Groq's data documentation](https://console.groq.com/docs/your-data).
 
 ## 5. Purchases
 
@@ -79,11 +93,15 @@ You can control your privacy in these ways:
 - Use manual city selection instead of GPS
 - Turn location access on/off in your device settings
 - Turn notifications on/off in your device settings
+- Choose not to use the Faith Assistant
+- Delete individual Faith Assistant history items or clear the full local history
 - Delete the App to remove locally stored data
 
 ## 8. Data Retention
 
-We do not maintain a user account system, and we do not store your personal data on our own servers for typical app usage. Data you set (settings, counters, cached times) is stored locally on your device until you delete it.
+We do not maintain a user account system. Data you set (settings, counters, cached times) is stored locally on your device until you delete it.
+
+Our Faith Assistant backend does not persist your question, generated answer, raw installation identifier, or raw IP address. For usage limits, the installation identifier and IP address are converted to separate pseudonymous HMAC hashes. The resulting counters exist only in server memory and expire at the end of their minute or UTC-day window. A server restart may remove them sooner. Groq may retain data as described in Section 4 and in its current data documentation.
 
 ## 9. Security
 

@@ -133,6 +133,13 @@ export default function MenuScreen() {
       )
     },
     {
+      id: "faith-assistant",
+      onPress: () => router.push("/faith-assistant" as never),
+      title: t("menu.faith.title"),
+      subtitle: t("menu.faith.subtitle"),
+      icon: <Ionicons name="chatbubbles-outline" size={21} color="#2B8CEE" />
+    },
+    {
       id: "quran",
       onPress: () => router.push("/quran" as never),
       title: t("menu.quran.title"),

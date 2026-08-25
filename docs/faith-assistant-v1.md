@@ -102,7 +102,18 @@ The authoritative runtime registry is `backend/diyanet-proxy/faith-content/sourc
 
 The initial runtime corpus contains twelve manually summarised Diyanet passages covering combining and shortening prayers, Hanafi traveller status, tayammum, basic fasting invalidators, accidental water during wudu while fasting, basic zakat obligation and recipients, ihram, dua etiquette, violations of people's rights, congregational prayer, and Friday prayer.
 
-Allowed V1 subjects that are not yet represented by a sufficiently relevant passage return `insufficient_sources`. They do not fall back to the model's memory. The public feature flag remains off until privacy, per-installation limits, and abuse protection are implemented.
+Allowed V1 subjects that are not yet represented by a sufficiently relevant passage return `insufficient_sources`. They do not fall back to the model's memory. The public feature flag remains off until the app UI, privacy publication, multilingual evaluation, and release checks are complete.
+
+## Privacy and abuse controls
+
+- The app sends the question, selected language, selected perspective, and an app-generated installation identifier to the backend only after the user submits a question.
+- The backend does not persist questions, generated answers, raw installation identifiers, or IP addresses. It must not log request bodies or provider output.
+- Installation identifiers and best-effort client IP addresses are converted to separate HMAC hashes before use in rate-limit counters. The secret stays on the backend.
+- Burst limits apply before retrieval. Daily AI limits are consumed only immediately before a Groq request, so locally rejected and unsupported questions do not use the user's daily AI allowance.
+- V1 defaults are 10 Groq requests per installation per UTC day, 60 per IP per UTC day, 25 provider requests globally per minute, and 800 globally per UTC day.
+- Counters live only in the memory of one backend instance and expire at the end of their fixed minute or UTC-day window. V1 stays on one Railway instance; horizontal scaling requires a shared atomic rate-limit store.
+- Provider-side processing and retention are governed by Groq's current terms and data controls. Zero Data Retention should be enabled before public release when the project is eligible, but the app must not claim it is enabled until this is verified in the Groq console.
+- The UI must warn users not to include names, contact details, medical details, or other sensitive personal information in a question.
 
 ## Example boundary
 

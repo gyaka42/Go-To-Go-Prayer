@@ -12,9 +12,11 @@ import {
   validateFaithAskInput
 } from "./faith-assistant.mjs";
 import { createFaithAnswerService } from "./faith-answer-service.mjs";
+import { createFaithRateLimiter, FaithRateLimitError } from "./faith-rate-limit.mjs";
 import { createFaithRetriever } from "./faith-retrieval.mjs";
 import { createGroqClient, GroqClientError } from "./groq-client.mjs";
 import { HttpBodyError, readJsonBody } from "./http-json.mjs";
+import { extractClientIp } from "./request-identity.mjs";
 
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
 const DIYANET_QURAN_DEFAULT_BASE = "https://api.diyanet.gov.tr";
@@ -43,6 +45,7 @@ const faithRuntimeConfig = resolveFaithRuntimeConfig(process.env, {
 });
 const groqClient = createGroqClient({ config: faithRuntimeConfig.groq });
 const faithAnswerService = createFaithAnswerService({ groqClient, retriever: faithRetriever });
+const faithRateLimiter = createFaithRateLimiter({ config: faithRuntimeConfig.abuseProtection });
 
 let tokenState = null; // { token: string, expMs: number }
 let citiesState = null; // { items: Array<City>, atMs: number }
@@ -187,9 +190,34 @@ async function handleRequest(req, res) {
     }
 
     try {
-      const answer = await faithAnswerService.answer(validated.value);
-      sendJson(res, 200, answer);
+      const rateContext = faithRateLimiter.beginRequest({
+        installationId: validated.value.installationId,
+        ipAddress: extractClientIp(req)
+      });
+      const answer = await faithAnswerService.answer(validated.value, {
+        beforeProviderCall: () => faithRateLimiter.consumeProviderQuota(rateContext)
+      });
+      sendJson(res, 200, {
+        ...answer,
+        rateLimit: faithRateLimiter.snapshot(rateContext)
+      });
     } catch (error) {
+      if (error instanceof FaithRateLimitError) {
+        sendJson(
+          res,
+          error.status,
+          {
+            error: error.message,
+            code: error.code,
+            retryable: true,
+            retryAfterSeconds: error.retryAfterSeconds,
+            limit: error.limit,
+            resetAt: error.resetAt
+          },
+          { "Retry-After": String(error.retryAfterSeconds) }
+        );
+        return;
+      }
       if (error instanceof GroqClientError) {
         sendJson(res, error.status, {
           error: error.message,
@@ -3244,8 +3272,12 @@ async function safeJson(response) {
   }
 }
 
-function sendJson(res, status, payload) {
-  res.writeHead(status, { ...corsHeaders(), "Content-Type": "application/json; charset=utf-8" });
+function sendJson(res, status, payload, extraHeaders = {}) {
+  res.writeHead(status, {
+    ...corsHeaders(),
+    "Content-Type": "application/json; charset=utf-8",
+    ...extraHeaders
+  });
   res.end(JSON.stringify(payload));
 }
 

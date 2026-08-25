@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CachedLocation, CachedQibla, CachedTimings, PRAYER_NAMES, Settings } from "@/types/prayer";
 import { MosquesSettings } from "@/types/mosque";
 import { isValidCachedTimings } from "@/services/timingValidation";
+import type { FaithAnswer, FaithCitation, FaithHistoryItem, FaithPerspective } from "@/types/faith";
 
 const SETTINGS_KEY = "settings:v1";
 const LATEST_CACHE_KEY = "timings:latest:v1";
@@ -24,6 +25,9 @@ const ZIKR_SETTINGS_KEY = "zikr:settings:v1";
 const QAZA_STATE_V2_KEY = "qaza:state:v2";
 const QAZA_STATE_V1_KEY = "qaza:state:v1";
 const ONBOARDING_SEEN_KEY = "onboarding:seen:v1";
+const FAITH_INSTALLATION_ID_KEY = "faith:installation_id:v1";
+const FAITH_HISTORY_KEY = "faith:history:v1";
+const MAX_FAITH_HISTORY_ITEMS = 20;
 
 export type HomeDateMode = "gregorian" | "hijri";
 export type ZikrKey = "subhanallah" | "alhamdulillah" | "allahuakbar" | "la_ilaha_illallah" | "custom";
@@ -375,6 +379,125 @@ export async function saveOnboardingSeen(seen: boolean): Promise<void> {
     return;
   }
   await AsyncStorage.removeItem(ONBOARDING_SEEN_KEY);
+}
+
+export async function getFaithInstallationId(): Promise<string> {
+  const current = String((await AsyncStorage.getItem(FAITH_INSTALLATION_ID_KEY)) || "").trim();
+  if (/^[A-Za-z0-9._:-]{16,128}$/.test(current)) {
+    return current;
+  }
+
+  const random = Array.from({ length: 4 }, () => Math.random().toString(36).slice(2, 12)).join("");
+  const created = `faith-${Date.now().toString(36)}-${random}`.slice(0, 96);
+  await AsyncStorage.setItem(FAITH_INSTALLATION_ID_KEY, created);
+  return created;
+}
+
+export async function getFaithHistory(): Promise<FaithHistoryItem[]> {
+  const raw = await AsyncStorage.getItem(FAITH_HISTORY_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(sanitizeFaithHistoryItem)
+      .filter((item): item is FaithHistoryItem => item !== null)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, MAX_FAITH_HISTORY_ITEMS);
+  } catch {
+    return [];
+  }
+}
+
+export async function saveFaithHistoryItem(item: FaithHistoryItem): Promise<void> {
+  const sanitized = sanitizeFaithHistoryItem(item);
+  if (!sanitized) return;
+  const current = await getFaithHistory();
+  const next = [sanitized, ...current.filter((row) => row.id !== sanitized.id)]
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, MAX_FAITH_HISTORY_ITEMS);
+  await AsyncStorage.setItem(FAITH_HISTORY_KEY, JSON.stringify(next));
+}
+
+export async function removeFaithHistoryItem(id: string): Promise<void> {
+  const normalized = id.trim();
+  if (!normalized) return;
+  const next = (await getFaithHistory()).filter((item) => item.id !== normalized);
+  await AsyncStorage.setItem(FAITH_HISTORY_KEY, JSON.stringify(next));
+}
+
+export async function clearFaithHistory(): Promise<void> {
+  await AsyncStorage.removeItem(FAITH_HISTORY_KEY);
+}
+
+function sanitizeFaithHistoryItem(value: unknown): FaithHistoryItem | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Partial<FaithHistoryItem>;
+  const id = typeof row.id === "string" ? row.id.trim().slice(0, 120) : "";
+  const question = typeof row.question === "string" ? row.question.trim().slice(0, 800) : "";
+  const language = row.language === "en" || row.language === "nl" || row.language === "tr" ? row.language : null;
+  const perspective: FaithPerspective | null =
+    row.perspective === "general_sunni" || row.perspective === "hanafi" ? row.perspective : null;
+  const createdAt = Number(row.createdAt);
+  const answer = sanitizeStoredFaithAnswer(row.answer);
+  if (!id || !question || !language || !perspective || !Number.isFinite(createdAt) || !answer) return null;
+  return { id, question, language, perspective, createdAt, answer };
+}
+
+function sanitizeStoredFaithAnswer(value: unknown): FaithAnswer | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as FaithAnswer;
+  const outcomes = new Set(["answer", "clarification_needed", "insufficient_sources", "out_of_scope", "qualified_referral"]);
+  if (
+    !outcomes.has(row.outcome) ||
+    (row.perspective !== "general_sunni" && row.perspective !== "hanafi") ||
+    typeof row.answer !== "string" ||
+    row.answer.trim().length === 0 ||
+    !row.rateLimit ||
+    !Number.isFinite(row.rateLimit.limit) ||
+    !Number.isFinite(row.rateLimit.remaining) ||
+    typeof row.rateLimit.resetAt !== "string" ||
+    !Number.isFinite(new Date(row.rateLimit.resetAt).getTime())
+  ) {
+    return null;
+  }
+  const citations = Array.isArray(row.citations)
+    ? row.citations
+        .map(sanitizeStoredFaithCitation)
+        .filter((item): item is FaithCitation => item !== null)
+        .slice(0, 8)
+    : [];
+  const limit = Math.max(1, Math.min(100, Math.round(row.rateLimit.limit)));
+  return {
+    ...row,
+    answer: row.answer.trim().slice(0, 3000),
+    citations,
+    caveat: typeof row.caveat === "string" ? row.caveat.slice(0, 600) : null,
+    followUpQuestion: typeof row.followUpQuestion === "string" ? row.followUpQuestion.slice(0, 500) : null,
+    rateLimit: {
+      limit,
+      remaining: Math.max(0, Math.min(limit, Math.round(row.rateLimit.remaining))),
+      resetAt: row.rateLimit.resetAt
+    }
+  };
+}
+
+function sanitizeStoredFaithCitation(value: unknown): FaithCitation | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Partial<FaithCitation>;
+  const id = typeof row.id === "string" ? row.id.trim().slice(0, 160) : "";
+  const title = typeof row.title === "string" ? row.title.trim().slice(0, 300) : "";
+  const url = typeof row.url === "string" ? row.url.trim().slice(0, 1000) : "";
+  if (!id || !title || !/^https:\/\//i.test(url)) return null;
+  return {
+    id,
+    sourceId: typeof row.sourceId === "string" ? row.sourceId.trim().slice(0, 160) : "",
+    title,
+    locator: typeof row.locator === "string" ? row.locator.trim().slice(0, 300) : "",
+    url,
+    sourceLanguage: typeof row.sourceLanguage === "string" ? row.sourceLanguage.trim().slice(0, 20) : "",
+    sourceDate: typeof row.sourceDate === "string" ? row.sourceDate.trim().slice(0, 40) : null
+  };
 }
 
 export function buildMosquesCacheKey(lat: number, lon: number, radiusKm: number): string {

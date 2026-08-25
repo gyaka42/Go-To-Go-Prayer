@@ -52,7 +52,7 @@ export function createFaithAnswerService(options) {
       return retriever.status();
     },
 
-    async answer(input) {
+    async answer(input, hooks = {}) {
       const language = MESSAGES[input.language] ? input.language : "en";
       const retrieval = retriever.retrieve(input);
       const classification = retrieval.classification;
@@ -70,6 +70,7 @@ export function createFaithAnswerService(options) {
         return localResult("insufficient_sources", input.perspective, language, classification, "insufficient_sources");
       }
 
+      await hooks.beforeProviderCall?.();
       const completion = await groqClient.createStructuredCompletion({
         messages: buildMessages(input, retrieval),
         schemaName: "faith_answer",

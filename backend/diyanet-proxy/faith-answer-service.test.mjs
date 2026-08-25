@@ -18,6 +18,7 @@ function mockGroq(data) {
 }
 
 test("source-bound generation maps citations from server-owned metadata", async () => {
+  let providerQuotaCalls = 0;
   const groq = mockGroq({
     outcome: "answer",
     answer: "De algemene Hanafi-regel is dat ieder gebed binnen zijn eigen tijd wordt verricht. De geciteerde bron beschrijft uitzonderingen bij een belangrijke noodzaak.",
@@ -27,11 +28,14 @@ test("source-bound generation maps citations from server-owned metadata", async 
   });
   const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
 
-  const result = await service.answer({
-    question: "Ik ben Hanafi. Mag ik Dhuhr en Asr combineren tijdens een reis?",
-    language: "nl",
-    perspective: "hanafi"
-  });
+  const result = await service.answer(
+    {
+      question: "Ik ben Hanafi. Mag ik Dhuhr en Asr combineren tijdens een reis?",
+      language: "nl",
+      perspective: "hanafi"
+    },
+    { beforeProviderCall: () => { providerQuotaCalls += 1; } }
+  );
 
   assert.equal(result.outcome, "answer");
   assert.equal(result.citations.length, 1);
@@ -39,6 +43,7 @@ test("source-bound generation maps citations from server-owned metadata", async 
   assert.match(result.citations[0].url, /^https:\/\/kurul\.diyanet\.gov\.tr\//);
   assert.equal(result.meta.providerRequestId, "groq-request-1");
   assert.equal(groq.calls.length, 1);
+  assert.equal(providerQuotaCalls, 1);
   assert.match(groq.calls[0].messages[0].content, /Model memory.*forbidden/);
 });
 
@@ -65,25 +70,28 @@ test("invented citations turn a generated answer into insufficient sources", asy
 test("out-of-scope, referral and unsupported evidence never call Groq", async () => {
   const groq = mockGroq({});
   const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
+  let providerQuotaCalls = 0;
+  const hooks = { beforeProviderCall: () => { providerQuotaCalls += 1; } };
 
   const coding = await service.answer({
     question: "How do I fix a JavaScript error?",
     language: "en",
     perspective: "general_sunni"
-  });
+  }, hooks);
   const divorce = await service.answer({
     question: "Kun je mijn echtscheiding beoordelen?",
     language: "nl",
     perspective: "general_sunni"
-  });
+  }, hooks);
   const sleep = await service.answer({
     question: "Does sleeping invalidate wudu?",
     language: "en",
     perspective: "general_sunni"
-  });
+  }, hooks);
 
   assert.equal(coding.outcome, "out_of_scope");
   assert.equal(divorce.outcome, "qualified_referral");
   assert.equal(sleep.outcome, "insufficient_sources");
   assert.equal(groq.calls.length, 0);
+  assert.equal(providerQuotaCalls, 0);
 });
