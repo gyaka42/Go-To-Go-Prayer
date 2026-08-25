@@ -1,5 +1,5 @@
 const DEFAULT_GROQ_API_BASE_URL = "https://api.groq.com/openai/v1";
-const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
+const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 const DEFAULT_GROQ_TIMEOUT_MS = 15000;
 const DEFAULT_MAX_COMPLETION_TOKENS = 700;
 const MAX_MESSAGES = 12;

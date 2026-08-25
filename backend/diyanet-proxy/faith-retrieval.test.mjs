@@ -7,7 +7,7 @@ test("faith knowledge loads only approved sources and reviewed passages", () => 
   const retriever = createFaithRetriever({ knowledge });
 
   assert.equal(retriever.status().ready, true);
-  assert.equal(retriever.status().passageCount, 69);
+  assert.equal(retriever.status().passageCount, 70);
   assert.ok(knowledge.corpus.passages.every((passage) => passage.summary && !passage.excerpt));
 });
 
@@ -97,7 +97,10 @@ test("broad Islamic knowledge questions retrieve reviewed evidence in every app 
     ["Hangi kandiller var?", "diyanet-blessed-nights-kandils"],
     ["What are the 32 fards?", "diyanet-thirty-two-fards-framework"],
     ["Wat zijn de 32 farz?", "diyanet-thirty-two-fards-framework"],
-    ["32 farzi soyler misin?", "diyanet-thirty-two-fards-framework"]
+    ["32 farzi soyler misin?", "diyanet-thirty-two-fards-framework"],
+    ["Is the headscarf obligatory?", "diyanet-headscarf-obligation"],
+    ["Is een hoofddoek verplicht?", "diyanet-headscarf-obligation"],
+    ["Başörtü farz mı?", "diyanet-headscarf-obligation"]
   ];
 
   for (const [question, expectedPassageId] of rows) {

@@ -970,6 +970,20 @@
       "perspectives": ["general_sunni", "hanafi"],
       "summary": "The traditional Turkish '32 fards' teaching framework combines six articles of faith, five pillars of Islam, four Hanafi obligations of wudu, three Hanafi obligations of ghusl, two Hanafi obligations of tayammum, and twelve essentials of prayer. The prayer essentials are six prerequisites - ritual purity, cleanliness from material impurity, covering the required body parts, facing qibla, the prayer time, and intention - plus six internal acts: opening takbir, standing when able, recitation, bowing, prostration, and the final sitting. This is a teaching summary of foundational duties, not an additional independent pillar of Islam, and some detail counts differ among schools.",
       "searchTerms": ["what are the 32 fards", "list 32 fards", "thirty two fards islam", "32 obligations islam", "wat zijn de 32 farz", "noem de 32 farz", "32 verplichtingen islam", "32 farz nedir", "32 farzı söyler misin", "32 farzi soyler misin", "otuz iki farz", "32 farz hangileri", "32 farz sayar mısın", "32 farz sayar misin"]
+    },
+    {
+      "id": "diyanet-headscarf-obligation",
+      "sourceId": "diyanet-high-board",
+      "sourceTitle": "Tesettur Ile ilgili karar",
+      "sourceUrl": "https://kurul.diyanet.gov.tr/tr/fetva/tesettur-ile-ilgili-karar/70205437-db83-432a-b582-08dd1c135350",
+      "sourceLanguage": "tr",
+      "sourceDate": null,
+      "reviewedAt": "2026-08-25",
+      "locator": "Decision text, paragraphs discussing Nur 24:31 and the obligation of covering",
+      "topics": ["daily_ethics", "islamic_general", "madhhab_differences"],
+      "perspectives": ["general_sunni", "hanafi"],
+      "summary": "The Diyanet High Board explains the covering command in Quran 24:31 as requiring adult Muslim women to cover their hair, head, ears, neck and chest before non-mahram men, alongside the wider rules of modest dress. It treats the command as obligatory rather than merely recommended. Details about the face, hands, clothing form, private settings and recognised exemptions require context; the ruling should be explained without coercion and without judging an individual's faith.",
+      "searchTerms": ["is hijab obligatory", "is headscarf obligatory", "is the headscarf obligatory", "is headscarf fard", "must muslim women cover hair", "hijab requirement islam", "is hoofddoek verplicht", "is hoofddoek farz", "moet een moslimvrouw haar haar bedekken", "hoofddoek islam", "başörtü farz mı", "basortu farz mi", "başörtüsü farz mı", "basortusu farz mi", "tesettür farz mı", "tesettur farz mi", "kadın saçını örtmek zorunda mı", "kadin sacini ortmek zorunda mi"]
     }
   ]
 }

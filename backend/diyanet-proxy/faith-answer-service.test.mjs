@@ -122,7 +122,7 @@ test("an allowed Islamic question without evidence uses labelled general AI", as
   });
   const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
   const result = await service.answer({
-    question: "Başörtü farz mı?",
+    question: "Is wearing a red shirt haram?",
     language: "tr",
     perspective: "hanafi",
     appContext: {

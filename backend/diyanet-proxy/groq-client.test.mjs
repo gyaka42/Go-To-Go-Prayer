@@ -21,7 +21,7 @@ test("Groq public status never exposes the API key", () => {
   const status = groqPublicStatus(config);
 
   assert.equal(status.configured, true);
-  assert.equal(status.model, "openai/gpt-oss-20b");
+  assert.equal(status.model, "openai/gpt-oss-120b");
   assert.equal("apiKey" in status, false);
   assert.equal(JSON.stringify(status).includes("secret-key"), false);
 });
@@ -34,7 +34,7 @@ test("Groq client sends a bounded strict-schema request without tools", async ()
     capturedOptions = options;
     return new Response(
       JSON.stringify({
-        model: "openai/gpt-oss-20b",
+        model: "openai/gpt-oss-120b",
         choices: [{ message: { content: JSON.stringify({ outcome: "insufficient_sources" }) } }],
         usage: { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 }
       }),

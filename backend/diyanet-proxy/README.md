@@ -11,7 +11,7 @@
 - `QURAN_AUDIO_FALLBACK_RECITER` (optional, default: `ar.alafasy`)
 - `QURAN_AUDIO_FALLBACK_BITRATE` (optional, default: `128`)
 - `GROQ_API_KEY` (server-only; never add this to the Expo app or an `EXPO_PUBLIC_` variable)
-- `GROQ_MODEL` (optional, default: `openai/gpt-oss-20b`)
+- `GROQ_MODEL` (optional, default: `openai/gpt-oss-120b`)
 - `GROQ_API_BASE_URL` (optional, default: `https://api.groq.com/openai/v1`)
 - `GROQ_TIMEOUT_MS` (optional, default: `15000`, clamped to 3000-30000)
 - `GROQ_MAX_COMPLETION_TOKENS` (optional, default: `700`, clamped to 128-1600)

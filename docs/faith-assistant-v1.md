@@ -102,7 +102,7 @@ The authoritative runtime registry is `backend/diyanet-proxy/faith-content/sourc
 
 ## Current curated coverage
 
-The runtime corpus contains 69 manually summarised Diyanet passages. Alongside the initial coverage for travel prayer, purification, fasting, zakat, hajj, dua, ethics, congregation, and Friday prayer, the practical prayer pack covers distraction and focus, forgotten recitation, prostration of forgetfulness, uncertainty about rakaat, recitation errors, surah order, reciting behind an imam, loud or silent recitation mistakes, the first sitting, Witr qunut, early salam, intention, laughter, missed prayer, emergencies during prayer, and loss of wudu in congregation.
+The runtime corpus contains 70 manually summarised Diyanet passages. Alongside the initial coverage for travel prayer, purification, fasting, zakat, hajj, dua, ethics, congregation, and Friday prayer, the practical prayer pack covers distraction and focus, forgotten recitation, prostration of forgetfulness, uncertainty about rakaat, recitation errors, surah order, reciting behind an imam, loud or silent recitation mistakes, the first sitting, Witr qunut, early salam, intention, laughter, missed prayer, emergencies during prayer, and loss of wudu in congregation.
 
 The Islamic Essentials pack adds broad introductory coverage for the five pillars of Islam, the six articles of faith, Allah and tawhid, angels, revealed books and the Quran, prophets, the afterlife and divine decree, the five daily prayers and their rakaat, basic two-, three-, and four-rakaat prayer methods, prayer prerequisites, wudu and ghusl, fasting obligations and intention, Hajj obligations and pillars, and good character.
 

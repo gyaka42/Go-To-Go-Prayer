@@ -26,7 +26,7 @@ directly in the Railway service:
 | `GROQ_API_KEY` | A server-only Groq API key |
 | `FAITH_RATE_LIMIT_SECRET` | A separate random value of at least 32 characters |
 | `FAITH_ASSISTANT_ENABLED` | `false` for the first deployment, then `true` after staged checks |
-| `GROQ_MODEL` | `openai/gpt-oss-20b` unless a tested replacement is selected |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` unless a tested replacement is selected |
 | `FAITH_INSTALL_MINUTE_LIMIT` | `4` |
 | `FAITH_INSTALL_DAILY_LIMIT` | `10` |
 | `FAITH_IP_MINUTE_LIMIT` | `8` |
