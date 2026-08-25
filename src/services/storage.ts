@@ -470,6 +470,7 @@ function sanitizeStoredFaithAnswer(value: unknown): FaithAnswer | null {
   const limit = Math.max(1, Math.min(100, Math.round(row.rateLimit.limit)));
   return {
     ...row,
+    topicId: typeof row.topicId === "string" ? row.topicId.trim().slice(0, 120) : null,
     answer: row.answer.trim().slice(0, 3000),
     citations,
     caveat: typeof row.caveat === "string" ? row.caveat.slice(0, 600) : null,

@@ -27,6 +27,7 @@ export type FaithRateLimit = {
 export type FaithAnswer = {
   outcome: FaithOutcome;
   perspective: FaithPerspective;
+  topicId: string | null;
   answer: string;
   citations: FaithCitation[];
   caveat: string | null;

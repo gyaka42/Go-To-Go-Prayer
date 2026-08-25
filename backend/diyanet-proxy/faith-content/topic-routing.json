@@ -3,6 +3,10 @@
   "policyId": "faith-assistant-v1",
   "referralRoutes": [
     {
+      "id": "personalised_fatwa",
+      "terms": ["personal fatwa", "binding fatwa", "fatwa for my situation", "persoonlijke fatwa", "bindende fatwa", "fatwa voor mijn situatie", "kişisel fetva", "bağlayıcı fetva", "durumuma fetva"]
+    },
+    {
       "id": "marriage_divorce_custody",
       "terms": ["divorce", "talaq", "custody", "marriage valid", "scheiding", "echtscheiding", "talaq", "voogdij", "huwelijk geldig", "boşanma", "talak", "velayet", "nikah geçerli"]
     },
@@ -20,11 +24,16 @@
     },
     {
       "id": "self_harm_abuse_emergency",
+      "priority": 1000,
       "terms": ["suicide", "kill myself", "self harm", "abuse emergency", "zelfmoord", "mezelf doden", "zelfbeschadiging", "misbruik nood", "intihar", "kendimi öldür", "kendime zarar", "istismar acil"]
     },
     {
       "id": "criminal_violence_extremism",
       "terms": ["attack people", "religious violence", "extremist group", "mensen aanvallen", "religieus geweld", "extremistische groep", "insanlara saldır", "dini şiddet", "aşırıcı grup"]
+    },
+    {
+      "id": "political_mobilisation",
+      "terms": ["religious political campaign", "mobilize voters for religion", "political recruitment", "religieuze politieke campagne", "kiezers religieus mobiliseren", "politieke werving", "dini siyasi kampanya", "seçmenleri din için harekete geçir", "siyasi örgütlenme"]
     },
     {
       "id": "takfir_or_judging_people",
@@ -33,6 +42,14 @@
     {
       "id": "dreams_possession_magic_personalised_ruqyah",
       "terms": ["interpret my dream", "am i possessed", "magic on me", "personal ruqyah", "duid mijn droom", "ben ik bezeten", "magie op mij", "persoonlijke ruqyah", "rüyamı yorumla", "cinli miyim", "bana büyü", "kişisel rukye"]
+    },
+    {
+      "id": "private_disputes",
+      "terms": ["judge my private dispute", "who is right in my dispute", "judge this named person", "beoordeel mijn privégeschil", "wie heeft gelijk in mijn geschil", "beoordeel deze persoon", "özel anlaşmazlığımı yargıla", "anlaşmazlığımda kim haklı", "bu kişiyi yargıla"]
+    },
+    {
+      "id": "model_generated_hadith_grading_or_tafsir",
+      "terms": ["authenticate this hadith", "grade this hadith", "write your own tafsir", "invent a tafsir", "beoordeel deze hadith", "classificeer deze hadith", "schrijf je eigen tafsir", "bedenk een tafsir", "bu hadisi sahih olarak değerlendir", "bu hadisi derecelendir", "kendi tefsirini yaz", "tefsir uydur"]
     }
   ],
   "deterministicRoutes": [

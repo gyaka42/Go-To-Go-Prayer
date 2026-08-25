@@ -63,3 +63,18 @@ test("only explicit evidence can support the Hanafi perspective", async () => {
     assert.ok(explicitlyHanafi || explicitlyQualified, `ambiguous Hanafi source: ${source.id}`);
   }
 });
+
+test("every boundary route is declared by the active policy", async () => {
+  const [policy, routing] = await Promise.all([readJson("v1-policy.json"), readJson("topic-routing.json")]);
+  const referralTopics = new Set(policy.referralTopics);
+  const deterministicTopics = new Set(policy.deterministicToolTopics);
+
+  for (const route of routing.referralRoutes) {
+    assert.ok(referralTopics.has(route.id), `undeclared referral route: ${route.id}`);
+    assert.ok(Array.isArray(route.terms) && route.terms.length >= 3, `referral route needs multilingual terms: ${route.id}`);
+  }
+  for (const route of routing.deterministicRoutes) {
+    assert.ok(deterministicTopics.has(route.id), `undeclared deterministic route: ${route.id}`);
+    assert.ok(Array.isArray(route.terms) && route.terms.length >= 3, `deterministic route needs multilingual terms: ${route.id}`);
+  }
+});

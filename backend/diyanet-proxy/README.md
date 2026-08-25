@@ -47,6 +47,37 @@ npm install
 DIYANET_USERNAME="your_email" DIYANET_PASSWORD="your_password" npm start
 ```
 
+## Faith Assistant evaluation
+
+Run `npm test` in this directory before deploying. The suite includes the versioned EN/NL/TR evaluation
+corpus in `faith-evals/v1-cases.json`, source-registry checks, prompt-injection isolation, fail-closed
+citation checks, privacy/rate-limit checks, and provider error handling. The evaluation suite uses a mock
+Groq client and does not consume provider quota.
+
+## Faith Assistant deployment checks
+
+Deploy first with `FAITH_ASSISTANT_ENABLED=false`, then verify that the new endpoint is present:
+
+```bash
+FAITH_SMOKE_EXPECT_READY=false npm run faith:smoke
+```
+
+After setting the Railway feature flag to `true`, run the safe production check. It validates the EN/NL/TR
+local routes and does not call Groq:
+
+```bash
+npm run faith:smoke
+```
+
+Run the live provider check once before TestFlight release. It uses three Groq requests:
+
+```bash
+FAITH_SMOKE_LIVE=true npm run faith:smoke
+```
+
+The commands above are run from the repository root. See `docs/faith-assistant-release-checklist.md` for the
+complete Railway, privacy, TestFlight, App Store, and rollback checklist.
+
 ## Endpoints
 
 - `GET /health`

@@ -29,6 +29,7 @@ import { useAppTheme } from "@/theme/ThemeProvider";
 import { FaithAnswer, FaithHealth, FaithHistoryItem, FaithOutcome, FaithPerspective } from "@/types/faith";
 
 type Availability = "checking" | "ready" | "unavailable" | "error";
+type FaithUiError = { key: string; params?: Record<string, string | number> };
 
 const MAX_QUESTION_LENGTH = 800;
 
@@ -45,7 +46,7 @@ export default function FaithAssistantScreen() {
   const [answer, setAnswer] = useState<FaithAnswer | null>(null);
   const [history, setHistory] = useState<FaithHistoryItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorKey, setErrorKey] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<FaithUiError | null>(null);
 
   const checkAvailability = useCallback(async () => {
     setAvailability("checking");
@@ -84,23 +85,26 @@ export default function FaithAssistantScreen() {
 
   const quotaLabel = useMemo(() => {
     if (latestRateLimit) {
-      return t("faith.quota_remaining", {
+      const remaining = t("faith.quota_remaining", {
         remaining: latestRateLimit.remaining,
         limit: latestRateLimit.limit
       });
+      return `${remaining} • ${t("faith.quota_reset", {
+        time: formatFaithDateTime(latestRateLimit.resetAt, localeTag)
+      })}`;
     }
     if (health?.dailyLimit) {
       return t("faith.quota_daily", { limit: health.dailyLimit });
     }
     return null;
-  }, [health?.dailyLimit, latestRateLimit, t]);
+  }, [health?.dailyLimit, latestRateLimit, localeTag, t]);
 
   const submit = useCallback(async () => {
     const normalizedQuestion = question.trim();
     if (normalizedQuestion.length < 3 || isSubmitting || availability !== "ready") return;
 
     setIsSubmitting(true);
-    setErrorKey(null);
+    setRequestError(null);
     setAnswer(null);
     try {
       const response = await askFaithAssistant({
@@ -120,17 +124,21 @@ export default function FaithAssistantScreen() {
       setHistory((current) => [item, ...current.filter((row) => row.id !== item.id)].slice(0, 20));
       await saveFaithHistoryItem(item);
     } catch (error) {
-      setErrorKey(errorKeyFor(error));
+      const presentation = errorPresentation(error, localeTag);
+      setRequestError(presentation);
+      if (presentation.key === "faith.error_unavailable") {
+        setAvailability("unavailable");
+      }
     } finally {
       setIsSubmitting(false);
     }
-  }, [availability, isSubmitting, language, perspective, question]);
+  }, [availability, isSubmitting, language, localeTag, perspective, question]);
 
   const openHistoryItem = useCallback((item: FaithHistoryItem) => {
     setQuestion(item.question);
     setPerspective(item.perspective);
     setAnswer(item.answer);
-    setErrorKey(null);
+    setRequestError(null);
   }, []);
 
   const deleteHistoryItem = useCallback(async (id: string) => {
@@ -156,7 +164,7 @@ export default function FaithAssistantScreen() {
     if (!answer?.followUpQuestion) return;
     setQuestion(answer.followUpQuestion);
     setAnswer(null);
-    setErrorKey(null);
+    setRequestError(null);
   }, [answer?.followUpQuestion]);
 
   return (
@@ -266,10 +274,12 @@ export default function FaithAssistantScreen() {
               </Pressable>
             </View>
 
-            {errorKey ? (
+            {requestError ? (
               <View style={[styles.errorBand, { borderColor: isLight ? "#F4B6B9" : "#71363B" }]}>
                 <Ionicons name="alert-circle-outline" size={20} color="#D94A51" />
-                <Text style={[styles.errorText, { color: colors.textPrimary }]}>{t(errorKey)}</Text>
+                <Text style={[styles.errorText, { color: colors.textPrimary }]}>
+                  {t(requestError.key, requestError.params)}
+                </Text>
               </View>
             ) : null}
 
@@ -280,7 +290,7 @@ export default function FaithAssistantScreen() {
                 onNewQuestion={() => {
                   setQuestion("");
                   setAnswer(null);
-                  setErrorKey(null);
+                  setRequestError(null);
                 }}
               />
             ) : null}
@@ -346,7 +356,7 @@ function AvailabilityBanner({
     <View style={styles.availabilityRow}>
       <StatusChip label={content.label} tone={content.tone} />
       <Text style={[styles.availabilityBody, { color: colors.textSecondary }]}>{content.body}</Text>
-      {availability === "error" ? (
+      {availability === "error" || availability === "unavailable" ? (
         <Pressable onPress={onRetry} style={styles.retryButton}>
           <Ionicons name="refresh" size={16} color={colors.accent} />
           <Text style={[styles.retryText, { color: colors.accent }]}>{t("faith.retry")}</Text>
@@ -367,7 +377,17 @@ function AnswerSection({
 }) {
   const { colors } = useAppTheme();
   const { t } = useI18n();
-  const outcome = outcomePresentation(answer.outcome, t);
+  const outcome = outcomePresentation(answer.outcome, answer.topicId, t);
+  const openSource = useCallback(
+    async (url: string) => {
+      try {
+        await Linking.openURL(url);
+      } catch {
+        Alert.alert(t("faith.source_open_error_title"), t("faith.source_open_error_body"));
+      }
+    },
+    [t]
+  );
 
   return (
     <View style={styles.answerSection}>
@@ -412,7 +432,8 @@ function AnswerSection({
             <Pressable
               key={citation.id}
               style={[styles.sourceRow, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-              onPress={() => void Linking.openURL(citation.url)}
+              onPress={() => void openSource(citation.url)}
+              accessibilityRole="link"
             >
               <View style={[styles.sourceIcon, { backgroundColor: colors.accentSoft }]}>
                 <Ionicons name="document-text-outline" size={18} color={colors.accent} />
@@ -476,24 +497,91 @@ function HistoryRow({
 
 function outcomePresentation(
   outcome: FaithOutcome,
+  topicId: string | null,
   t: (key: string) => string
 ): { label: string; tone: "success" | "info" | "warning" | "error" } {
   if (outcome === "answer") return { label: t("faith.outcome_answer"), tone: "success" };
   if (outcome === "clarification_needed") return { label: t("faith.outcome_clarification"), tone: "info" };
-  if (outcome === "qualified_referral") return { label: t("faith.outcome_referral"), tone: "warning" };
+  if (outcome === "qualified_referral") {
+    if (topicId === "self_harm_abuse_emergency") {
+      return { label: t("faith.outcome_emergency"), tone: "error" };
+    }
+    if (
+      topicId === "criminal_violence_extremism" ||
+      topicId === "political_mobilisation" ||
+      topicId === "takfir_or_judging_people"
+    ) {
+      return { label: t("faith.outcome_safety"), tone: "warning" };
+    }
+    return { label: t("faith.outcome_referral"), tone: "warning" };
+  }
   if (outcome === "out_of_scope") return { label: t("faith.outcome_scope"), tone: "warning" };
   return { label: t("faith.outcome_sources"), tone: "warning" };
 }
 
-function errorKeyFor(error: unknown): string {
-  if (!(error instanceof FaithAssistantError)) return "faith.error_generic";
-  if (error.status === 429) return "faith.error_rate_limit";
-  if (error.code === "faith_assistant_disabled" || error.code === "faith_abuse_protection_not_configured") {
-    return "faith.error_unavailable";
+function errorPresentation(error: unknown, localeTag: string): FaithUiError {
+  if (!(error instanceof FaithAssistantError)) return { key: "faith.error_generic" };
+
+  if (error.code === "faith_install_daily_limit") {
+    return error.resetAt
+      ? { key: "faith.error_daily_limit", params: { time: formatFaithDateTime(error.resetAt, localeTag) } }
+      : { key: "faith.error_daily_limit_no_time" };
   }
-  if (error.status === 0) return "faith.error_network";
-  if (error.code === "faith_invalid_response") return "faith.error_invalid_response";
-  return "faith.error_generic";
+  if (error.code === "faith_ip_daily_limit" || error.code === "faith_global_daily_limit") {
+    return error.resetAt
+      ? { key: "faith.error_service_daily_limit", params: { time: formatFaithDateTime(error.resetAt, localeTag) } }
+      : { key: "faith.error_service_daily_limit_no_time" };
+  }
+  if (
+    error.code === "faith_install_minute_limit" ||
+    error.code === "faith_ip_minute_limit" ||
+    error.code === "faith_global_minute_limit" ||
+    error.code === "groq_rate_limited" ||
+    error.status === 429
+  ) {
+    return { key: "faith.error_busy", params: { seconds: error.retryAfterSeconds ?? 60 } };
+  }
+  if (
+    error.code === "faith_assistant_disabled" ||
+    error.code === "faith_provider_not_configured" ||
+    error.code === "faith_abuse_protection_not_configured" ||
+    error.code === "faith_sources_not_ready" ||
+    error.code === "groq_not_configured"
+  ) {
+    return { key: "faith.error_unavailable" };
+  }
+  if (error.code === "groq_timeout" || error.status === 504) return { key: "faith.error_timeout" };
+  if (
+    error.code === "groq_unavailable" ||
+    error.code === "groq_network_error" ||
+    error.code === "groq_auth_failed" ||
+    error.code === "groq_request_rejected"
+  ) {
+    return { key: "faith.error_provider" };
+  }
+  if (error.status === 0) return { key: "faith.error_network" };
+  if (
+    error.code === "faith_invalid_response" ||
+    error.code === "groq_empty_response" ||
+    error.code === "groq_invalid_json"
+  ) {
+    return { key: "faith.error_invalid_response" };
+  }
+  if (error.status === 400 || error.status === 413 || error.status === 415) {
+    return { key: "faith.error_invalid_request" };
+  }
+  if (error.status === 502 || error.status === 503) return { key: "faith.error_provider" };
+  return { key: "faith.error_generic" };
+}
+
+function formatFaithDateTime(value: string, localeTag: string): string {
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return "-";
+  return new Intl.DateTimeFormat(localeTag, {
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(parsed);
 }
 
 const styles = StyleSheet.create({
@@ -528,7 +616,7 @@ const styles = StyleSheet.create({
   errorBand: { marginTop: 12, borderWidth: 1, borderRadius: 12, padding: 12, flexDirection: "row", alignItems: "flex-start", gap: 9, backgroundColor: "rgba(217,74,81,0.08)" },
   errorText: { flex: 1, fontSize: 13, lineHeight: 19 },
   answerSection: { marginTop: 22 },
-  answerHeadingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 9 },
+  answerHeadingRow: { alignItems: "flex-start", gap: 7, marginBottom: 9 },
   sectionTitle: { fontSize: 20, fontWeight: "800" },
   sectionTitleSmall: { fontSize: 16, fontWeight: "800", marginBottom: 8 },
   answerCard: { borderWidth: 1, borderRadius: 16, padding: 15 },
@@ -556,7 +644,7 @@ const styles = StyleSheet.create({
   emptyBody: { fontSize: 12, lineHeight: 17, textAlign: "center", marginTop: 3 },
   historyRow: { minHeight: 100, borderWidth: 1, borderRadius: 14, flexDirection: "row", alignItems: "stretch", marginBottom: 9 },
   historyOpen: { flex: 1, padding: 12 },
-  historyTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  historyTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 },
   historyPerspective: { fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
   historyDate: { fontSize: 10 },
   historyQuestion: { fontSize: 14, fontWeight: "800", lineHeight: 19, marginTop: 5 },

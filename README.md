@@ -20,6 +20,10 @@ This repo includes a Railway-ready backend at `backend/diyanet-proxy`.
   - `DIYANET_USERNAME`
   - `DIYANET_PASSWORD`
 
+The optional Faith Assistant also requires server-only Groq and abuse-protection variables. Keep the feature
+flag off during the first backend deployment and follow `docs/faith-assistant-release-checklist.md` before
+enabling it for TestFlight.
+
 Use your Railway domain as `EXPO_PUBLIC_DIYANET_PROXY_URL`.
 
 Example:

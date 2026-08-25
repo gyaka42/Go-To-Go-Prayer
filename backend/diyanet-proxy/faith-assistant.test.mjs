@@ -80,6 +80,24 @@ test("Faith Assistant validates and normalizes the public request", () => {
     validateFaithAskInput({ question: "Valid question", language: "en", installationId: "short" }).code,
     "invalid_installation_id"
   );
+  assert.equal(
+    validateFaithAskInput({
+      question: "x".repeat(801),
+      language: "en",
+      installationId: INSTALLATION_ID
+    }).code,
+    "invalid_question"
+  );
+  assert.equal(validateFaithAskInput([]).code, "invalid_body");
+
+  const cleaned = validateFaithAskInput({
+    question: "  Is\u0000 this\n valid?  ",
+    language: "en",
+    installationId: INSTALLATION_ID
+  });
+  assert.equal(cleaned.ok, true);
+  assert.equal(cleaned.value.question, "Is this valid?");
+  assert.equal(cleaned.value.perspective, "general_sunni");
 });
 
 test("JSON body reader enforces content type and byte limit", async () => {

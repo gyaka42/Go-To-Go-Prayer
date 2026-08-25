@@ -23,13 +23,23 @@ export class FaithAssistantError extends Error {
   readonly code: string;
   readonly status: number;
   readonly retryAfterSeconds: number | null;
+  readonly resetAt: string | null;
 
-  constructor(message: string, options: { code?: string; status?: number; retryAfterSeconds?: number | null } = {}) {
+  constructor(
+    message: string,
+    options: {
+      code?: string;
+      status?: number;
+      retryAfterSeconds?: number | null;
+      resetAt?: string | null;
+    } = {}
+  ) {
     super(message);
     this.name = "FaithAssistantError";
     this.code = options.code || "faith_request_failed";
     this.status = options.status || 0;
     this.retryAfterSeconds = options.retryAfterSeconds ?? null;
+    this.resetAt = options.resetAt ?? null;
   }
 }
 
@@ -75,7 +85,8 @@ export async function askFaithAssistant(input: {
       throw new FaithAssistantError(error.message, {
         code: cleanString(payload.code, 100) || "faith_request_failed",
         status: error.status,
-        retryAfterSeconds: finiteInteger(payload.retryAfterSeconds, 1, 86400)
+        retryAfterSeconds: finiteInteger(payload.retryAfterSeconds, 1, 86400),
+        resetAt: validIsoDate(payload.resetAt)
       });
     }
     if (error instanceof FaithAssistantError) {
@@ -91,6 +102,7 @@ function parseFaithAnswer(value: unknown): FaithAnswer {
   const perspective = cleanString(row.perspective, 60) as FaithPerspective;
   const answer = cleanString(row.answer, 3000);
   const rateLimit = parseRateLimit(row.rateLimit);
+  const meta = asRecord(row.meta);
   if (
     !VALID_OUTCOMES.has(outcome) ||
     (perspective !== "general_sunni" && perspective !== "hanafi") ||
@@ -103,6 +115,7 @@ function parseFaithAnswer(value: unknown): FaithAnswer {
   return {
     outcome,
     perspective,
+    topicId: cleanNullableString(meta.topicId, 120),
     answer,
     citations: Array.isArray(row.citations)
       ? row.citations.map(parseCitation).filter((item): item is FaithCitation => item !== null).slice(0, 8)
@@ -163,4 +176,9 @@ function finiteInteger(value: unknown, minimum: number, maximum: number): number
   if (!Number.isFinite(parsed)) return null;
   const rounded = Math.round(parsed);
   return rounded >= minimum && rounded <= maximum ? rounded : null;
+}
+
+function validIsoDate(value: unknown): string | null {
+  const normalized = cleanString(value, 80);
+  return normalized && Number.isFinite(new Date(normalized).getTime()) ? normalized : null;
 }

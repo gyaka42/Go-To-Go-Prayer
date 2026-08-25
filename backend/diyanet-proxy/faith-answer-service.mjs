@@ -23,18 +23,24 @@ const MESSAGES = {
   en: {
     out_of_scope: "I can only help with the supported Islamic faith and worship topics in this first version.",
     qualified_referral: "This question needs a qualified local scholar or another appropriate professional who can assess your personal circumstances.",
+    emergency_referral: "If you or someone else may be in immediate danger, contact local emergency services now. I cannot assess an emergency in this assistant.",
+    safety_refusal: "I cannot help with violence, extremism, political mobilisation, or judging whether a person is outside Islam. Speak with an appropriate qualified local professional if support is needed.",
     insufficient_sources: "I do not yet have enough approved source material to answer this reliably.",
     deterministic_tool: "Please use the app's dedicated prayer-time, qibla, or calculation tool for this question."
   },
   nl: {
     out_of_scope: "Ik kan in deze eerste versie alleen helpen met de ondersteunde islamitische geloofs- en aanbiddingsonderwerpen.",
     qualified_referral: "Deze vraag moet worden beoordeeld door een gekwalificeerde lokale geleerde of een andere passende professional die jouw persoonlijke omstandigheden kan meewegen.",
+    emergency_referral: "Neem direct contact op met de lokale hulpdiensten als jij of iemand anders mogelijk in direct gevaar is. Ik kan een noodsituatie niet beoordelen in deze assistent.",
+    safety_refusal: "Ik kan niet helpen met geweld, extremisme, politieke mobilisatie of het beoordelen of iemand buiten de islam valt. Neem indien nodig contact op met een passende gekwalificeerde lokale professional.",
     insufficient_sources: "Ik heb nog onvoldoende goedgekeurd bronmateriaal om dit betrouwbaar te beantwoorden.",
     deterministic_tool: "Gebruik hiervoor de speciale gebedstijden-, qibla- of rekentool in de app."
   },
   tr: {
     out_of_scope: "Bu ilk sürümde yalnızca desteklenen İslami inanç ve ibadet konularında yardımcı olabilirim.",
     qualified_referral: "Bu soru, kişisel durumunuzu değerlendirebilecek yetkin bir yerel din görevlisi veya uygun başka bir uzman tarafından ele alınmalıdır.",
+    emergency_referral: "Siz veya başka biri acil tehlikede olabilecekse hemen yerel acil yardım hizmetlerine başvurun. Bu asistan üzerinden acil durum değerlendirmesi yapamam.",
+    safety_refusal: "Şiddet, aşırıcılık, siyasi yönlendirme veya bir kişinin İslam dışı olduğuna hükmetme konusunda yardımcı olamam. Gerekirse uygun ve yetkin bir yerel uzmana başvurun.",
     insufficient_sources: "Bunu güvenilir biçimde yanıtlamak için henüz yeterli onaylı kaynak içeriğim yok.",
     deterministic_tool: "Bu soru için uygulamadaki namaz vakti, kıble veya hesaplama aracını kullanın."
   }
@@ -58,7 +64,13 @@ export function createFaithAnswerService(options) {
       const classification = retrieval.classification;
 
       if (classification.kind === "qualified_referral") {
-        return localResult("qualified_referral", input.perspective, language, classification, "qualified_referral");
+        return localResult(
+          "qualified_referral",
+          input.perspective,
+          language,
+          classification,
+          referralMessageKey(classification.routeId)
+        );
       }
       if (classification.kind === "deterministic_tool") {
         return localResult("out_of_scope", input.perspective, language, classification, "deterministic_tool");
@@ -139,7 +151,10 @@ function normalizeGeneratedResult(value, input, retrieval, providerMeta) {
     );
   }
 
-  if ((outcome === "answer" && (!answer || sourceIds.length === 0)) || hasUnsupportedHanafiAnswer(input, sourceIds, passagesById)) {
+  if (
+    ((outcome === "answer" || outcome === "clarification_needed") && (!answer || sourceIds.length === 0)) ||
+    hasUnsupportedHanafiAnswer(input, sourceIds, passagesById)
+  ) {
     return localResult(
       "insufficient_sources",
       input.perspective,
@@ -196,6 +211,18 @@ function localResult(outcome, perspective, language, classification, messageKey)
       providerRequestId: null
     }
   };
+}
+
+function referralMessageKey(routeId) {
+  if (routeId === "self_harm_abuse_emergency") return "emergency_referral";
+  if (
+    routeId === "criminal_violence_extremism" ||
+    routeId === "political_mobilisation" ||
+    routeId === "takfir_or_judging_people"
+  ) {
+    return "safety_refusal";
+  }
+  return "qualified_referral";
 }
 
 function cleanText(value, maxLength) {

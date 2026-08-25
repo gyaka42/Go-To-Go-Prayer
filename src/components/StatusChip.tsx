@@ -80,6 +80,7 @@ export function StatusChip({ label, tone = "info", visible = true }: StatusChipP
 const styles = StyleSheet.create({
   wrap: {
     minHeight: 30,
+    maxWidth: "100%",
     borderRadius: 999,
     paddingHorizontal: 10,
     alignSelf: "flex-start",
@@ -88,9 +89,11 @@ const styles = StyleSheet.create({
   content: {
     flexDirection: "row",
     alignItems: "center",
+    maxWidth: "100%",
     gap: 6
   },
   label: {
+    flexShrink: 1,
     fontSize: 12,
     fontWeight: "700"
   }
