@@ -27,7 +27,13 @@ const QAZA_STATE_V1_KEY = "qaza:state:v1";
 const ONBOARDING_SEEN_KEY = "onboarding:seen:v1";
 const FAITH_INSTALLATION_ID_KEY = "faith:installation_id:v1";
 const FAITH_HISTORY_KEY = "faith:history:v1";
+const FAITH_DAILY_USAGE_KEY = "faith:daily_usage:v1";
 const MAX_FAITH_HISTORY_ITEMS = 20;
+
+export type FaithDailyUsage = {
+  dateKey: string;
+  count: number;
+};
 
 export type HomeDateMode = "gregorian" | "hijri";
 export type ZikrKey = "subhanallah" | "alhamdulillah" | "allahuakbar" | "la_ilaha_illallah" | "custom";
@@ -428,6 +434,38 @@ export async function removeFaithHistoryItem(id: string): Promise<void> {
 
 export async function clearFaithHistory(): Promise<void> {
   await AsyncStorage.removeItem(FAITH_HISTORY_KEY);
+}
+
+export async function getFaithDailyUsage(now = Date.now()): Promise<FaithDailyUsage> {
+  const dateKey = utcDateKey(now);
+  const raw = await AsyncStorage.getItem(FAITH_DAILY_USAGE_KEY);
+  let storedCount = 0;
+  try {
+    const parsed = raw ? JSON.parse(raw) as Partial<FaithDailyUsage> : null;
+    if (parsed?.dateKey === dateKey && Number.isFinite(parsed.count)) {
+      storedCount = Math.max(0, Math.min(100, Math.round(Number(parsed.count))));
+    }
+  } catch {
+    storedCount = 0;
+  }
+
+  const historyCount = (await getFaithHistory()).filter((item) => utcDateKey(item.createdAt) === dateKey).length;
+  const result = { dateKey, count: Math.max(storedCount, historyCount) };
+  if (!raw || result.count !== storedCount) {
+    await AsyncStorage.setItem(FAITH_DAILY_USAGE_KEY, JSON.stringify(result));
+  }
+  return result;
+}
+
+export async function recordFaithQuestionUsage(now = Date.now()): Promise<FaithDailyUsage> {
+  const current = await getFaithDailyUsage(now);
+  const next = { ...current, count: current.count + 1 };
+  await AsyncStorage.setItem(FAITH_DAILY_USAGE_KEY, JSON.stringify(next));
+  return next;
+}
+
+function utcDateKey(now: number): string {
+  return new Date(now).toISOString().slice(0, 10);
 }
 
 function sanitizeFaithHistoryItem(value: unknown): FaithHistoryItem | null {

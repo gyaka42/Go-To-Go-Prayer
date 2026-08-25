@@ -88,6 +88,21 @@ export function createFaithRateLimiter(options = {}) {
       return quotaSnapshot(context, timestamp, config, buckets);
     },
 
+    consumeAdditionalProviderQuota(context) {
+      assertContext(context);
+      const timestamp = now();
+      consumeAtomically(
+        [
+          constraint("global_minute", "global", config.globalMinuteLimit, MINUTE_MS),
+          constraint("global_daily", "global", config.globalDailyLimit, DAY_MS)
+        ],
+        timestamp,
+        buckets
+      );
+      maybeCleanup(timestamp, buckets, ++operationCount);
+      return quotaSnapshot(context, timestamp, config, buckets);
+    },
+
     snapshot(context) {
       assertContext(context);
       return quotaSnapshot(context, now(), config, buckets);

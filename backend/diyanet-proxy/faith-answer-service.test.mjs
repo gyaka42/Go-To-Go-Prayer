@@ -63,6 +63,7 @@ test("source-bound generation maps citations from server-owned metadata", async 
 
 test("invalid sourced citations fall back to labelled general AI without citations", async () => {
   let providerQuotaCalls = 0;
+  let additionalProviderQuotaCalls = 0;
   const groq = mockGroqSequence(
     {
       outcome: "answer",
@@ -85,13 +86,17 @@ test("invalid sourced citations fall back to labelled general AI without citatio
     question: "Can I combine Dhuhr and Asr while travelling?",
     language: "en",
     perspective: "hanafi"
-  }, { beforeProviderCall: () => { providerQuotaCalls += 1; } });
+  }, {
+    beforeProviderCall: () => { providerQuotaCalls += 1; },
+    beforeAdditionalProviderCall: () => { additionalProviderQuotaCalls += 1; }
+  });
 
   assert.equal(result.outcome, "answer");
   assert.equal(result.meta.answerMode, "general_ai");
   assert.deepEqual(result.citations, []);
   assert.equal(groq.calls.length, 2);
-  assert.equal(providerQuotaCalls, 2);
+  assert.equal(providerQuotaCalls, 1);
+  assert.equal(additionalProviderQuotaCalls, 1);
 });
 
 test("source clarification without evidence switches to general clarification", async () => {

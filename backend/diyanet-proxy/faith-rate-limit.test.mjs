@@ -64,6 +64,24 @@ test("burst limits count requests before provider usage", () => {
   );
 });
 
+test("an internal fallback does not consume a second installation question", () => {
+  const config = resolveFaithRateLimitConfig({
+    FAITH_RATE_LIMIT_SECRET: SECRET,
+    FAITH_INSTALL_DAILY_LIMIT: "2",
+    FAITH_GLOBAL_DAILY_LIMIT: "2",
+    FAITH_GLOBAL_MINUTE_LIMIT: "10"
+  });
+  const limiter = createFaithRateLimiter({ config, now: () => Date.UTC(2026, 7, 24, 12) });
+  const context = limiter.beginRequest({ installationId: "installation-1234567890", ipAddress: "203.0.113.10" });
+
+  assert.equal(limiter.consumeProviderQuota(context).remaining, 1);
+  assert.equal(limiter.consumeAdditionalProviderQuota(context).remaining, 1);
+  assert.throws(
+    () => limiter.consumeAdditionalProviderQuota(context),
+    (error) => error instanceof FaithRateLimitError && error.code === "faith_global_daily_limit"
+  );
+});
+
 test("client IP uses the last proxy-appended forwarding value", () => {
   assert.equal(
     extractClientIp({ headers: { "x-forwarded-for": "198.51.100.99, 203.0.113.42" }, socket: {} }),

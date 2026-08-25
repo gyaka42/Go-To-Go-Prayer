@@ -117,7 +117,11 @@ export function createFaithAnswerService(options) {
       const sourcedResult = normalizeGeneratedResult(completion.data, input, retrieval, completion.meta);
       if (sourcedResult.outcome !== "insufficient_sources") return sourcedResult;
 
-      await hooks.beforeProviderCall?.();
+      if (hooks.beforeAdditionalProviderCall) {
+        await hooks.beforeAdditionalProviderCall();
+      } else {
+        await hooks.beforeProviderCall?.();
+      }
       const fallbackCompletion = await groqClient.createStructuredCompletion({
         messages: buildGeneralMessages(input),
         schemaName: "faith_general_answer",

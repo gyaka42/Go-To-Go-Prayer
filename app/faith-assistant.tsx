@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,7 +21,9 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { askFaithAssistant, FaithAssistantError, getFaithHealth } from "@/services/faithAssistant";
 import {
   clearFaithHistory,
+  getFaithDailyUsage,
   getFaithHistory,
+  recordFaithQuestionUsage,
   removeFaithHistoryItem,
   saveFaithHistoryItem
 } from "@/services/storage";
@@ -42,17 +44,21 @@ export default function FaithAssistantScreen() {
   const [availability, setAvailability] = useState<Availability>("checking");
   const [health, setHealth] = useState<FaithHealth | null>(null);
   const [question, setQuestion] = useState("");
-  const [perspective, setPerspective] = useState<FaithPerspective>("general_sunni");
+  const [perspective, setPerspective] = useState<FaithPerspective>("hanafi");
   const [answer, setAnswer] = useState<FaithAnswer | null>(null);
   const [history, setHistory] = useState<FaithHistoryItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestError, setRequestError] = useState<FaithUiError | null>(null);
+  const [dailyUsageCount, setDailyUsageCount] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const composerYRef = useRef(0);
 
   const checkAvailability = useCallback(async () => {
     setAvailability("checking");
     try {
-      const status = await getFaithHealth();
+      const [status, dailyUsage] = await Promise.all([getFaithHealth(), getFaithDailyUsage()]);
       setHealth(status);
+      setDailyUsageCount(dailyUsage.count);
       setAvailability(status.ready ? "ready" : "unavailable");
     } catch {
       setHealth(null);
@@ -62,11 +68,12 @@ export default function FaithAssistantScreen() {
 
   useEffect(() => {
     let active = true;
-    void Promise.all([getFaithHistory(), getFaithHealth()])
-      .then(([savedHistory, status]) => {
+    void Promise.all([getFaithHistory(), getFaithHealth(), getFaithDailyUsage()])
+      .then(([savedHistory, status, dailyUsage]) => {
         if (!active) return;
         setHistory(savedHistory);
         setHealth(status);
+        setDailyUsageCount(dailyUsage.count);
         setAvailability(status.ready ? "ready" : "unavailable");
       })
       .catch(async () => {
@@ -79,29 +86,39 @@ export default function FaithAssistantScreen() {
     };
   }, []);
 
-  const latestRateLimit = answer?.rateLimit ?? history[0]?.answer.rateLimit ?? null;
+  const storedRateLimit = answer?.rateLimit ?? history[0]?.answer.rateLimit ?? null;
+  const latestRateLimit = storedRateLimit && new Date(storedRateLimit.resetAt).getTime() > Date.now()
+    ? storedRateLimit
+    : null;
+  const dailyLimit = health?.dailyLimit ?? latestRateLimit?.limit ?? 10;
+  const localRemaining = Math.max(0, dailyLimit - dailyUsageCount);
+  const effectiveRemaining = latestRateLimit
+    ? Math.min(localRemaining, latestRateLimit.remaining)
+    : localRemaining;
   const canSubmit =
-    availability === "ready" && question.trim().length >= 3 && !isSubmitting;
+    availability === "ready" && question.trim().length >= 3 && !isSubmitting && effectiveRemaining > 0;
 
   const quotaLabel = useMemo(() => {
-    if (latestRateLimit) {
+    if (health?.dailyLimit || latestRateLimit) {
       const remaining = t("faith.quota_remaining", {
-        remaining: latestRateLimit.remaining,
-        limit: latestRateLimit.limit
+        remaining: effectiveRemaining,
+        limit: dailyLimit
       });
       return `${remaining} • ${t("faith.quota_reset", {
-        time: formatFaithDateTime(latestRateLimit.resetAt, localeTag)
+        time: formatFaithDateTime(latestRateLimit?.resetAt || nextUtcResetIso(), localeTag)
       })}`;
     }
-    if (health?.dailyLimit) {
-      return t("faith.quota_daily", { limit: health.dailyLimit });
-    }
     return null;
-  }, [health?.dailyLimit, latestRateLimit, localeTag, t]);
+  }, [dailyLimit, effectiveRemaining, health?.dailyLimit, latestRateLimit, localeTag, t]);
 
   const submit = useCallback(async () => {
     const normalizedQuestion = question.trim();
-    if (normalizedQuestion.length < 3 || isSubmitting || availability !== "ready") return;
+    if (
+      normalizedQuestion.length < 3 ||
+      isSubmitting ||
+      availability !== "ready" ||
+      effectiveRemaining <= 0
+    ) return;
 
     setIsSubmitting(true);
     setRequestError(null);
@@ -122,7 +139,9 @@ export default function FaithAssistantScreen() {
       };
       setAnswer(response);
       setHistory((current) => [item, ...current.filter((row) => row.id !== item.id)].slice(0, 20));
+      const dailyUsage = await recordFaithQuestionUsage();
       await saveFaithHistoryItem(item);
+      setDailyUsageCount(dailyUsage.count);
     } catch (error) {
       const presentation = errorPresentation(error, localeTag);
       setRequestError(presentation);
@@ -132,7 +151,13 @@ export default function FaithAssistantScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [availability, isSubmitting, language, localeTag, perspective, question]);
+  }, [availability, effectiveRemaining, isSubmitting, language, localeTag, perspective, question]);
+
+  const revealComposer = useCallback(() => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: Math.max(0, composerYRef.current - 12), animated: true });
+    }, 180);
+  }, []);
 
   const openHistoryItem = useCallback((item: FaithHistoryItem) => {
     setQuestion(item.question);
@@ -172,8 +197,7 @@ export default function FaithAssistantScreen() {
       <AppBackground />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={8}
+        behavior={Platform.OS === "android" ? "height" : undefined}
       >
         <View style={styles.container}>
           <View style={styles.header}>
@@ -192,9 +216,11 @@ export default function FaithAssistantScreen() {
           </View>
 
           <ScrollView
+            ref={scrollViewRef}
             showsVerticalScrollIndicator={false}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
             contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 38 }]}
           >
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("faith.subtitle")}</Text>
@@ -232,7 +258,12 @@ export default function FaithAssistantScreen() {
               })}
             </View>
 
-            <View style={[styles.composer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View
+              style={[styles.composer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+              onLayout={(event) => {
+                composerYRef.current = event.nativeEvent.layout.y;
+              }}
+            >
               <View style={styles.composerHeader}>
                 <Text style={[styles.composerLabel, { color: colors.textPrimary }]}>{t("faith.question_label")}</Text>
                 <Text style={[styles.characterCount, { color: colors.textSecondary }]}>
@@ -249,6 +280,7 @@ export default function FaithAssistantScreen() {
                 editable={!isSubmitting}
                 textAlignVertical="top"
                 returnKeyType="default"
+                onFocus={revealComposer}
                 style={[
                   styles.input,
                   {
@@ -289,6 +321,7 @@ export default function FaithAssistantScreen() {
                 onUseFollowUp={useFollowUp}
                 onNewQuestion={() => {
                   setQuestion("");
+                  setPerspective("hanafi");
                   setAnswer(null);
                   setRequestError(null);
                 }}
@@ -595,6 +628,11 @@ function formatFaithDateTime(value: string, localeTag: string): string {
     hour: "2-digit",
     minute: "2-digit"
   }).format(parsed);
+}
+
+function nextUtcResetIso(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)).toISOString();
 }
 
 const styles = StyleSheet.create({

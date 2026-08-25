@@ -195,7 +195,8 @@ async function handleRequest(req, res) {
         ipAddress: extractClientIp(req)
       });
       const answer = await faithAnswerService.answer(validated.value, {
-        beforeProviderCall: () => faithRateLimiter.consumeProviderQuota(rateContext)
+        beforeProviderCall: () => faithRateLimiter.consumeProviderQuota(rateContext),
+        beforeAdditionalProviderCall: () => faithRateLimiter.consumeAdditionalProviderQuota(rateContext)
       });
       sendJson(res, 200, {
         ...answer,
