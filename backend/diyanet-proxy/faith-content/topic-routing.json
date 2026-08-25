@@ -80,12 +80,12 @@
     {
       "id": "fasting",
       "priority": 95,
-      "terms": ["fasting", "fast", "ramadan", "break the fast", "make up fast", "vasten", "ramadan", "verbreekt vasten", "inhaalvasten", "oruç", "ramazan", "orucu bozar", "oruç kazası"]
+      "terms": ["fasting", "fast", "ramadan", "break the fast", "make up fast", "laylat al qadr", "night of power", "vasten", "ramadan", "verbreekt vasten", "inhaalvasten", "laylat al qadr", "nacht van de beschikking", "oruç", "ramazan", "orucu bozar", "oruç kazası", "kadir gecesi"]
     },
     {
       "id": "zakat_basics",
       "priority": 95,
-      "terms": ["zakat", "nisab", "charity recipient", "who receives zakat", "zakaat", "nisab", "wie krijgt zakat", "zekat", "nisap", "zekat kime verilir"]
+      "terms": ["zakat", "nisab", "sadaqah", "sadaqa", "charity recipient", "who receives zakat", "zakaat", "nisab", "sadaqah", "sadaqa", "wie krijgt zakat", "zekat", "nisap", "sadaka", "zekat kime verilir"]
     },
     {
       "id": "hajj_umrah",
@@ -105,7 +105,7 @@
     {
       "id": "daily_ethics",
       "priority": 80,
-      "terms": ["lying", "backbiting", "neighbour rights", "people's rights", "manners", "good character", "islamic ethics", "honesty", "patience", "mercy", "liegen", "roddelen", "burenrecht", "rechten van anderen", "omgangsvormen", "goed karakter", "islamitische ethiek", "eerlijkheid", "geduld", "barmhartigheid", "yalan", "gıybet", "komşu hakkı", "kul hakkı", "ahlak", "güzel ahlak", "guzel ahlak", "doğruluk", "dogruluk", "sabır", "sabir", "merhamet"]
+      "terms": ["lying", "backbiting", "neighbour rights", "people's rights", "manners", "good character", "islamic ethics", "honesty", "patience", "mercy", "repent", "repentance", "tawbah", "halal food", "haram food", "eating etiquette", "before eating", "after eating", "mosque etiquette", "entering mosque", "liegen", "roddelen", "burenrecht", "rechten van anderen", "omgangsvormen", "goed karakter", "islamitische ethiek", "eerlijkheid", "geduld", "barmhartigheid", "berouw", "toon ik berouw", "halal eten", "haram eten", "eetregels", "voor het eten", "na het eten", "moskee etiquette", "regels in de moskee", "binnenkomst moskee", "yalan", "gıybet", "komşu hakkı", "kul hakkı", "ahlak", "güzel ahlak", "guzel ahlak", "doğruluk", "dogruluk", "sabır", "sabir", "merhamet", "tövbe", "tovbe", "helal yemek", "haram yemek", "yemek adabı", "yemek adabi", "yemekten önce", "yemekten once", "yemekten sonra", "cami adabı", "cami adabi", "camiye girince", "camide nasıl davranılır", "camide nasil davranilir"]
     },
     {
       "id": "madhhab_differences",
@@ -115,12 +115,12 @@
     {
       "id": "creed_basics",
       "priority": 70,
-      "terms": ["what is islam", "islam meaning", "five pillars", "pillars of islam", "how many pillars islam", "what is faith", "what is iman", "articles of faith", "pillars of faith", "belief in allah", "who is allah", "tawhid", "angels", "prophets", "final prophet", "revealed books", "afterlife", "last day", "divine decree", "qadar", "wat is islam", "betekenis islam", "vijf zuilen", "zuilen van islam", "hoeveel zuilen islam", "wat is geloof", "wat is iman", "geloofspunten", "geloof in allah", "wie is allah", "tawhid", "engelen", "profeten", "laatste profeet", "geopenbaarde boeken", "hiernamaals", "laatste dag", "voorbeschikking", "islam nedir", "islamın anlamı", "islamin anlami", "islamın şartları", "islamin sartlari", "islamın şartı kaç", "islamin sarti kac", "iman nedir", "imanın şartları", "imanin sartlari", "allaha iman", "allah kimdir", "tevhid", "melekler", "peygamberler", "son peygamber", "ilahi kitaplar", "ahiret", "kader", "kaza"]
+      "terms": ["what is islam", "islam meaning", "five pillars", "pillars of islam", "how many pillars islam", "what is faith", "what is iman", "articles of faith", "pillars of faith", "belief in allah", "who is allah", "tawhid", "shahada", "testimony of faith", "angels", "prophets", "final prophet", "revealed books", "afterlife", "last day", "divine decree", "qadar", "wat is islam", "betekenis islam", "vijf zuilen", "zuilen van islam", "hoeveel zuilen islam", "wat is geloof", "wat is iman", "geloofspunten", "geloof in allah", "wie is allah", "tawhid", "shahada", "geloofsgetuigenis", "engelen", "profeten", "laatste profeet", "geopenbaarde boeken", "hiernamaals", "laatste dag", "voorbeschikking", "islam nedir", "islamın anlamı", "islamin anlami", "islamın şartları", "islamin sartlari", "islamın şartı kaç", "islamin sarti kac", "iman nedir", "imanın şartları", "imanin sartlari", "allaha iman", "allah kimdir", "tevhid", "şehadet", "sehadet", "kelime i şehadet", "kelime i sehadet", "melekler", "peygamberler", "son peygamber", "ilahi kitaplar", "ahiret", "kader", "kaza"]
     },
     {
       "id": "prayer",
       "priority": 72,
-      "terms": ["prayer", "pray", "prayed", "salah", "salat", "fajr", "dhuhr", "asr", "maghrib", "isha", "friday prayer", "congregation", "missed prayer", "forgot surah", "forgot which surah", "prayer mistake", "doubt rakats", "three or four rakats", "unsure how many rakats", "prayer intention", "intention aloud", "distracted while praying", "mind wandered during prayer", "gebed", "gebeden", "bidden", "bid", "fajr", "dhuhr", "asr", "maghrib", "isha", "vrijdaggebed", "gemeenschappelijk gebed", "gemist gebed", "soera vergeten", "vergeten welke soera", "fout tijdens gebed", "twijfel rakaat", "drie of vier rakaat", "hoeveel rakaat", "intentie voor gebed", "intentie hardop", "afgeleid tijdens bidden", "afgeleid tijdens gebed", "namaz", "namazım", "namaz kılmak", "namaz kilmak", "sabah", "öğle", "ikindi", "akşam", "yatsı", "cuma namazı", "cemaat", "kaza namazı", "sureyi unuttum", "okuyacağım sureyi unuttum", "okuyacagim sureyi unuttum", "namazda hata", "rekatta şüphe", "rekatta suphe", "üç mü dört mü", "uc mu dort mu", "kaç rekat", "kac rekat", "namaza niyet", "niyeti sesli", "namazda dikkatim dağıldı", "namazda dikkatim dagildi", "dünyevi şeyler aklıma geldi", "dunyevi seyler aklima geldi"]
+      "terms": ["prayer", "pray", "prayed", "salah", "salat", "fajr", "dhuhr", "asr", "maghrib", "isha", "friday prayer", "congregation", "missed prayer", "forgot surah", "forgot which surah", "prayer mistake", "what invalidates prayer", "what breaks prayer", "doubt rakats", "three or four rakats", "unsure how many rakats", "prayer intention", "intention aloud", "distracted while praying", "mind wandered during prayer", "adhan", "iqamah", "eid prayer", "funeral prayer", "janazah", "pray sitting", "prayer when ill", "cannot stand prayer", "gebed", "gebeden", "bidden", "bid", "fajr", "dhuhr", "asr", "maghrib", "isha", "vrijdaggebed", "gemeenschappelijk gebed", "gemist gebed", "soera vergeten", "vergeten welke soera", "fout tijdens gebed", "wat maakt gebed ongeldig", "wat verbreekt gebed", "twijfel rakaat", "drie of vier rakaat", "hoeveel rakaat", "intentie voor gebed", "intentie hardop", "afgeleid tijdens bidden", "afgeleid tijdens gebed", "adhan", "iqamah", "oproep tot gebed", "eid gebed", "dodengebed", "janazah", "zittend bidden", "bidden bij ziekte", "kan niet staan gebed", "namaz", "namazım", "namaz kılmak", "namaz kilmak", "sabah", "öğle", "ikindi", "akşam", "yatsı", "cuma namazı", "cemaat", "kaza namazı", "sureyi unuttum", "okuyacağım sureyi unuttum", "okuyacagim sureyi unuttum", "namazda hata", "namazı ne bozar", "namazi ne bozar", "rekatta şüphe", "rekatta suphe", "üç mü dört mü", "uc mu dort mu", "kaç rekat", "kac rekat", "namaza niyet", "niyeti sesli", "namazda dikkatim dağıldı", "namazda dikkatim dagildi", "dünyevi şeyler aklıma geldi", "dunyevi seyler aklima geldi", "ezan", "kamet", "bayram namazı", "bayram namazi", "cenaze namazı", "cenaze namazi", "oturarak namaz", "hasta namazı", "hasta namazi", "ayakta duramıyorum namaz"]
     }
   ]
 }

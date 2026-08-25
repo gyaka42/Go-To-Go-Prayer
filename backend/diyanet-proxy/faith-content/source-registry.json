@@ -101,6 +101,25 @@
       "citationRequirements": ["publication_title", "page_or_section", "source_url", "perspective_label"]
     },
     {
+      "id": "diyanet-religious-education-handbook",
+      "name": "Diyanet Religious Education Worship Handbook",
+      "owner": "Presidency of Religious Affairs of the Republic of Turkiye",
+      "authorityType": "official_religious_education_publication",
+      "url": "https://egitimhizmetleri.diyanet.gov.tr/",
+      "languages": ["tr"],
+      "perspectives": ["general_sunni", "hanafi_when_explicit"],
+      "topics": ["ritual_purity", "prayer", "fasting", "zakat_basics", "hajj_umrah", "dua_dhikr", "daily_ethics"],
+      "reviewState": "approved",
+      "runtimeEnabled": true,
+      "allowedUses": ["manual_curation", "citation", "short_excerpt", "link_to_original"],
+      "forbiddenUses": ["live_bulk_scrape", "full_text_corpus_copy", "full_text_model_training", "infer_hanafi_label_without_section_review"],
+      "rights": {
+        "status": "all_rights_reserved",
+        "note": "Use only manually reviewed summaries with page locators and links. Do not republish or ingest the complete handbook."
+      },
+      "citationRequirements": ["publication_title", "page_or_section", "source_url", "hanafi_wording_when_tagged_hanafi"]
+    },
+    {
       "id": "alquran-cloud-existing-fallback",
       "name": "Al Quran Cloud editions used by the existing Quran fallback",
       "owner": "Al Quran Cloud and named translation edition owners",

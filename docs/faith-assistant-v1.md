@@ -96,14 +96,17 @@ The authoritative runtime registry is `backend/diyanet-proxy/faith-content/sourc
 - Diyanet's High Board of Religious Affairs is approved for manually curated summaries, short quotations, and links. Live bulk scraping is not approved.
 - Diyanet's Hadislerle Islam is approved for manually curated hadith context, short quotations, and links. The model may not grade hadith itself.
 - Diyanet's official *Islam Ilmihali* and *Namaz Ilmihali* handbooks are approved for manually reviewed, page-located summaries and links. Their full text is not copied into the runtime corpus.
+- Diyanet's Religious Education worship handbook is approved under the same manual-summary and page-location restrictions.
 - Al Quran Cloud remains a technical fallback in the existing Quran feature. It is not enabled as Faith Assistant evidence until the backend exposes the exact edition used.
 - Egypt's Dar al-Ifta and classical Hanafi works remain candidates. They require editorial and rights review before runtime use.
 
 ## Current curated coverage
 
-The runtime corpus contains 51 manually summarised Diyanet passages. Alongside the initial coverage for travel prayer, purification, fasting, zakat, hajj, dua, ethics, congregation, and Friday prayer, the practical prayer pack covers distraction and focus, forgotten recitation, prostration of forgetfulness, uncertainty about rakaat, recitation errors, surah order, reciting behind an imam, loud or silent recitation mistakes, the first sitting, Witr qunut, early salam, intention, laughter, missed prayer, emergencies during prayer, and loss of wudu in congregation.
+The runtime corpus contains 65 manually summarised Diyanet passages. Alongside the initial coverage for travel prayer, purification, fasting, zakat, hajj, dua, ethics, congregation, and Friday prayer, the practical prayer pack covers distraction and focus, forgotten recitation, prostration of forgetfulness, uncertainty about rakaat, recitation errors, surah order, reciting behind an imam, loud or silent recitation mistakes, the first sitting, Witr qunut, early salam, intention, laughter, missed prayer, emergencies during prayer, and loss of wudu in congregation.
 
 The Islamic Essentials pack adds broad introductory coverage for the five pillars of Islam, the six articles of faith, Allah and tawhid, angels, revealed books and the Quran, prophets, the afterlife and divine decree, the five daily prayers and their rakaat, basic two-, three-, and four-rakaat prayer methods, prayer prerequisites, wudu and ghusl, fasting obligations and intention, Hajj obligations and pillars, and good character.
+
+The expanded daily-practice pack adds the shahada, Quran surah structure, adhan and iqamah, prayer invalidators, Eid prayer, funeral prayer, prayer during illness, repentance, eating etiquette, halal-food basics, mosque etiquette, the purpose of fasting, Laylat al-Qadr, and sadaqah. Specific prayer forms exclude the generic prayer-method passage so a near-match cannot replace the dedicated evidence.
 
 Allowed V1 subjects that are not yet represented by a sufficiently relevant passage return `insufficient_sources`. They do not fall back to the model's memory. The operational release gate is recorded in `docs/faith-assistant-release-checklist.md`.
 
@@ -126,7 +129,7 @@ The assistant must first distinguish travel, illness, work pressure, and other c
 
 ## Evaluation gate
 
-The versioned evaluation corpus lives in `backend/diyanet-proxy/faith-evals/v1-cases.json`. V1 currently contains 108 balanced cases: 36 each in English, Dutch, and Turkish. It covers Islamic Essentials, approved retrieval, compound practical-prayer questions, deterministic app tools, personal-fatwa boundaries, divorce, emergencies, takfir, private disputes, fabricated hadith/tafsir requests, unrelated questions, and prompt injection.
+The versioned evaluation corpus lives in `backend/diyanet-proxy/faith-evals/v1-cases.json`. V1 currently contains 153 balanced cases: 51 each in English, Dutch, and Turkish. It covers Islamic Essentials and daily practice, approved retrieval, compound practical-prayer questions, deterministic app tools, personal-fatwa boundaries, divorce, emergencies, takfir, private disputes, fabricated hadith/tafsir requests, unrelated questions, and prompt injection.
 
 The backend test suite must prove that:
 

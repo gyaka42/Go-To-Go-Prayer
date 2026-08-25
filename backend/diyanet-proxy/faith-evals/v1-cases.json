@@ -102,6 +102,66 @@
     { "id": "nl-essentials-character", "language": "nl", "category": "retrieval", "question": "Wat is goed karakter in de islam?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-good-character-basics"] } },
     { "id": "tr-essentials-character", "language": "tr", "category": "retrieval", "question": "Güzel ahlak nedir?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-good-character-basics"] } },
 
+    { "id": "en-expanded-shahada", "language": "en", "category": "retrieval", "question": "What is the shahada?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "creed_basics", "anyPassageIds": ["diyanet-shahada-basics"] } },
+    { "id": "nl-expanded-shahada", "language": "nl", "category": "retrieval", "question": "Wat betekent de shahada?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "creed_basics", "anyPassageIds": ["diyanet-shahada-basics"] } },
+    { "id": "tr-expanded-shahada", "language": "tr", "category": "retrieval", "question": "Şehadet nedir?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "creed_basics", "anyPassageIds": ["diyanet-shahada-basics"] } },
+
+    { "id": "en-expanded-quran-surahs", "language": "en", "category": "retrieval", "question": "How many surahs are in the Quran?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "quran_lookup", "anyPassageIds": ["diyanet-quran-surah-structure"] } },
+    { "id": "nl-expanded-quran-surahs", "language": "nl", "category": "retrieval", "question": "Hoeveel soeras heeft de Koran?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "quran_lookup", "anyPassageIds": ["diyanet-quran-surah-structure"] } },
+    { "id": "tr-expanded-quran-surahs", "language": "tr", "category": "retrieval", "question": "Kuranda kaç sure vardır?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "quran_lookup", "anyPassageIds": ["diyanet-quran-surah-structure"] } },
+
+    { "id": "en-expanded-prayer-names", "language": "en", "category": "retrieval", "question": "What are the names of the daily prayers?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-five-daily-prayers-and-rakats"] } },
+    { "id": "nl-expanded-prayer-names", "language": "nl", "category": "retrieval", "question": "Wat zijn de vijf dagelijkse gebeden?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-five-daily-prayers-and-rakats"] } },
+    { "id": "tr-expanded-prayer-names", "language": "tr", "category": "retrieval", "question": "Beş vakit namaz hangileri?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-five-daily-prayers-and-rakats"] } },
+
+    { "id": "en-expanded-prayer-invalidators", "language": "en", "category": "retrieval", "question": "What invalidates prayer?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-prayer-invalidators-basic"] } },
+    { "id": "nl-expanded-prayer-invalidators", "language": "nl", "category": "retrieval", "question": "Wat maakt het gebed ongeldig?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-prayer-invalidators-basic"] } },
+    { "id": "tr-expanded-prayer-invalidators", "language": "tr", "category": "retrieval", "question": "Namazı ne bozar?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-prayer-invalidators-basic"] } },
+
+    { "id": "en-expanded-adhan", "language": "en", "category": "retrieval", "question": "What is adhan?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-adhan-iqamah-basics"] } },
+    { "id": "nl-expanded-adhan", "language": "nl", "category": "retrieval", "question": "Wat is de adhan?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-adhan-iqamah-basics"] } },
+    { "id": "tr-expanded-adhan", "language": "tr", "category": "retrieval", "question": "Ezan nedir?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-adhan-iqamah-basics"] } },
+
+    { "id": "en-expanded-repentance", "language": "en", "category": "retrieval", "question": "How do I repent to Allah?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-repentance-basics"] } },
+    { "id": "nl-expanded-repentance", "language": "nl", "category": "retrieval", "question": "Hoe toon ik berouw aan Allah?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-repentance-basics"] } },
+    { "id": "tr-expanded-repentance", "language": "tr", "category": "retrieval", "question": "Allaha nasıl tövbe ederim?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-repentance-basics"] } },
+
+    { "id": "en-expanded-eating", "language": "en", "category": "retrieval", "question": "What should I say before eating?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-eating-etiquette"] } },
+    { "id": "nl-expanded-eating", "language": "nl", "category": "retrieval", "question": "Wat zeg ik voor het eten?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-eating-etiquette"] } },
+    { "id": "tr-expanded-eating", "language": "tr", "category": "retrieval", "question": "Yemekten önce ne denir?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-eating-etiquette"] } },
+
+    { "id": "en-expanded-halal-food", "language": "en", "category": "retrieval", "question": "What is halal food?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-halal-food-basics"] } },
+    { "id": "nl-expanded-halal-food", "language": "nl", "category": "retrieval", "question": "Wat is halal eten?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-halal-food-basics"] } },
+    { "id": "tr-expanded-halal-food", "language": "tr", "category": "retrieval", "question": "Helal yemek nedir?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-halal-food-basics"] } },
+
+    { "id": "en-expanded-eid-prayer", "language": "en", "category": "retrieval", "question": "How do I pray Eid prayer?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-eid-prayer-method"] } },
+    { "id": "nl-expanded-eid-prayer", "language": "nl", "category": "retrieval", "question": "Hoe bid ik het Eid-gebed?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-eid-prayer-method"] } },
+    { "id": "tr-expanded-eid-prayer", "language": "tr", "category": "retrieval", "question": "Bayram namazı nasıl kılınır?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-eid-prayer-method"] } },
+
+    { "id": "en-expanded-funeral-prayer", "language": "en", "category": "retrieval", "question": "How is funeral prayer performed?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-funeral-prayer-method"] } },
+    { "id": "nl-expanded-funeral-prayer", "language": "nl", "category": "retrieval", "question": "Hoe werkt het dodengebed?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-funeral-prayer-method"] } },
+    { "id": "tr-expanded-funeral-prayer", "language": "tr", "category": "retrieval", "question": "Cenaze namazı nasıl kılınır?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-funeral-prayer-method"] } },
+
+    { "id": "en-expanded-ill-prayer", "language": "en", "category": "retrieval", "question": "Can I pray sitting down when ill?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-prayer-during-illness"] } },
+    { "id": "nl-expanded-ill-prayer", "language": "nl", "category": "retrieval", "question": "Mag ik zittend bidden als ik ziek ben?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-prayer-during-illness"] } },
+    { "id": "tr-expanded-ill-prayer", "language": "tr", "category": "retrieval", "question": "Hastayken oturarak namaz kılabilir miyim?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "prayer", "anyPassageIds": ["diyanet-prayer-during-illness"] } },
+
+    { "id": "en-expanded-sadaqah", "language": "en", "category": "retrieval", "question": "What is sadaqah?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "zakat_basics", "anyPassageIds": ["diyanet-sadaqah-basics"] } },
+    { "id": "nl-expanded-sadaqah", "language": "nl", "category": "retrieval", "question": "Wat is sadaqah?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "zakat_basics", "anyPassageIds": ["diyanet-sadaqah-basics"] } },
+    { "id": "tr-expanded-sadaqah", "language": "tr", "category": "retrieval", "question": "Sadaka nedir?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "zakat_basics", "anyPassageIds": ["diyanet-sadaqah-basics"] } },
+
+    { "id": "en-expanded-fasting-purpose", "language": "en", "category": "retrieval", "question": "Why do Muslims fast?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "fasting", "anyPassageIds": ["diyanet-fasting-purpose"] } },
+    { "id": "nl-expanded-fasting-purpose", "language": "nl", "category": "retrieval", "question": "Waarom vasten moslims?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "fasting", "anyPassageIds": ["diyanet-fasting-purpose"] } },
+    { "id": "tr-expanded-fasting-purpose", "language": "tr", "category": "retrieval", "question": "Müslümanlar neden oruç tutar?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "fasting", "anyPassageIds": ["diyanet-fasting-purpose"] } },
+
+    { "id": "en-expanded-laylat-qadr", "language": "en", "category": "retrieval", "question": "What is Laylat al-Qadr?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "fasting", "anyPassageIds": ["diyanet-laylat-al-qadr-basics"] } },
+    { "id": "nl-expanded-laylat-qadr", "language": "nl", "category": "retrieval", "question": "Wat is Laylat al-Qadr?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "fasting", "anyPassageIds": ["diyanet-laylat-al-qadr-basics"] } },
+    { "id": "tr-expanded-laylat-qadr", "language": "tr", "category": "retrieval", "question": "Kadir gecesi nedir?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "fasting", "anyPassageIds": ["diyanet-laylat-al-qadr-basics"] } },
+
+    { "id": "en-expanded-mosque-etiquette", "language": "en", "category": "retrieval", "question": "What is mosque etiquette?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-mosque-etiquette"] } },
+    { "id": "nl-expanded-mosque-etiquette", "language": "nl", "category": "retrieval", "question": "Wat zijn de regels in de moskee?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-mosque-etiquette"] } },
+    { "id": "tr-expanded-mosque-etiquette", "language": "tr", "category": "retrieval", "question": "Camide nasıl davranılır?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-mosque-etiquette"] } },
+
     { "id": "en-tool-prayer-time", "language": "en", "category": "deterministic", "question": "What time is Fajr now?", "perspective": "general_sunni", "expected": { "kind": "deterministic_tool", "routeId": "current_prayer_times" } },
     { "id": "nl-tool-prayer-time", "language": "nl", "category": "deterministic", "question": "Hoe laat is Fajr vandaag?", "perspective": "general_sunni", "expected": { "kind": "deterministic_tool", "routeId": "current_prayer_times" } },
     { "id": "tr-tool-prayer-time", "language": "tr", "category": "deterministic", "question": "İmsak saat kaçta?", "perspective": "general_sunni", "expected": { "kind": "deterministic_tool", "routeId": "current_prayer_times" } },

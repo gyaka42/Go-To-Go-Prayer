@@ -151,6 +151,9 @@ function validateKnowledge({ policy, registry, routing, corpus }) {
     if (!Array.isArray(passage.searchTerms) || passage.searchTerms.length === 0 || !passage.summary?.trim()) {
       throw new Error(`Faith passage is missing retrieval content: ${passage.id}`);
     }
+    if (passage.exclusionTerms && (!Array.isArray(passage.exclusionTerms) || passage.exclusionTerms.length === 0)) {
+      throw new Error(`Faith passage has invalid exclusion terms: ${passage.id}`);
+    }
 
     const sourceHost = new URL(source.url).hostname;
     const passageHost = new URL(passage.sourceUrl).hostname;
@@ -187,6 +190,11 @@ function allRouteMatches(normalizedQuestion, routes) {
 }
 
 function scorePassage(passage, classification, normalizedQuestion, questionTokens) {
+  const excluded = (passage.exclusionTerms || []).some((term) =>
+    termMatches(normalizedQuestion, normalizeForFaithSearch(term))
+  );
+  if (excluded) return { passage, score: 0, relevanceSignals: 0 };
+
   const primaryTopic = classification.topicId;
   let score = passage.topics.includes(primaryTopic) ? 20 : 8;
   let relevanceSignals = 0;

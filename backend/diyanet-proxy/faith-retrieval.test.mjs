@@ -7,7 +7,7 @@ test("faith knowledge loads only approved sources and reviewed passages", () => 
   const retriever = createFaithRetriever({ knowledge });
 
   assert.equal(retriever.status().ready, true);
-  assert.equal(retriever.status().passageCount, 51);
+  assert.equal(retriever.status().passageCount, 65);
   assert.ok(knowledge.corpus.passages.every((passage) => passage.summary && !passage.excerpt));
 });
 
@@ -80,6 +80,21 @@ test("common Islamic essentials retrieve evidence in both answer perspectives", 
         `${perspective}: ${question}`
       );
     }
+  }
+});
+
+test("specific prayer forms do not fall back to the generic prayer method", () => {
+  const retriever = createFaithRetriever();
+  const rows = [
+    ["Bayram namazı nasıl kılınır?", "diyanet-eid-prayer-method"],
+    ["Cenaze namazı nasıl kılınır?", "diyanet-funeral-prayer-method"]
+  ];
+
+  for (const [question, expectedPassageId] of rows) {
+    const result = retriever.retrieve({ question, perspective: "general_sunni" });
+    const passageIds = result.passages.map((passage) => passage.id);
+    assert.ok(passageIds.includes(expectedPassageId), question);
+    assert.ok(!passageIds.includes("diyanet-basic-prayer-structure"), question);
   }
 });
 
