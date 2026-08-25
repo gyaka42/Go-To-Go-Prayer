@@ -102,9 +102,11 @@ The authoritative runtime registry is `backend/diyanet-proxy/faith-content/sourc
 
 ## Current curated coverage
 
-The runtime corpus contains 65 manually summarised Diyanet passages. Alongside the initial coverage for travel prayer, purification, fasting, zakat, hajj, dua, ethics, congregation, and Friday prayer, the practical prayer pack covers distraction and focus, forgotten recitation, prostration of forgetfulness, uncertainty about rakaat, recitation errors, surah order, reciting behind an imam, loud or silent recitation mistakes, the first sitting, Witr qunut, early salam, intention, laughter, missed prayer, emergencies during prayer, and loss of wudu in congregation.
+The runtime corpus contains 69 manually summarised Diyanet passages. Alongside the initial coverage for travel prayer, purification, fasting, zakat, hajj, dua, ethics, congregation, and Friday prayer, the practical prayer pack covers distraction and focus, forgotten recitation, prostration of forgetfulness, uncertainty about rakaat, recitation errors, surah order, reciting behind an imam, loud or silent recitation mistakes, the first sitting, Witr qunut, early salam, intention, laughter, missed prayer, emergencies during prayer, and loss of wudu in congregation.
 
 The Islamic Essentials pack adds broad introductory coverage for the five pillars of Islam, the six articles of faith, Allah and tawhid, angels, revealed books and the Quran, prophets, the afterlife and divine decree, the five daily prayers and their rakaat, basic two-, three-, and four-rakaat prayer methods, prayer prerequisites, wudu and ghusl, fasting obligations and intention, Hajj obligations and pillars, and good character.
+
+The general Islamic knowledge pack adds reviewed answers for the Quran's verse count and its counting conventions, careful recitation and tajwid, the five nights commonly called kandils in Turkish Muslim culture, and the traditional Turkish 32-fard teaching framework. Questions may enter this broad route through Islamic domain terms or a strong direct match with an approved passage; unrelated questions remain outside scope. Weak topical overlap alone is not accepted as evidence.
 
 The expanded daily-practice pack adds the shahada, Quran surah structure, adhan and iqamah, prayer invalidators, Eid prayer, funeral prayer, prayer during illness, repentance, eating etiquette, halal-food basics, mosque etiquette, the purpose of fasting, Laylat al-Qadr, and sadaqah. Specific prayer forms exclude the generic prayer-method passage so a near-match cannot replace the dedicated evidence.
 
@@ -129,7 +131,7 @@ The assistant must first distinguish travel, illness, work pressure, and other c
 
 ## Evaluation gate
 
-The versioned evaluation corpus lives in `backend/diyanet-proxy/faith-evals/v1-cases.json`. V1 currently contains 153 balanced cases: 51 each in English, Dutch, and Turkish. It covers Islamic Essentials and daily practice, approved retrieval, compound practical-prayer questions, deterministic app tools, personal-fatwa boundaries, divorce, emergencies, takfir, private disputes, fabricated hadith/tafsir requests, unrelated questions, and prompt injection.
+The versioned evaluation corpus lives in `backend/diyanet-proxy/faith-evals/v1-cases.json`. V1 currently contains 165 balanced cases: 55 each in English, Dutch, and Turkish. It covers Islamic Essentials, general Islamic knowledge and daily practice, approved retrieval, compound practical-prayer questions, deterministic app tools, personal-fatwa boundaries, divorce, emergencies, takfir, private disputes, fabricated hadith/tafsir requests, unrelated questions, and prompt injection.
 
 The backend test suite must prove that:
 

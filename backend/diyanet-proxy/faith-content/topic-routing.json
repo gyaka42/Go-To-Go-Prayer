@@ -66,6 +66,14 @@
       "terms": ["calculate my zakat", "exact zakat amount", "bereken mijn zakat", "exact zakatbedrag", "zekatımı hesapla", "tam zekat miktarı"]
     }
   ],
+  "islamicDomainTerms": [
+    "islam", "muslim", "allah", "quran", "koran", "kuran", "ayah", "ayet", "surah", "soera", "sure", "hadith", "hadis",
+    "prophet", "profeet", "peygamber", "sunnah", "sunna", "sünnet", "sunnet", "fard", "farz", "wajib", "vacip", "halal", "helal", "haram",
+    "makruh", "mekruh", "mubah", "mübah", "ibadah", "ibadet", "dua", "dhikr", "zikr", "zikir", "madhhab", "mezhep", "hanafi", "hanefi",
+    "mosque", "moskee", "cami", "imam", "ummah", "ümmet", "ummet", "akhirah", "hiernamaals", "ahiret", "jannah", "paradijs", "cennet",
+    "jahannam", "hel", "cehennem", "tajwid", "tajweed", "tecvid", "kandil", "ramadan", "ramazan", "hajj", "hadj", "hac", "umrah", "umre",
+    "zakat", "zekat", "sadaqah", "sadaka", "prayer", "gebed", "namaz", "fasting", "vasten", "oruç", "oruc"
+  ],
   "topicRoutes": [
     {
       "id": "travel_prayer",

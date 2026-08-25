@@ -83,6 +83,12 @@
       "requiresContext": false
     },
     {
+      "id": "islamic_general",
+      "label": "General Islamic knowledge and terminology",
+      "risk": "standard",
+      "requiresContext": false
+    },
+    {
       "id": "madhhab_differences",
       "label": "Source-backed madhhab differences",
       "risk": "context_sensitive",

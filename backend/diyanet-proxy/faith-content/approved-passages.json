@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "corpusId": "faith-assistant-v1-curated-passages",
-  "lastReviewed": "2026-08-24",
+  "lastReviewed": "2026-08-25",
   "contentPolicy": "Manually written summaries of short, exact sections from runtime-approved sources. No full-page copies.",
   "passages": [
     {
@@ -914,6 +914,62 @@
       "perspectives": ["general_sunni", "hanafi"],
       "summary": "The Diyanet worship handbook defines sadaqah as voluntary or religiously required material help given to people in need to seek Allah's pleasure, including money or goods given for that purpose. Zakat is a specific obligatory form with its own eligibility, threshold, amount, and recipients; not every sadaqah payment automatically counts as zakat. Binding zakat calculations remain outside the assistant and belong in the app's calculator or with a qualified adviser.",
       "searchTerms": ["what is sadaqah", "what is sadaqa", "difference sadaqah zakat", "is charity sadaqah", "wat is sadaqah", "wat is sadaqa", "verschil sadaqah zakat", "is liefdadigheid sadaqah", "sadaka nedir", "sadaka zekat farkı", "sadaka zekat farki", "gönüllü sadaka", "gonullu sadaka"]
+    },
+    {
+      "id": "diyanet-quran-ayah-count",
+      "sourceId": "diyanet-high-board",
+      "sourceTitle": "Kur'an-i Kerim'de kac ayet bulunmaktadir?",
+      "sourceUrl": "https://kurul.diyanet.gov.tr/tr/fetva/kuran-i-kerimde-kac-ayet-bulunmaktadir/0193c42d-4276-7296-565b-3218a31e3b38",
+      "sourceLanguage": "tr",
+      "sourceDate": "2023-03-08",
+      "reviewedAt": "2026-08-25",
+      "locator": "Answer, paragraphs 1-3",
+      "topics": ["quran_lookup", "islamic_general"],
+      "perspectives": ["general_sunni", "hanafi"],
+      "summary": "The High Board explains that the commonly numbered Mushaf contains 6,236 verses. Historical totals such as 6,204, 6,214, 6,219 and 6,225 reflect differences about where a small number of verses begin or end and whether items such as an opening basmala are counted separately; they do not reflect any difference in the Quranic text. The widespread number 6,666 is not the established Mushaf count.",
+      "searchTerms": ["how many verses quran", "how many ayahs quran", "quran verse count", "quran 6236 verses", "does quran have 6666 verses", "hoeveel verzen koran", "hoeveel ayat koran", "hoeveel ayat staan er in de koran", "hoeveel ayaat koran", "aantal verzen koran", "koran 6236 verzen", "heeft de koran 6666 verzen", "kuranda kaç ayet var", "kuranda kac ayet var", "kuran kaç ayet", "kuran kac ayet", "kuran 6236 ayet", "kuranda 6666 ayet mi"]
+    },
+    {
+      "id": "diyanet-tajwid-recitation-basics",
+      "sourceId": "diyanet-high-board",
+      "sourceTitle": "Kur'an-i Kerim'i yavas veya hizli okumanin olcusu ne olmalidir?",
+      "sourceUrl": "https://kurul.diyanet.gov.tr/tr/fetva/kuran-i-kerimi-yavas-veya-hizli-okumanin-olcusu-ne-olmalidir/11d0ef65-3745-45b4-089c-08dd1c135351",
+      "sourceLanguage": "tr",
+      "sourceDate": "2023-03-08",
+      "reviewedAt": "2026-08-25",
+      "locator": "Answer, paragraphs 1-6",
+      "topics": ["quran_lookup", "islamic_general", "daily_ethics"],
+      "perspectives": ["general_sunni", "hanafi"],
+      "summary": "The High Board describes Quran recitation as worship and explains tartil as reading thoughtfully and at a measured pace while attending to the articulation points of letters and tajwid rules. It recognises slow, medium and fast valid recitation styles, but each retains the relevant tajwid rules. Reading so fast that letters leave their proper articulation, lose their qualities, or syllables become mixed is described as impermissible. The page therefore supports careful, correct recitation rather than treating speed as a reason to abandon tajwid.",
+      "searchTerms": ["is tajwid obligatory", "is tajweed fard", "must i read quran with tajwid", "quran recitation rules", "reading quran too fast", "is tajwid verplicht", "moet ik de koran met tajwid lezen", "regels koran reciteren", "koran te snel lezen", "tecvidli okumak farz mı", "tecvidli okumak farz mi", "tecvid farz mı", "tecvid farz mi", "kuran tecvidli okunmalı mı", "kuran tecvidli okunmali mi", "kuranı hızlı okumak", "kurani hizli okumak"]
+    },
+    {
+      "id": "diyanet-blessed-nights-kandils",
+      "sourceId": "diyanet-high-board",
+      "sourceTitle": "Mubarek gun ve geceler ile kandillerin Islam'daki yeri nedir?",
+      "sourceUrl": "https://kurul.diyanet.gov.tr/tr/kurul/karar/mubarek-gun-ve-geceler-ile-kandillerin-islamdaki-yeri-nedir/a43ec845-60e3-439a-08f5-08dd1c135351",
+      "sourceLanguage": "tr",
+      "sourceDate": "2024-02-07",
+      "reviewedAt": "2026-08-25",
+      "locator": "Decision no. 5, answer paragraphs 15-34",
+      "topics": ["islamic_general", "dua_dhikr", "daily_ethics"],
+      "perspectives": ["general_sunni", "hanafi"],
+      "summary": "The High Board lists five nights commonly called kandils in Turkish Muslim culture: Laylat al-Qadr (Kadir), Mawlid (Mevlid), Regaib, the Night Journey and Ascension (Mirac), and Barat. It distinguishes the scripturally established importance of Laylat al-Qadr from later religious-cultural observances and explains that no unique obligatory worship form is prescribed for these nights. Voluntary prayer, Quran recitation, supplication, repentance, charity and maintaining family ties can be practiced without presenting a cultural observance as a religious obligation.",
+      "searchTerms": ["which blessed nights islam", "what are kandil nights", "how many kandil nights", "laylat al qadr mawlid regaib miraj barat", "welke islamitische nachten", "wat zijn kandilnachten", "hoeveel kandilnachten", "kadir mevlid regaib mirac berat", "hangi kandiller var", "kandil geceleri hangileri", "kaç kandil var", "kac kandil var", "kadir mevlid regaib miraç berat", "kandiller nelerdir"]
+    },
+    {
+      "id": "diyanet-thirty-two-fards-framework",
+      "sourceId": "diyanet-islam-handbook",
+      "sourceTitle": "Islam Ilmihali",
+      "sourceUrl": "https://diniyayinlar.diyanet.gov.tr/Documents/islam%20ilmihali%2017%20X%2024%20.pdf",
+      "sourceLanguage": "tr",
+      "sourceDate": null,
+      "reviewedAt": "2026-08-25",
+      "locator": "Iman, Islam, wudu, ghusl, tayammum and prayer obligations, printed pages 38-168",
+      "topics": ["islamic_general", "creed_basics", "ritual_purity", "prayer", "madhhab_differences"],
+      "perspectives": ["general_sunni", "hanafi"],
+      "summary": "The traditional Turkish '32 fards' teaching framework combines six articles of faith, five pillars of Islam, four Hanafi obligations of wudu, three Hanafi obligations of ghusl, two Hanafi obligations of tayammum, and twelve essentials of prayer. The prayer essentials are six prerequisites - ritual purity, cleanliness from material impurity, covering the required body parts, facing qibla, the prayer time, and intention - plus six internal acts: opening takbir, standing when able, recitation, bowing, prostration, and the final sitting. This is a teaching summary of foundational duties, not an additional independent pillar of Islam, and some detail counts differ among schools.",
+      "searchTerms": ["what are the 32 fards", "list 32 fards", "thirty two fards islam", "32 obligations islam", "wat zijn de 32 farz", "noem de 32 farz", "32 verplichtingen islam", "32 farz nedir", "32 farzı söyler misin", "32 farzi soyler misin", "otuz iki farz", "32 farz hangileri", "32 farz sayar mısın", "32 farz sayar misin"]
     }
   ]
 }

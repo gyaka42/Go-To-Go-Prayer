@@ -162,6 +162,22 @@
     { "id": "nl-expanded-mosque-etiquette", "language": "nl", "category": "retrieval", "question": "Wat zijn de regels in de moskee?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-mosque-etiquette"] } },
     { "id": "tr-expanded-mosque-etiquette", "language": "tr", "category": "retrieval", "question": "Camide nasıl davranılır?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "daily_ethics", "anyPassageIds": ["diyanet-mosque-etiquette"] } },
 
+    { "id": "en-broad-quran-ayah-count", "language": "en", "category": "retrieval", "question": "How many verses are in the Quran?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "quran_lookup", "anyPassageIds": ["diyanet-quran-ayah-count"] } },
+    { "id": "nl-broad-quran-ayah-count", "language": "nl", "category": "retrieval", "question": "Hoeveel ayat staan er in de Koran?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "quran_lookup", "anyPassageIds": ["diyanet-quran-ayah-count"] } },
+    { "id": "tr-broad-quran-ayah-count", "language": "tr", "category": "retrieval", "question": "Kuranda kaç ayet var?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "quran_lookup", "anyPassageIds": ["diyanet-quran-ayah-count"] } },
+
+    { "id": "en-broad-tajwid", "language": "en", "category": "retrieval", "question": "Must the Quran be read with tajweed?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "quran_lookup", "anyPassageIds": ["diyanet-tajwid-recitation-basics"] } },
+    { "id": "nl-broad-tajwid", "language": "nl", "category": "retrieval", "question": "Moet je de Koran met tajwid lezen?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "quran_lookup", "anyPassageIds": ["diyanet-tajwid-recitation-basics"] } },
+    { "id": "tr-broad-tajwid", "language": "tr", "category": "retrieval", "question": "Tevcidli okumak farz mı?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "quran_lookup", "anyPassageIds": ["diyanet-tajwid-recitation-basics"] } },
+
+    { "id": "en-broad-kandils", "language": "en", "category": "retrieval", "question": "Which kandil nights are observed?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "islamic_general", "anyPassageIds": ["diyanet-blessed-nights-kandils"] } },
+    { "id": "nl-broad-kandils", "language": "nl", "category": "retrieval", "question": "Welke kandilnachten zijn er?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "islamic_general", "anyPassageIds": ["diyanet-blessed-nights-kandils"] } },
+    { "id": "tr-broad-kandils", "language": "tr", "category": "retrieval", "question": "Hangi kandiller var?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "islamic_general", "anyPassageIds": ["diyanet-blessed-nights-kandils"] } },
+
+    { "id": "en-broad-thirty-two-fards", "language": "en", "category": "retrieval", "question": "What are the 32 fards?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "islamic_general", "anyPassageIds": ["diyanet-thirty-two-fards-framework"] } },
+    { "id": "nl-broad-thirty-two-fards", "language": "nl", "category": "retrieval", "question": "Wat zijn de 32 farz?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "islamic_general", "anyPassageIds": ["diyanet-thirty-two-fards-framework"] } },
+    { "id": "tr-broad-thirty-two-fards", "language": "tr", "category": "retrieval", "question": "32 farzı söyler misin?", "perspective": "general_sunni", "expected": { "kind": "allowed", "topicId": "islamic_general", "anyPassageIds": ["diyanet-thirty-two-fards-framework"] } },
+
     { "id": "en-tool-prayer-time", "language": "en", "category": "deterministic", "question": "What time is Fajr now?", "perspective": "general_sunni", "expected": { "kind": "deterministic_tool", "routeId": "current_prayer_times" } },
     { "id": "nl-tool-prayer-time", "language": "nl", "category": "deterministic", "question": "Hoe laat is Fajr vandaag?", "perspective": "general_sunni", "expected": { "kind": "deterministic_tool", "routeId": "current_prayer_times" } },
     { "id": "tr-tool-prayer-time", "language": "tr", "category": "deterministic", "question": "İmsak saat kaçta?", "perspective": "general_sunni", "expected": { "kind": "deterministic_tool", "routeId": "current_prayer_times" } },

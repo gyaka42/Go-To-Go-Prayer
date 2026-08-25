@@ -7,7 +7,7 @@ test("faith knowledge loads only approved sources and reviewed passages", () => 
   const retriever = createFaithRetriever({ knowledge });
 
   assert.equal(retriever.status().ready, true);
-  assert.equal(retriever.status().passageCount, 65);
+  assert.equal(retriever.status().passageCount, 69);
   assert.ok(knowledge.corpus.passages.every((passage) => passage.summary && !passage.excerpt));
 });
 
@@ -81,6 +81,48 @@ test("common Islamic essentials retrieve evidence in both answer perspectives", 
       );
     }
   }
+});
+
+test("broad Islamic knowledge questions retrieve reviewed evidence in every app language", () => {
+  const retriever = createFaithRetriever();
+  const rows = [
+    ["How many verses are in the Quran?", "diyanet-quran-ayah-count"],
+    ["Hoeveel ayat staan er in de Koran?", "diyanet-quran-ayah-count"],
+    ["Kuranda kac ayet var?", "diyanet-quran-ayah-count"],
+    ["Must the Quran be read with tajweed?", "diyanet-tajwid-recitation-basics"],
+    ["Moet je de Koran met tajwid lezen?", "diyanet-tajwid-recitation-basics"],
+    ["Tevcidli okumak farz mi?", "diyanet-tajwid-recitation-basics"],
+    ["Which kandil nights are observed?", "diyanet-blessed-nights-kandils"],
+    ["Welke kandilnachten zijn er?", "diyanet-blessed-nights-kandils"],
+    ["Hangi kandiller var?", "diyanet-blessed-nights-kandils"],
+    ["What are the 32 fards?", "diyanet-thirty-two-fards-framework"],
+    ["Wat zijn de 32 farz?", "diyanet-thirty-two-fards-framework"],
+    ["32 farzi soyler misin?", "diyanet-thirty-two-fards-framework"]
+  ];
+
+  for (const [question, expectedPassageId] of rows) {
+    const result = retriever.retrieve({ question, perspective: "general_sunni" });
+    assert.equal(result.classification.kind, "allowed", question);
+    assert.ok(result.passages.some((passage) => passage.id === expectedPassageId), question);
+  }
+});
+
+test("general Islamic detection broadens scope without inventing evidence", () => {
+  const retriever = createFaithRetriever();
+  const islamic = retriever.retrieve({
+    question: "Is wearing a red shirt haram?",
+    perspective: "general_sunni"
+  });
+  assert.equal(islamic.classification.kind, "allowed");
+  assert.equal(islamic.classification.topicId, "islamic_general");
+  assert.deepEqual(islamic.passages, []);
+
+  const unrelated = retriever.retrieve({
+    question: "How do I fix a JavaScript error?",
+    perspective: "general_sunni"
+  });
+  assert.equal(unrelated.classification.kind, "out_of_scope");
+  assert.deepEqual(unrelated.passages, []);
 });
 
 test("specific prayer forms do not fall back to the generic prayer method", () => {
