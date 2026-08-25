@@ -57,6 +57,7 @@
         <li>Your question</li>
         <li>Your selected answer language and perspective (general Sunni or Hanafi)</li>
         <li>An app-generated installation identifier used to enforce usage limits</li>
+        <li>Only for a current prayer-time question: the locally stored date and six prayer times, without your place name, coordinates, country, or time zone</li>
       </ul>
       <p>Do not include names, contact details, medical information, or other sensitive personal information in your question. The Faith Assistant is an educational feature and does not provide a personalised or binding fatwa.</p>
 
@@ -69,7 +70,7 @@
         <li>Scheduling and managing prayer notifications</li>
         <li>Saving your personal tools data (Zikr Counter, Qaza Tracker)</li>
         <li>Caching data for offline use and reliability</li>
-        <li>Finding approved source passages and generating a source-bound Faith Assistant response when requested</li>
+        <li>Finding approved source passages and, when no suitable passage is available, generating a clearly labelled general AI Faith Assistant response</li>
         <li>Preventing automated abuse and keeping the Faith Assistant within its usage limits</li>
       </ul>
 
@@ -90,10 +91,10 @@
         <li>Prayer time data providers (depending on the provider you select)</li>
         <li>Map/routing apps (e.g., Apple Maps) when you choose "Open in Maps"</li>
         <li>OpenStreetMap/Overpass API for Mosque Finder (nearby mosques)</li>
-        <li>Groq for generating a Faith Assistant response from the approved source passages supplied by our backend</li>
+        <li>Groq for generating a Faith Assistant response from approved source passages or from general AI knowledge when no suitable passage is available</li>
       </ul>
       <p>When the App requests data from third-party services, those services may receive standard request data such as your IP address and, where relevant, approximate location derived from your request. Their use of data is governed by their own privacy policies.</p>
-      <p>When you use the Faith Assistant, your question and selected source passages are sent through our backend to Groq. Our application code requests that Groq does not store the completion, and Groq states that inference input and output data is not retained by default. Groq may still temporarily retain data for service reliability or abuse monitoring under its current policy, potentially for up to 30 days. Groq processes customer data in the United States. For current details, see <a href="https://console.groq.com/docs/your-data">Groq's data documentation</a>.</p>
+      <p>When you use the Faith Assistant, your question and any selected source passages are sent through our backend to Groq. If no suitable reviewed passage is available, Groq may use its general model knowledge to generate a clearly labelled educational answer. Such an answer may contain errors and is not a personal fatwa. Our application code requests that Groq does not store the completion, and Groq states that inference input and output data is not retained by default. Groq may still temporarily retain data for service reliability or abuse monitoring under its current policy, potentially for up to 30 days. Groq processes customer data in the United States. For current details, see <a href="https://console.groq.com/docs/your-data">Groq's data documentation</a>.</p>
 
       <h2>5. Purchases</h2>
       <p>Go-To-Go Prayer may be offered as a paid app in the App Store in the future. If you purchase the App, the payment is processed by Apple (App Store). We do not collect, receive, or store payment details (such as credit card information). We may store basic information on your device that helps the App operate correctly after purchase (for example, that the App is installed and available to you through the App Store).</p>

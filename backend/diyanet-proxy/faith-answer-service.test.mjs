@@ -42,6 +42,7 @@ test("source-bound generation maps citations from server-owned metadata", async 
   assert.equal(result.citations[0].id, "diyanet-combining-prayers");
   assert.match(result.citations[0].url, /^https:\/\/kurul\.diyanet\.gov\.tr\//);
   assert.equal(result.meta.providerRequestId, "groq-request-1");
+  assert.equal(result.meta.answerMode, "sourced");
   assert.equal(groq.calls.length, 1);
   assert.equal(providerQuotaCalls, 1);
   assert.match(groq.calls[0].messages[0].content, /Model memory.*forbidden/);
@@ -88,7 +89,7 @@ test("generated clarification without a supplied source fails closed", async () 
   assert.deepEqual(result.citations, []);
 });
 
-test("out-of-scope, referral and unsupported evidence never call Groq", async () => {
+test("out-of-scope and referral boundaries never call Groq", async () => {
   const groq = mockGroq({});
   const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
   let providerQuotaCalls = 0;
@@ -104,17 +105,80 @@ test("out-of-scope, referral and unsupported evidence never call Groq", async ()
     language: "nl",
     perspective: "general_sunni"
   }, hooks);
-  const unsupported = await service.answer({
-    question: "Does nail polish invalidate wudu?",
-    language: "en",
-    perspective: "general_sunni"
-  }, hooks);
-
   assert.equal(coding.outcome, "out_of_scope");
   assert.equal(divorce.outcome, "qualified_referral");
-  assert.equal(unsupported.outcome, "insufficient_sources");
   assert.equal(groq.calls.length, 0);
   assert.equal(providerQuotaCalls, 0);
+});
+
+test("an allowed Islamic question without evidence uses labelled general AI", async () => {
+  let providerQuotaCalls = 0;
+  const groq = mockGroq({
+    outcome: "answer",
+    answer: "Wearing the headscarf is generally treated as a religious obligation, while personal circumstances can require qualified guidance.",
+    sourceIds: ["invented-source-must-be-ignored"],
+    caveat: null,
+    followUpQuestion: null
+  });
+  const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
+  const result = await service.answer({
+    question: "Başörtü farz mı?",
+    language: "tr",
+    perspective: "hanafi",
+    appContext: {
+      dateKey: "2026-08-25",
+      times: { Dhuhr: "13:08" }
+    }
+  }, { beforeProviderCall: () => { providerQuotaCalls += 1; } });
+
+  assert.equal(result.outcome, "answer");
+  assert.equal(result.meta.answerMode, "general_ai");
+  assert.deepEqual(result.citations, []);
+  assert.match(result.caveat, /yapay zeka/i);
+  assert.equal(groq.calls.length, 1);
+  assert.equal(providerQuotaCalls, 1);
+  assert.match(groq.calls[0].messages[0].content, /sourceIds must always be an empty array/);
+  assert.doesNotMatch(JSON.stringify(groq.calls[0].messages), /13:08|2026-08-25/);
+});
+
+test("general AI can ask a clarifying question without citations", async () => {
+  const groq = mockGroq({
+    outcome: "clarification_needed",
+    answer: "Sorunuzu biraz daha ayrıntılı belirtin.",
+    sourceIds: [],
+    caveat: null,
+    followUpQuestion: "Tesettür hakkında hangi konuyu öğrenmek istiyorsunuz?"
+  });
+  const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
+  const result = await service.answer({
+    question: "Tesettür",
+    language: "tr",
+    perspective: "general_sunni"
+  });
+
+  assert.equal(result.outcome, "clarification_needed");
+  assert.equal(result.meta.answerMode, "clarification");
+  assert.deepEqual(result.citations, []);
+  assert.match(result.followUpQuestion, /hangi konuyu/i);
+});
+
+test("current prayer time can be answered from supplied app data without Groq", async () => {
+  const groq = mockGroq({});
+  const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
+  const result = await service.answer({
+    question: "Bugün öğlen namazı vakti?",
+    language: "tr",
+    perspective: "general_sunni",
+    appContext: {
+      dateKey: "2026-08-25",
+      times: { Fajr: "04:31", Sunrise: "06:10", Dhuhr: "13:08", Asr: "16:54", Maghrib: "20:05", Isha: "21:37" }
+    }
+  });
+
+  assert.equal(result.outcome, "answer");
+  assert.equal(result.meta.answerMode, "app_data");
+  assert.match(result.answer, /Öğle 13:08/);
+  assert.equal(groq.calls.length, 0);
 });
 
 test("local boundary answers stay in the requested language", async () => {

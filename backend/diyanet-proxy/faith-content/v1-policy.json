@@ -14,12 +14,15 @@
   ],
   "rules": {
     "defaultDeny": true,
-    "sourceRequiredForEveryMaterialReligiousClaim": true,
-    "noSourceMeansNoAnswer": true,
+    "sourcePreferredForReligiousClaims": true,
+    "generalAiFallbackAllowed": true,
+    "generalAiMustBeLabelled": true,
+    "generalAiMayNotInventCitations": true,
     "generalSourceMayNotBeRelabelledAsHanafi": true,
     "exactCitationLocatorRequired": true,
     "modelMemoryIsNotEvidence": true,
-    "personalisedFatwasAllowed": false
+    "personalisedFatwasAllowed": false,
+    "highRiskTopicsRequireReferral": true
   },
   "allowedTopics": [
     {

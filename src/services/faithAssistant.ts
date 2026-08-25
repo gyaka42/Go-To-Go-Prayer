@@ -1,8 +1,9 @@
 import type { AppLanguage } from "@/i18n/translations";
 import { fetchJson, HttpRequestError } from "@/services/http";
-import { getFaithInstallationId } from "@/services/storage";
+import { getFaithInstallationId, getLatestCachedTimings } from "@/services/storage";
 import type {
   FaithAnswer,
+  FaithAnswerMode,
   FaithCitation,
   FaithHealth,
   FaithOutcome,
@@ -70,11 +71,20 @@ export async function askFaithAssistant(input: {
   perspective: FaithPerspective;
 }): Promise<FaithAnswer> {
   const installationId = await getFaithInstallationId();
+  const cachedTimings = looksLikePrayerTimeQuestion(input.question)
+    ? await getLatestCachedTimings()
+    : null;
+  const appContext = cachedTimings
+    ? {
+        dateKey: cachedTimings.timings.dateKey,
+        times: cachedTimings.timings.times
+      }
+    : undefined;
   try {
     const payload = await fetchJson<unknown>(`${getProxyBaseUrl()}/faith/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...input, installationId }),
+      body: JSON.stringify({ ...input, installationId, ...(appContext ? { appContext } : {}) }),
       timeoutMs: 22000,
       retries: 0
     });
@@ -96,6 +106,23 @@ export async function askFaithAssistant(input: {
   }
 }
 
+function looksLikePrayerTimeQuestion(question: string): boolean {
+  const normalized = question
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i")
+    .toLowerCase();
+  const prayerTerms = [
+    "prayer", "fajr", "dhuhr", "zuhr", "asr", "maghrib", "isha",
+    "gebed", "bidden", "namaz", "imsak", "sabah", "ogle", "oglen", "ikindi", "aksam", "yatsi"
+  ];
+  const timeTerms = [
+    "time", "when", "today", "hoe laat", "wanneer", "vandaag", "gebedstijd",
+    "vakit", "vakti", "saat", "bugun", "simdi"
+  ];
+  return prayerTerms.some((term) => normalized.includes(term)) && timeTerms.some((term) => normalized.includes(term));
+}
+
 function parseFaithAnswer(value: unknown): FaithAnswer {
   const row = asRecord(value);
   const outcome = cleanString(row.outcome, 60) as FaithOutcome;
@@ -103,6 +130,9 @@ function parseFaithAnswer(value: unknown): FaithAnswer {
   const answer = cleanString(row.answer, 3000);
   const rateLimit = parseRateLimit(row.rateLimit);
   const meta = asRecord(row.meta);
+  const citations = Array.isArray(row.citations)
+    ? row.citations.map(parseCitation).filter((item): item is FaithCitation => item !== null).slice(0, 8)
+    : [];
   if (
     !VALID_OUTCOMES.has(outcome) ||
     (perspective !== "general_sunni" && perspective !== "hanafi") ||
@@ -116,14 +146,25 @@ function parseFaithAnswer(value: unknown): FaithAnswer {
     outcome,
     perspective,
     topicId: cleanNullableString(meta.topicId, 120),
+    answerMode: parseAnswerMode(meta.answerMode, outcome, citations.length),
     answer,
-    citations: Array.isArray(row.citations)
-      ? row.citations.map(parseCitation).filter((item): item is FaithCitation => item !== null).slice(0, 8)
-      : [],
+    citations,
     caveat: cleanNullableString(row.caveat, 600),
     followUpQuestion: cleanNullableString(row.followUpQuestion, 500),
     rateLimit
   };
+}
+
+function parseAnswerMode(value: unknown, outcome: FaithOutcome, citationCount: number): FaithAnswerMode {
+  const mode = cleanString(value, 40) as FaithAnswerMode;
+  if (new Set<FaithAnswerMode>(["sourced", "general_ai", "app_data", "clarification", "referral", "boundary"]).has(mode)) {
+    return mode;
+  }
+  if (citationCount > 0) return "sourced";
+  if (outcome === "clarification_needed") return "clarification";
+  if (outcome === "qualified_referral") return "referral";
+  if (outcome === "answer") return "general_ai";
+  return "boundary";
 }
 
 function parseCitation(value: unknown): FaithCitation | null {

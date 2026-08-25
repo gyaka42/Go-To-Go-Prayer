@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CachedLocation, CachedQibla, CachedTimings, PRAYER_NAMES, Settings } from "@/types/prayer";
 import { MosquesSettings } from "@/types/mosque";
 import { isValidCachedTimings } from "@/services/timingValidation";
-import type { FaithAnswer, FaithCitation, FaithHistoryItem, FaithPerspective } from "@/types/faith";
+import type { FaithAnswer, FaithAnswerMode, FaithCitation, FaithHistoryItem, FaithPerspective } from "@/types/faith";
 
 const SETTINGS_KEY = "settings:v1";
 const LATEST_CACHE_KEY = "timings:latest:v1";
@@ -468,10 +468,12 @@ function sanitizeStoredFaithAnswer(value: unknown): FaithAnswer | null {
         .slice(0, 8)
     : [];
   const limit = Math.max(1, Math.min(100, Math.round(row.rateLimit.limit)));
+  const answerMode = sanitizeFaithAnswerMode(row.answerMode, row.outcome, citations.length);
   return {
     ...row,
     topicId: typeof row.topicId === "string" ? row.topicId.trim().slice(0, 120) : null,
     answer: row.answer.trim().slice(0, 3000),
+    answerMode,
     citations,
     caveat: typeof row.caveat === "string" ? row.caveat.slice(0, 600) : null,
     followUpQuestion: typeof row.followUpQuestion === "string" ? row.followUpQuestion.slice(0, 500) : null,
@@ -481,6 +483,16 @@ function sanitizeStoredFaithAnswer(value: unknown): FaithAnswer | null {
       resetAt: row.rateLimit.resetAt
     }
   };
+}
+
+function sanitizeFaithAnswerMode(value: unknown, outcome: FaithAnswer["outcome"], citationCount: number): FaithAnswerMode {
+  const modes = new Set<FaithAnswerMode>(["sourced", "general_ai", "app_data", "clarification", "referral", "boundary"]);
+  if (typeof value === "string" && modes.has(value as FaithAnswerMode)) return value as FaithAnswerMode;
+  if (citationCount > 0) return "sourced";
+  if (outcome === "clarification_needed") return "clarification";
+  if (outcome === "qualified_referral") return "referral";
+  if (outcome === "answer") return "general_ai";
+  return "boundary";
 }
 
 function sanitizeStoredFaithCitation(value: unknown): FaithCitation | null {

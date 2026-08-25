@@ -6,12 +6,12 @@ Last reviewed: 2026-08-25
 
 ## Purpose
 
-The Faith Assistant gives short, source-bound educational answers about Islam in Dutch, English, or Turkish. It is not an imam, mufti, therapist, doctor, lawyer, or emergency service and must never present a generated answer as a fatwa.
+The Faith Assistant gives short educational answers about Islam in Dutch, English, or Turkish. It prefers reviewed source passages and uses a clearly labelled general-AI answer when no suitable passage is available. It is not an imam, mufti, therapist, doctor, lawyer, or emergency service and must never present a generated answer as a fatwa.
 
 V1 supports two answer perspectives:
 
 - `general_sunni`: a general Sunni answer when the approved source does not establish a madhhab-specific ruling.
-- `hanafi`: only when an approved source explicitly identifies the ruling as Hanafi, or when a reviewed Hanafi source entry supports it.
+- `hanafi`: a reviewed Hanafi source is preferred; the general-AI fallback may explain an established general Hanafi view only when sufficiently confident and must state uncertainty or differences where relevant.
 
 A general Diyanet answer must not automatically be relabelled as Hanafi. Other madhhabs may be named when an approved source describes a difference, but V1 does not provide personalised Shafi'i, Maliki, or Hanbali rulings.
 
@@ -72,9 +72,9 @@ For an `answer`:
 
 1. State whether the answer is `general_sunni` or `hanafi`.
 2. Give the direct answer first, followed by a short explanation.
-3. Cite every material religious claim with an exact source locator and link.
+3. Cite material claims when a reviewed passage supports the answer. General-AI answers must never invent citations and must be visibly labelled.
 4. Clearly name recognised differences of opinion when the approved evidence contains them.
-5. Never turn uncertainty into certainty. No source means no answer.
+5. Never turn uncertainty into certainty. When no suitable reviewed passage exists, provide a labelled general-AI explanation or ask for clarification; high-risk personal matters still require referral.
 6. Use short quotations only. Prefer a fresh summary and link to the original.
 7. End with a concise caveat or clarifying question only when it materially affects the answer.
 
@@ -86,7 +86,7 @@ The authoritative runtime registry is `backend/diyanet-proxy/faith-content/sourc
 - Official status alone does not make a source Hanafi. Madhhab tags are assigned per curated passage, not inferred from the organisation.
 - Websites marked "all rights reserved" may be linked and briefly quoted, but are not bulk-scraped or copied into a corpus without written permission.
 - Classical works are not automatically free to ingest: a modern edition, translation, commentary, or scan can carry separate rights.
-- AI-generated text, forums, social media, anonymous fatwa sites, search snippets, Wikipedia, and model memory are never religious evidence.
+- AI-generated text and model memory are not reviewed religious evidence. They may be used only for clearly labelled general educational guidance and never as an invented citation or binding ruling.
 - The language of the answer may differ from the source language. Translation must preserve the ruling and source locator, and should disclose when the source was translated.
 - Source entries record review date, authority, language, madhhab scope, rights status, and allowed use modes.
 
@@ -110,11 +110,11 @@ The general Islamic knowledge pack adds reviewed answers for the Quran's verse c
 
 The expanded daily-practice pack adds the shahada, Quran surah structure, adhan and iqamah, prayer invalidators, Eid prayer, funeral prayer, prayer during illness, repentance, eating etiquette, halal-food basics, mosque etiquette, the purpose of fasting, Laylat al-Qadr, and sadaqah. Specific prayer forms exclude the generic prayer-method passage so a near-match cannot replace the dedicated evidence.
 
-Allowed V1 subjects that are not yet represented by a sufficiently relevant passage return `insufficient_sources`. They do not fall back to the model's memory. The operational release gate is recorded in `docs/faith-assistant-release-checklist.md`.
+Allowed V1 subjects that are not represented by a sufficiently relevant passage use the controlled general-AI fallback. The interface distinguishes this from a reviewed-source answer. Ambiguous questions ask for clarification, while high-risk personal matters remain referrals. The operational release gate is recorded in `docs/faith-assistant-release-checklist.md`.
 
 ## Privacy and abuse controls
 
-- The app sends the question, selected language, selected perspective, and an app-generated installation identifier to the backend only after the user submits a question.
+- The app sends the question, selected language, selected perspective, and an app-generated installation identifier to the backend only after the user submits a question. For a locally recognised current prayer-time question, it also sends only the cached date and six prayer times; it does not include coordinates, place name, country, or time zone. This app context is handled deterministically and is never included in a Groq prompt.
 - The backend does not persist questions, generated answers, raw installation identifiers, or IP addresses. It must not log request bodies or provider output.
 - Installation identifiers and best-effort client IP addresses are converted to separate HMAC hashes before use in rate-limit counters. The secret stays on the backend.
 - Burst limits apply before retrieval. Daily AI limits are consumed only immediately before a Groq request, so locally rejected and unsupported questions do not use the user's daily AI allowance.
@@ -127,7 +127,7 @@ Allowed V1 subjects that are not yet represented by a sufficiently relevant pass
 
 Question: "I follow the Hanafi school. May I combine Dhuhr and Asr?"
 
-The assistant must first distinguish travel, illness, work pressure, and other circumstances. It may answer from the Hanafi perspective only when the curated evidence explicitly supports that label. If not, it returns `insufficient_sources` or `qualified_referral`; it must not improvise a ruling from model memory.
+The assistant must first distinguish travel, illness, work pressure, and other circumstances. A reviewed Hanafi passage remains the preferred basis. Without one, the general-AI route may give only a clearly labelled educational overview, must state uncertainty or relevant differences, and must refer high-consequence personal cases to a qualified scholar.
 
 ## Evaluation gate
 
@@ -136,7 +136,7 @@ The versioned evaluation corpus lives in `backend/diyanet-proxy/faith-evals/v1-c
 The backend test suite must prove that:
 
 1. every case reaches its expected topic or boundary route;
-2. non-answer routes never call Groq and never return citations;
+2. locally classified boundary and referral routes never call Groq and never return citations;
 3. Hanafi retrieval never leaks general-only passages;
 4. emergency questions receive immediate-help wording in the requested language;
 5. prompt injection remains isolated in the user message;

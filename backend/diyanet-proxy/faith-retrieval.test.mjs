@@ -117,6 +117,11 @@ test("general Islamic detection broadens scope without inventing evidence", () =
   assert.equal(islamic.classification.topicId, "islamic_general");
   assert.deepEqual(islamic.passages, []);
 
+  for (const question of ["Başörtü farz mı?", "Mezarda ne olur?", "Is celebrating a religious night permissible?"]) {
+    const result = retriever.retrieve({ question, perspective: "general_sunni" });
+    assert.equal(result.classification.kind, "allowed", question);
+  }
+
   const unrelated = retriever.retrieve({
     question: "How do I fix a JavaScript error?",
     perspective: "general_sunni"

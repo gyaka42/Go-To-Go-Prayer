@@ -97,7 +97,7 @@ production limits merely to force an error during public testing.
       is higher than every build already uploaded for that version.
 - [ ] Update App Store description, What's New, screenshots, review notes, privacy policy URL, and app privacy
       answers before submission.
-- [ ] In App Review notes, state that the assistant provides educational, source-bound answers, does not give
+- [ ] In App Review notes, state that the assistant provides educational answers with reviewed-source and clearly labelled general-AI modes, does not give
       personalised fatwas, and requires a network connection.
 - [ ] Run the safe production smoke test again immediately before submission and after release.
 

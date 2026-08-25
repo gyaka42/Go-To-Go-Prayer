@@ -112,3 +112,30 @@ test("JSON body reader enforces content type and byte limit", async () => {
     (error) => error instanceof HttpBodyError && error.code === "body_too_large" && error.status === 413
   );
 });
+
+test("Faith Assistant accepts only minimal valid prayer-time context", () => {
+  const result = validateFaithAskInput({
+    question: "Bugün öğlen namazı vakti?",
+    language: "tr",
+    installationId: INSTALLATION_ID,
+    appContext: {
+      dateKey: "2026-08-25",
+      locationLabel: "Beyşehir, Türkiye",
+      times: { Dhuhr: "13:08", Isha: "not-a-time" }
+    }
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.value.appContext, {
+    dateKey: "2026-08-25",
+    times: { Dhuhr: "13:08" }
+  });
+
+  const invalidContext = validateFaithAskInput({
+    question: "Bugün öğlen namazı vakti?",
+    language: "tr",
+    installationId: INSTALLATION_ID,
+    appContext: { dateKey: "today", times: { Dhuhr: "13:08" } }
+  });
+  assert.equal(invalidContext.ok, true);
+  assert.equal(invalidContext.value.appContext, undefined);
+});

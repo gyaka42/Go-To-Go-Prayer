@@ -26,7 +26,7 @@ import {
   saveFaithHistoryItem
 } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
-import { FaithAnswer, FaithHealth, FaithHistoryItem, FaithOutcome, FaithPerspective } from "@/types/faith";
+import { FaithAnswer, FaithHealth, FaithHistoryItem, FaithPerspective } from "@/types/faith";
 
 type Availability = "checking" | "ready" | "unavailable" | "error";
 type FaithUiError = { key: string; params?: Record<string, string | number> };
@@ -377,7 +377,7 @@ function AnswerSection({
 }) {
   const { colors } = useAppTheme();
   const { t } = useI18n();
-  const outcome = outcomePresentation(answer.outcome, answer.topicId, t);
+  const outcome = outcomePresentation(answer, t);
   const openSource = useCallback(
     async (url: string) => {
       try {
@@ -403,6 +403,16 @@ function AnswerSection({
           {answer.answer}
         </Text>
       </View>
+
+      {answer.answerMode === "general_ai" ? (
+        <View style={[styles.noteBand, { backgroundColor: colors.accentSoft }]}>
+          <Ionicons name="sparkles-outline" size={19} color={colors.accent} />
+          <View style={styles.flex}>
+            <Text style={[styles.noteTitle, { color: colors.textPrimary }]}>{t("faith.general_ai_notice_title")}</Text>
+            <Text style={[styles.noteBody, { color: colors.textSecondary }]}>{t("faith.general_ai_notice_body")}</Text>
+          </View>
+        </View>
+      ) : null}
 
       {answer.caveat ? (
         <View style={[styles.noteBand, { backgroundColor: colors.accentSoft }]}>
@@ -496,26 +506,29 @@ function HistoryRow({
 }
 
 function outcomePresentation(
-  outcome: FaithOutcome,
-  topicId: string | null,
+  answer: FaithAnswer,
   t: (key: string) => string
 ): { label: string; tone: "success" | "info" | "warning" | "error" } {
-  if (outcome === "answer") return { label: t("faith.outcome_answer"), tone: "success" };
-  if (outcome === "clarification_needed") return { label: t("faith.outcome_clarification"), tone: "info" };
-  if (outcome === "qualified_referral") {
-    if (topicId === "self_harm_abuse_emergency") {
+  if (answer.outcome === "answer") {
+    if (answer.answerMode === "app_data") return { label: t("faith.mode_app_data"), tone: "info" };
+    if (answer.answerMode === "general_ai") return { label: t("faith.mode_general_ai"), tone: "info" };
+    return { label: t("faith.mode_sourced"), tone: "success" };
+  }
+  if (answer.outcome === "clarification_needed") return { label: t("faith.outcome_clarification"), tone: "info" };
+  if (answer.outcome === "qualified_referral") {
+    if (answer.topicId === "self_harm_abuse_emergency") {
       return { label: t("faith.outcome_emergency"), tone: "error" };
     }
     if (
-      topicId === "criminal_violence_extremism" ||
-      topicId === "political_mobilisation" ||
-      topicId === "takfir_or_judging_people"
+      answer.topicId === "criminal_violence_extremism" ||
+      answer.topicId === "political_mobilisation" ||
+      answer.topicId === "takfir_or_judging_people"
     ) {
       return { label: t("faith.outcome_safety"), tone: "warning" };
     }
     return { label: t("faith.outcome_referral"), tone: "warning" };
   }
-  if (outcome === "out_of_scope") return { label: t("faith.outcome_scope"), tone: "warning" };
+  if (answer.outcome === "out_of_scope") return { label: t("faith.outcome_scope"), tone: "warning" };
   return { label: t("faith.outcome_sources"), tone: "warning" };
 }
 

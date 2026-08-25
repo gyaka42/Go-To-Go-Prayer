@@ -1,6 +1,7 @@
 import type { AppLanguage } from "@/i18n/translations";
 
 export type FaithPerspective = "general_sunni" | "hanafi";
+export type FaithAnswerMode = "sourced" | "general_ai" | "app_data" | "clarification" | "referral" | "boundary";
 export type FaithOutcome =
   | "answer"
   | "clarification_needed"
@@ -28,6 +29,7 @@ export type FaithAnswer = {
   outcome: FaithOutcome;
   perspective: FaithPerspective;
   topicId: string | null;
+  answerMode: FaithAnswerMode;
   answer: string;
   citations: FaithCitation[];
   caveat: string | null;

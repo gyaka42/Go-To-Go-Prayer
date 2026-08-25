@@ -55,7 +55,7 @@
   "deterministicRoutes": [
     {
       "id": "current_prayer_times",
-      "terms": ["prayer time now", "what time is fajr", "when is maghrib", "gebedstijd nu", "hoe laat is fajr", "wanneer is maghrib", "namaz vakti şimdi", "imsak saat kaçta", "akşam namazı saat kaçta"]
+      "terms": ["prayer time now", "prayer time today", "what time is fajr", "what time is dhuhr", "what time is asr", "what time is maghrib", "what time is isha", "when is maghrib", "gebedstijd nu", "gebedstijd vandaag", "hoe laat is fajr", "hoe laat is dhuhr", "hoe laat is asr", "hoe laat is maghrib", "hoe laat is isha", "wanneer is maghrib", "namaz vakti şimdi", "bugün namaz vakti", "imsak saat kaçta", "öğle namazı vakti", "öğlen namazı vakti", "ikindi namazı vakti", "akşam namazı saat kaçta", "yatsı namazı vakti"]
     },
     {
       "id": "qibla_bearing",
@@ -72,7 +72,21 @@
     "makruh", "mekruh", "mubah", "mübah", "ibadah", "ibadet", "dua", "dhikr", "zikr", "zikir", "madhhab", "mezhep", "hanafi", "hanefi",
     "mosque", "moskee", "cami", "imam", "ummah", "ümmet", "ummet", "akhirah", "hiernamaals", "ahiret", "jannah", "paradijs", "cennet",
     "jahannam", "hel", "cehennem", "tajwid", "tajweed", "tecvid", "kandil", "ramadan", "ramazan", "hajj", "hadj", "hac", "umrah", "umre",
-    "zakat", "zekat", "sadaqah", "sadaka", "prayer", "gebed", "namaz", "fasting", "vasten", "oruç", "oruc"
+    "zakat", "zekat", "sadaqah", "sadaka", "prayer", "gebed", "namaz", "fasting", "vasten", "oruç", "oruc",
+    "sin", "zonde", "günah", "gunah", "reward", "beloning", "sevap", "permissible", "toegestaan", "caiz", "obligatory", "verplicht", "vacip",
+    "hijab", "headscarf", "hoofddoek", "başörtü", "basortu", "tesettür", "tesettur", "awrah", "awra", "avret", "mahrem", "mahram",
+    "eid", "offerfeest", "suikerfeest", "bayram", "ashura", "aşure", "asure", "isra", "miraj", "miraç", "mirac", "mawlid", "mevlid",
+    "scholar", "geleerde", "alim", "ulema", "sharia", "shariah", "şeriat", "seriat", "fiqh", "fıkıh", "fikih", "aqidah", "akide",
+    "grave", "graf", "mezar", "kabir", "death", "dood", "ölüm", "olum", "soul", "ziel", "ruh", "angel", "engel", "melek",
+    "judgement day", "dag des oordeels", "kıyamet", "kiyamet", "destiny", "lot", "kader", "creation", "schepping", "yaratılış", "yaratilis",
+    "worship", "aanbidding", "kulluk", "repentance", "berouw", "tövbe", "tovbe", "forgiveness", "vergeving", "mağfiret", "magfiret",
+    "intention", "intentie", "niyet", "blessing", "zegen", "bereket", "patience", "geduld", "sabır", "sabir", "gratitude", "dankbaarheid", "şükür", "sukur",
+    "charity", "liefdadigheid", "hayır", "hayir", "fitrah", "fitre", "sacrifice", "offer", "kurban", "pilgrimage", "bedevaart",
+    "ablution", "wassing", "abdest", "ghusl", "grote wassing", "gusül", "gusul", "tayammum", "teyemmüm", "teyemmum",
+    "salah", "salat", "dhuhr", "zuhr", "asr", "maghrib", "isha", "fajr", "imsak", "öğle", "ogle", "ikindi", "akşam", "aksam", "yatsı", "yatsi",
+    "rak ah", "rakah", "rakaat", "rekat", "adhan", "ezan", "iqamah", "kamet", "khutbah", "hutbe", "friday prayer", "vrijdaggebed", "cuma",
+    "prophetic", "profetisch", "nebevi", "companion", "metgezel", "sahabe", "caliph", "kalief", "halife", "islamic history", "islamitische geschiedenis", "islam tarihi",
+    "religious", "religieus", "dini", "faith", "geloof", "iman", "belief", "overtuiging", "inanç", "inanc", "muslim practice", "moslimpraktijk", "müslümanlık", "muslumanlik"
   ],
   "topicRoutes": [
     {

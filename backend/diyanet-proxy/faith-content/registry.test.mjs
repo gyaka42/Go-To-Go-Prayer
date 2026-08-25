@@ -15,7 +15,9 @@ test("V1 faith policy has stable languages, perspectives and outcomes", async ()
   assert.deepEqual(policy.supportedLanguages, ["en", "nl", "tr"]);
   assert.deepEqual(policy.supportedPerspectives, ["general_sunni", "hanafi"]);
   assert.equal(policy.rules.defaultDeny, true);
-  assert.equal(policy.rules.noSourceMeansNoAnswer, true);
+  assert.equal(policy.rules.generalAiFallbackAllowed, true);
+  assert.equal(policy.rules.generalAiMustBeLabelled, true);
+  assert.equal(policy.rules.generalAiMayNotInventCitations, true);
   assert.equal(policy.rules.generalSourceMayNotBeRelabelledAsHanafi, true);
   assert.equal(policy.rules.personalisedFatwasAllowed, false);
 

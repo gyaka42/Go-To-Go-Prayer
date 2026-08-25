@@ -7,6 +7,9 @@ const SUPPORTED_PERSPECTIVES = new Set(["general_sunni", "hanafi"]);
 const MIN_QUESTION_CHARS = 3;
 const MAX_QUESTION_CHARS = 800;
 const INSTALLATION_ID_PATTERN = /^[A-Za-z0-9._:-]{16,128}$/;
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+const PRAYER_KEYS = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
 
 export function resolveFaithRuntimeConfig(env = process.env, options = {}) {
   const groq = resolveGroqConfig(env);
@@ -70,9 +73,10 @@ export function validateFaithAskInput(value) {
     return invalid("invalid_perspective", "perspective must be general_sunni or hanafi.");
   }
 
+  const appContext = sanitizeAppContext(value.appContext);
   return {
     ok: true,
-    value: { question, language, perspective, installationId }
+    value: { question, language, perspective, installationId, ...(appContext ? { appContext } : {}) }
   };
 }
 
@@ -126,6 +130,27 @@ function normalizeQuestion(value) {
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function sanitizeAppContext(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const dateKey = cleanString(value.dateKey, 10);
+  const rawTimes = value.times && typeof value.times === "object" && !Array.isArray(value.times)
+    ? value.times
+    : {};
+  const times = {};
+  for (const key of PRAYER_KEYS) {
+    const time = cleanString(rawTimes[key], 5);
+    if (TIME_PATTERN.test(time)) times[key] = time;
+  }
+  if (!DATE_KEY_PATTERN.test(dateKey) || Object.keys(times).length === 0) return null;
+  return { dateKey, times };
+}
+
+function cleanString(value, maxLength) {
+  return typeof value === "string"
+    ? value.replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, maxLength)
+    : "";
 }
 
 function parseBoolean(value, fallback) {
