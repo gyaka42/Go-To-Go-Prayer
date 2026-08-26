@@ -277,7 +277,7 @@ test("generated requests explicitly select English, Dutch and Turkish", async ()
   }
 });
 
-test("general answers instruct the provider to finish bounded factual lists", async () => {
+test("the 99 names use the server-owned Diyanet list without calling the provider", async () => {
   const groq = mockGroq({
     outcome: "answer",
     answer: "Allah'ın güzel isimleri kısa ve tamamlanmış bir liste halinde verilir.",
@@ -285,14 +285,7 @@ test("general answers instruct the provider to finish bounded factual lists", as
     caveat: null,
     followUpQuestion: null
   });
-  const retriever = {
-    status: () => ({ ready: true, passageCount: 0 }),
-    retrieve: () => ({
-      classification: { kind: "supported", topicId: "general_islamic_knowledge" },
-      passages: []
-    })
-  };
-  const service = createFaithAnswerService({ groqClient: groq, retriever });
+  const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
 
   const result = await service.answer({
     question: "Allah'ın 99 ismini sayabilir misin?",
@@ -301,6 +294,12 @@ test("general answers instruct the provider to finish bounded factual lists", as
   });
 
   assert.equal(result.outcome, "answer");
-  assert.match(groq.calls[0].messages[0].content, /at most 100 short items/);
-  assert.match(groq.calls[0].messages[0].content, /finish the required JSON object/);
+  assert.equal(result.meta.answerMode, "sourced");
+  assert.equal(result.citations[0].sourceId, "diyanet-high-board");
+  assert.equal(groq.calls.length, 0);
+  const names = result.answer.split("\n").filter((line) => /^\d+\. /.test(line));
+  assert.equal(names.length, 99);
+  assert.equal(new Set(names.map((line) => line.replace(/^\d+\. /, ""))).size, 99);
+  assert.match(result.answer, /6\. Es-Selâm/);
+  assert.match(result.answer, /99\. Es-Sabûr/);
 });
