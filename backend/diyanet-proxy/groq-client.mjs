@@ -1,7 +1,7 @@
 const DEFAULT_GROQ_API_BASE_URL = "https://api.groq.com/openai/v1";
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 const DEFAULT_GROQ_TIMEOUT_MS = 15000;
-const DEFAULT_MAX_COMPLETION_TOKENS = 700;
+const DEFAULT_MAX_COMPLETION_TOKENS = 1600;
 const MAX_MESSAGES = 12;
 const MAX_MESSAGE_CHARS = 12000;
 const MAX_TOTAL_MESSAGE_CHARS = 32000;
@@ -28,7 +28,7 @@ export function resolveGroqConfig(env = process.env) {
     env.GROQ_MAX_COMPLETION_TOKENS,
     DEFAULT_MAX_COMPLETION_TOKENS,
     128,
-    1600
+    2400
   );
 
   return {

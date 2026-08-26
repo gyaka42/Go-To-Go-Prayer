@@ -14,7 +14,7 @@
 - `GROQ_MODEL` (optional, default: `openai/gpt-oss-120b`)
 - `GROQ_API_BASE_URL` (optional, default: `https://api.groq.com/openai/v1`)
 - `GROQ_TIMEOUT_MS` (optional, default: `15000`, clamped to 3000-30000)
-- `GROQ_MAX_COMPLETION_TOKENS` (optional, default: `700`, clamped to 128-1600)
+- `GROQ_MAX_COMPLETION_TOKENS` (optional, default: `1600`, clamped to 128-2400)
 - `FAITH_RATE_LIMIT_SECRET` (required when enabled; a separate random secret of at least 32 characters)
 - `FAITH_INSTALL_MINUTE_LIMIT` (optional, default: `4`, maximum: `30`)
 - `FAITH_INSTALL_DAILY_LIMIT` (optional, default: `10`, maximum: `100`)

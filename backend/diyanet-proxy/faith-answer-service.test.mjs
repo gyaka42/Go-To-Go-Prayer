@@ -276,3 +276,31 @@ test("generated requests explicitly select English, Dutch and Turkish", async ()
     assert.match(groq.calls[0].messages[0].content, new RegExp(`Answer in ${row.languageName}`));
   }
 });
+
+test("general answers instruct the provider to finish bounded factual lists", async () => {
+  const groq = mockGroq({
+    outcome: "answer",
+    answer: "Allah'ın güzel isimleri kısa ve tamamlanmış bir liste halinde verilir.",
+    sourceIds: [],
+    caveat: null,
+    followUpQuestion: null
+  });
+  const retriever = {
+    status: () => ({ ready: true, passageCount: 0 }),
+    retrieve: () => ({
+      classification: { kind: "supported", topicId: "general_islamic_knowledge" },
+      passages: []
+    })
+  };
+  const service = createFaithAnswerService({ groqClient: groq, retriever });
+
+  const result = await service.answer({
+    question: "Allah'ın 99 ismini sayabilir misin?",
+    language: "tr",
+    perspective: "hanafi"
+  });
+
+  assert.equal(result.outcome, "answer");
+  assert.match(groq.calls[0].messages[0].content, /at most 100 short items/);
+  assert.match(groq.calls[0].messages[0].content, /finish the required JSON object/);
+});

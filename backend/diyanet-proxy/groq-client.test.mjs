@@ -22,8 +22,14 @@ test("Groq public status never exposes the API key", () => {
 
   assert.equal(status.configured, true);
   assert.equal(status.model, "openai/gpt-oss-120b");
+  assert.equal(status.maxCompletionTokens, 1600);
   assert.equal("apiKey" in status, false);
   assert.equal(JSON.stringify(status).includes("secret-key"), false);
+});
+
+test("Groq completion token configuration supports longer bounded answers", () => {
+  assert.equal(resolveGroqConfig({ GROQ_API_KEY: "secret-key", GROQ_MAX_COMPLETION_TOKENS: "2200" }).maxCompletionTokens, 2200);
+  assert.equal(resolveGroqConfig({ GROQ_API_KEY: "secret-key", GROQ_MAX_COMPLETION_TOKENS: "9999" }).maxCompletionTokens, 2400);
 });
 
 test("Groq client sends a bounded strict-schema request without tools", async () => {
