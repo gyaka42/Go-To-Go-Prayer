@@ -106,6 +106,7 @@ function createReplanSignature(params: {
   lon: number;
   methodId: number;
   settings: Settings;
+  language: AppLanguage;
 }): string {
   const roundedLat = Number(params.lat.toFixed(4));
   const roundedLon = Number(params.lon.toFixed(4));
@@ -114,6 +115,7 @@ function createReplanSignature(params: {
     lon: roundedLon,
     provider: params.settings.timingsProvider,
     methodId: params.methodId,
+    language: params.language,
     locationMode: params.settings.locationMode,
     manualLocation: params.settings.manualLocation
       ? {
@@ -272,7 +274,8 @@ async function replanAllOnce(params: {
     return;
   }
 
-  const signature = createReplanSignature(params);
+  const language = await getPreferredLanguage();
+  const signature = createReplanSignature({ ...params, language });
   if (signature === lastAppliedSignature && Date.now() - lastAppliedAt < 10_000) {
     const hasEnabledPrayer = PRAYER_NAMES.some((prayer) => params.settings.prayerNotifications[prayer]?.enabled);
     const summary = await getPrayerNotificationScheduleSummary().catch(() => null);
@@ -318,7 +321,6 @@ async function replanAllOnce(params: {
   }
 
   const dedupeSet = new Set<string>();
-  const language = await getPreferredLanguage();
   const scheduleWithStats = async (date: Date, timings: Timings) => {
     for (const prayer of PRAYER_NAMES) {
       const prayerSetting = params.settings.prayerNotifications[prayer];

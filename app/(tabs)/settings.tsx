@@ -423,6 +423,28 @@ export default function SettingsScreen() {
     }
   }, [clearSaveFeedbackTimer, queueSaveFeedbackReset, settings, t]);
 
+  const changeLanguageMode = useCallback(
+    async (nextMode: LanguageMode) => {
+      await setLanguageMode(nextMode);
+      if (!settings) {
+        return;
+      }
+
+      try {
+        const loc = await resolveLocationForSettings(settings);
+        await replanAll({
+          lat: loc.lat,
+          lon: loc.lon,
+          methodId: settings.methodId,
+          settings
+        });
+      } catch {
+        // Home retries notification planning with the selected language when it becomes active.
+      }
+    },
+    [setLanguageMode, settings]
+  );
+
   if (!settings) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -524,7 +546,7 @@ export default function SettingsScreen() {
                       { borderColor: colors.cardBorder },
                       selected && { backgroundColor: colors.accent, borderColor: colors.accent }
                     ]}
-                    onPress={() => void setLanguageMode(option)}
+                    onPress={() => void changeLanguageMode(option)}
                   >
                     <Text style={[styles.themeModeButtonText, { color: selected ? "#F2F8FF" : colors.textPrimary }]}>
                       {label}

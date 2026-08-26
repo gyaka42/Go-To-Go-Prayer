@@ -65,7 +65,7 @@ function prayerIcon(prayer: PrayerName): keyof typeof MaterialCommunityIcons.gly
 export default function HomeScreen() {
   const router = useRouter();
   const { colors, resolvedTheme } = useAppTheme();
-  const { t, prayerName, localeTag } = useI18n();
+  const { t, prayerName, language, localeTag } = useI18n();
   const { width } = useWindowDimensions();
   const tabBarHeight = useBottomTabBarHeight();
   const enterTransition = useMotionTransition(easeEnterTransition);
@@ -211,6 +211,7 @@ export default function HomeScreen() {
         const dayKey = getDateKey(today);
         const replanSignature = [
           dayKey,
+          language,
           savedSettings.methodId,
           location.lat.toFixed(3),
           location.lon.toFixed(3),
@@ -309,7 +310,7 @@ export default function HomeScreen() {
       setSanityIssues([]);
       setLoadState("error");
     }
-  }, [localeTag, t]);
+  }, [language, localeTag, t]);
 
 
   useEffect(() => {
