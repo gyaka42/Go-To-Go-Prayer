@@ -112,6 +112,9 @@ export function createFaithAnswerService(options) {
         return localResult("out_of_scope", input.perspective, language, classification, "out_of_scope", "boundary");
       }
       if (retrieval.passages.length === 0) {
+        if (requiresReviewedEvidence(input)) {
+          return localResult("insufficient_sources", input.perspective, language, classification, "insufficient_sources");
+        }
         await hooks.beforeProviderCall?.();
         const completion = await groqClient.createStructuredCompletion({
           messages: buildGeneralMessages(input),
@@ -129,6 +132,7 @@ export function createFaithAnswerService(options) {
       });
       const sourcedResult = normalizeGeneratedResult(completion.data, input, retrieval, completion.meta);
       if (sourcedResult.outcome !== "insufficient_sources") return sourcedResult;
+      if (requiresReviewedEvidence(input)) return sourcedResult;
 
       if (hooks.beforeAdditionalProviderCall) {
         await hooks.beforeAdditionalProviderCall();
@@ -331,6 +335,9 @@ function buildDeterministicResult(input, classification, language) {
   if (classification.routeId === "allah_names_list") {
     return buildAllahNamesResult(input, language);
   }
+  if (classification.routeId === "fajr_imsak_rule") {
+    return buildFajrImsakResult(input, language);
+  }
   if (classification.routeId !== "current_prayer_times" || !input.appContext?.times) {
     return localResult("out_of_scope", input.perspective, language, classification, "deterministic_tool", "boundary");
   }
@@ -371,6 +378,37 @@ function buildDeterministicResult(input, classification, language) {
       evidenceCount: 0,
       providerRequestId: null,
       answerMode: "app_data"
+    }
+  };
+}
+
+function buildFajrImsakResult(input, language) {
+  const answer = {
+    en: "Fajr prayer time begins at true dawn (fajr al-sadiq), which is the imsak time, and continues until sunrise. Fajr is therefore not prayed before imsak; it may be prayed from imsak onward. In the Hanafi school, praying somewhat later when the sky is lighter (isfar) is considered recommended, but this does not mean that Fajr time begins later.",
+    nl: "De tijd voor het Fajr-gebed begint bij de ware dageraad (fajr al-sadiq), oftewel de imsaktijd, en duurt tot zonsopkomst. Fajr wordt daarom niet vóór imsak gebeden; vanaf imsak is het gebed geldig. Binnen de Hanafi-school geldt iets later bidden wanneer het lichter is (isfar) als aanbevolen, maar dat betekent niet dat de gebedstijd pas later begint.",
+    tr: "Sabah namazının vakti fecr-i sâdıkla, yani imsak vaktinin girmesiyle başlar ve güneş doğana kadar devam eder. Bu nedenle sabah namazı imsaktan önce kılınmaz; imsak girdikten sonra kılınabilir. Hanefî mezhebinde ortalık biraz aydınlandığında (isfâr vaktinde) kılmak müstehap kabul edilir; fakat bu, namaz vaktinin imsaktan daha sonra başladığı anlamına gelmez."
+  }[language];
+
+  return {
+    outcome: "answer",
+    perspective: input.perspective,
+    answer,
+    citations: [{
+      id: "diyanet-fajr-starts-at-imsak",
+      sourceId: "diyanet-high-board",
+      title: "Sabah namazı imsak vaktinin girmesiyle kılınabilir mi?",
+      locator: "Answer, paragraphs 1-3",
+      url: "https://kurul.diyanet.gov.tr/tr/fetva/sabah-namazi-imsak-vaktinin-girmesiyle-kilinabilir-mi/0193c42d-4d4a-71dc-1298-7a265eeddb83",
+      sourceLanguage: "tr",
+      sourceDate: "2017-07-12"
+    }],
+    caveat: null,
+    followUpQuestion: null,
+    meta: {
+      topicId: "fajr_imsak_rule",
+      evidenceCount: 1,
+      providerRequestId: null,
+      answerMode: "sourced"
     }
   };
 }
@@ -444,6 +482,10 @@ function referralMessageKey(routeId) {
     return "safety_refusal";
   }
   return "qualified_referral";
+}
+
+function requiresReviewedEvidence(input) {
+  return input.perspective === "hanafi";
 }
 
 function cleanText(value, maxLength) {

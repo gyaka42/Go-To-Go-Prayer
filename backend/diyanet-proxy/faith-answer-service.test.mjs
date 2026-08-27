@@ -61,7 +61,7 @@ test("source-bound generation maps citations from server-owned metadata", async 
   assert.match(groq.calls[0].messages[0].content, /multi-part question/);
 });
 
-test("invalid sourced citations fall back to labelled general AI without citations", async () => {
+test("invalid general Sunni sourced citations fall back to labelled general AI without citations", async () => {
   let providerQuotaCalls = 0;
   let additionalProviderQuotaCalls = 0;
   const groq = mockGroqSequence(
@@ -85,7 +85,7 @@ test("invalid sourced citations fall back to labelled general AI without citatio
   const result = await service.answer({
     question: "Can I combine Dhuhr and Asr while travelling?",
     language: "en",
-    perspective: "hanafi"
+    perspective: "general_sunni"
   }, {
     beforeProviderCall: () => { providerQuotaCalls += 1; },
     beforeAdditionalProviderCall: () => { additionalProviderQuotaCalls += 1; }
@@ -121,7 +121,7 @@ test("source clarification without evidence switches to general clarification", 
   const result = await service.answer({
     question: "Can I combine Dhuhr and Asr while travelling?",
     language: "en",
-    perspective: "hanafi"
+    perspective: "general_sunni"
   });
 
   assert.equal(result.outcome, "clarification_needed");
@@ -152,7 +152,7 @@ test("out-of-scope and referral boundaries never call Groq", async () => {
   assert.equal(providerQuotaCalls, 0);
 });
 
-test("an allowed Islamic question without evidence uses labelled general AI", async () => {
+test("an allowed general Sunni question without evidence uses labelled general AI", async () => {
   let providerQuotaCalls = 0;
   const groq = mockGroq({
     outcome: "answer",
@@ -165,7 +165,7 @@ test("an allowed Islamic question without evidence uses labelled general AI", as
   const result = await service.answer({
     question: "Is wearing a red shirt haram?",
     language: "tr",
-    perspective: "hanafi",
+    perspective: "general_sunni",
     appContext: {
       dateKey: "2026-08-25",
       times: { Dhuhr: "13:08" }
@@ -180,6 +180,79 @@ test("an allowed Islamic question without evidence uses labelled general AI", as
   assert.equal(providerQuotaCalls, 1);
   assert.match(groq.calls[0].messages[0].content, /sourceIds must always be an empty array/);
   assert.doesNotMatch(JSON.stringify(groq.calls[0].messages), /13:08|2026-08-25/);
+});
+
+test("Hanafi questions without reviewed evidence fail closed without calling Groq", async () => {
+  const groq = mockGroq({
+    outcome: "answer",
+    answer: "An unsupported Hanafi ruling.",
+    sourceIds: [],
+    caveat: null,
+    followUpQuestion: null
+  });
+  const retriever = {
+    status: () => ({ ready: true, passageCount: 0 }),
+    retrieve: () => ({
+      classification: { kind: "allowed", topicId: "prayer", topics: [{ id: "prayer" }] },
+      passages: []
+    })
+  };
+  const service = createFaithAnswerService({ groqClient: groq, retriever });
+
+  const result = await service.answer({
+    question: "Hanefi mezhebinde bu namaz hükmü nedir?",
+    language: "tr",
+    perspective: "hanafi"
+  });
+
+  assert.equal(result.outcome, "insufficient_sources");
+  assert.equal(result.meta.answerMode, "boundary");
+  assert.equal(groq.calls.length, 0);
+});
+
+test("Hanafi sourced failures do not fall back to general AI", async () => {
+  const groq = mockGroq({
+    outcome: "insufficient_sources",
+    answer: "",
+    sourceIds: [],
+    caveat: null,
+    followUpQuestion: null
+  });
+  const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
+
+  const result = await service.answer({
+    question: "Hanefi bir yolcu namazları cem edebilir mi?",
+    language: "tr",
+    perspective: "hanafi"
+  });
+
+  assert.equal(result.outcome, "insufficient_sources");
+  assert.equal(groq.calls.length, 1);
+});
+
+test("Fajr and imsak relation is source-backed and never calls Groq in every app language", async () => {
+  const groq = mockGroq({});
+  const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
+  const cases = [
+    { language: "en", question: "As a Hanafi, should I pray Fajr before imsak?", marker: /begins at true dawn/i },
+    { language: "nl", question: "Moet ik als Hanafi Fajr vóór imsak bidden?", marker: /begint bij de ware dageraad/i },
+    { language: "tr", question: "Hanefi mezhebine göre Sabah namazı imsak'tan önce mi kılınmalı?", marker: /imsak vaktinin girmesiyle başlar/i }
+  ];
+
+  for (const row of cases) {
+    const result = await service.answer({
+      question: row.question,
+      language: row.language,
+      perspective: "hanafi"
+    });
+    assert.equal(result.outcome, "answer");
+    assert.equal(result.meta.answerMode, "sourced");
+    assert.equal(result.meta.providerRequestId, null);
+    assert.equal(result.citations[0]?.id, "diyanet-fajr-starts-at-imsak");
+    assert.match(result.answer, row.marker);
+  }
+
+  assert.equal(groq.calls.length, 0);
 });
 
 test("general AI can ask a clarifying question without citations", async () => {

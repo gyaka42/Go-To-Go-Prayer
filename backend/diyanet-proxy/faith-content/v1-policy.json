@@ -19,6 +19,7 @@
     "generalAiMustBeLabelled": true,
     "generalAiMayNotInventCitations": true,
     "generalSourceMayNotBeRelabelledAsHanafi": true,
+    "hanafiClaimsRequireReviewedEvidence": true,
     "exactCitationLocatorRequired": true,
     "modelMemoryIsNotEvidence": true,
     "personalisedFatwasAllowed": false,
@@ -114,6 +115,7 @@
   ],
   "deterministicToolTopics": [
     "allah_names_list",
+    "fajr_imsak_rule",
     "current_prayer_times",
     "qibla_bearing",
     "binding_zakat_calculation"

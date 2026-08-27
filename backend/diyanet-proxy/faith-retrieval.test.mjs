@@ -7,7 +7,7 @@ test("faith knowledge loads only approved sources and reviewed passages", () => 
   const retriever = createFaithRetriever({ knowledge });
 
   assert.equal(retriever.status().ready, true);
-  assert.equal(retriever.status().passageCount, 70);
+  assert.equal(retriever.status().passageCount, 71);
   assert.ok(knowledge.corpus.passages.every((passage) => passage.summary && !passage.excerpt));
 });
 

@@ -58,6 +58,10 @@
       "terms": ["99 names of allah", "list the 99 names of allah", "all names of allah", "allahs 99 namen", "noem de 99 namen van allah", "alle namen van allah", "allah'ın 99 ismi", "allahın 99 ismi", "allah'ın 99 ismini", "allahın 99 ismini", "allah'ın 99 isimleri", "allahın 99 isimleri", "allah'ın 99 isimlerini", "allahın 99 isimlerini", "esmaül hüsna", "esmaul husna"]
     },
     {
+      "id": "fajr_imsak_rule",
+      "terms": ["does fajr start at imsak", "when does fajr prayer start", "pray fajr before imsak", "pray fajr after imsak", "fajr time begins at imsak", "begint fajr bij imsak", "wanneer begint het fajr gebed", "fajr voor imsak bidden", "fajr na imsak bidden", "imsak is het begin van fajr", "sabah namazı imsak'tan önce mi kılınmalı", "sabah namazı ne zaman başlar", "imsaktan önce sabah namazı", "imsaktan sonra sabah namazı", "imsakla sabah namazı vakti girer mi", "imsak vakti sabah namazı başladı mı"]
+    },
+    {
       "id": "current_prayer_times",
       "terms": ["prayer time now", "prayer time today", "what time is fajr", "what time is dhuhr", "what time is asr", "what time is maghrib", "what time is isha", "when is maghrib", "gebedstijd nu", "gebedstijd vandaag", "hoe laat is fajr", "hoe laat is dhuhr", "hoe laat is asr", "hoe laat is maghrib", "hoe laat is isha", "wanneer is maghrib", "namaz vakti şimdi", "bugün namaz vakti", "imsak saat kaçta", "öğle namazı vakti", "öğlen namazı vakti", "ikindi namazı vakti", "akşam namazı saat kaçta", "yatsı namazı vakti"]
     },

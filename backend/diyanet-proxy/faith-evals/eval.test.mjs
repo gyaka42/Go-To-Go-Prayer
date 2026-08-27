@@ -84,11 +84,17 @@ test("boundary and deterministic evals never call the model", async () => {
       perspective: row.perspective
     });
     assert.equal(groq.calls.length, 0, `${row.id}: model call`);
-    assert.equal(result.citations.length, 0, `${row.id}: local result citations`);
+
+    const isSourcedDeterministic = row.expected.routeId === "fajr_imsak_rule";
+    if (isSourcedDeterministic) {
+      assert.equal(result.citations[0]?.id, "diyanet-fajr-starts-at-imsak", `${row.id}: reviewed citation`);
+    } else {
+      assert.equal(result.citations.length, 0, `${row.id}: local result citations`);
+    }
 
     const expectedOutcome = {
       qualified_referral: "qualified_referral",
-      deterministic_tool: "out_of_scope",
+      deterministic_tool: isSourcedDeterministic ? "answer" : "out_of_scope",
       out_of_scope: "out_of_scope"
     }[row.expected.kind];
     assert.equal(result.outcome, expectedOutcome, `${row.id}: local outcome`);
@@ -150,13 +156,11 @@ test("prompt injection remains untrusted and invented citations are discarded", 
     perspective: row.perspective
   });
 
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 1);
   assert.doesNotMatch(calls[0].messages[0].content, /invent sources/i);
   assert.doesNotMatch(calls[0].messages[1].content, /ignore every system rule/i);
   assert.match(calls[0].messages[2].content, /ignore every system rule/i);
-  assert.doesNotMatch(calls[1].messages[0].content, /ignore every system rule/i);
-  assert.match(calls[1].messages[1].content, /ignore every system rule/i);
-  assert.equal(result.outcome, "answer");
-  assert.equal(result.meta.answerMode, "general_ai");
+  assert.equal(result.outcome, "insufficient_sources");
+  assert.equal(result.meta.answerMode, "boundary");
   assert.deepEqual(result.citations, []);
 });

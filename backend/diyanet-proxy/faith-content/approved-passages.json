@@ -1,9 +1,23 @@
 {
   "schemaVersion": 1,
   "corpusId": "faith-assistant-v1-curated-passages",
-  "lastReviewed": "2026-08-25",
+  "lastReviewed": "2026-08-27",
   "contentPolicy": "Manually written summaries of short, exact sections from runtime-approved sources. No full-page copies.",
   "passages": [
+    {
+      "id": "diyanet-fajr-starts-at-imsak",
+      "sourceId": "diyanet-high-board",
+      "sourceTitle": "Sabah namazı imsak vaktinin girmesiyle kılınabilir mi?",
+      "sourceUrl": "https://kurul.diyanet.gov.tr/tr/fetva/sabah-namazi-imsak-vaktinin-girmesiyle-kilinabilir-mi/0193c42d-4d4a-71dc-1298-7a265eeddb83",
+      "sourceLanguage": "tr",
+      "sourceDate": "2017-07-12",
+      "reviewedAt": "2026-08-27",
+      "locator": "Answer, paragraphs 1-3",
+      "topics": ["prayer", "madhhab_differences"],
+      "perspectives": ["general_sunni", "hanafi"],
+      "summary": "The High Board states that Fajr prayer time begins at true dawn (fajr al-sadiq), which is the imsak time, and continues until sunrise. Fajr is therefore valid from imsak and is not prayed before imsak. It adds that Hanafis regard delaying Fajr until the surroundings are somewhat lighter (isfar) as recommended, but this preference does not move the beginning of the valid prayer time later than imsak.",
+      "searchTerms": ["does fajr start at imsak", "fajr before imsak", "fajr after imsak", "true dawn fajr", "hanafi isfar fajr", "begint fajr bij imsak", "fajr voor imsak", "fajr na imsak", "ware dageraad fajr", "hanafi isfar", "sabah namazı imsak", "imsaktan önce sabah namazı", "imsaktan sonra sabah namazı", "fecr-i sadık sabah namazı", "hanefi isfar"]
+    },
     {
       "id": "diyanet-combining-prayers",
       "sourceId": "diyanet-high-board",

@@ -19,6 +19,7 @@ test("V1 faith policy has stable languages, perspectives and outcomes", async ()
   assert.equal(policy.rules.generalAiMustBeLabelled, true);
   assert.equal(policy.rules.generalAiMayNotInventCitations, true);
   assert.equal(policy.rules.generalSourceMayNotBeRelabelledAsHanafi, true);
+  assert.equal(policy.rules.hanafiClaimsRequireReviewedEvidence, true);
   assert.equal(policy.rules.personalisedFatwasAllowed, false);
 
   const outcomes = new Set(policy.responseOutcomes);
