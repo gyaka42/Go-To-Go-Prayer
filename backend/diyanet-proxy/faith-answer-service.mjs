@@ -338,6 +338,9 @@ function buildDeterministicResult(input, classification, language) {
   if (classification.routeId === "fajr_imsak_rule") {
     return buildFajrImsakResult(input, language);
   }
+  if (classification.routeId === "mistaken_prayer_intention") {
+    return buildMistakenPrayerIntentionResult(input, language);
+  }
   if (classification.routeId !== "current_prayer_times" || !input.appContext?.times) {
     return localResult("out_of_scope", input.perspective, language, classification, "deterministic_tool", "boundary");
   }
@@ -407,6 +410,53 @@ function buildFajrImsakResult(input, language) {
     meta: {
       topicId: "fajr_imsak_rule",
       evidenceCount: 1,
+      providerRequestId: null,
+      answerMode: "sourced"
+    }
+  };
+}
+
+function buildMistakenPrayerIntentionResult(input, language) {
+  const answer = {
+    en: "What matters first is which prayer you intended in your heart when starting. If you intended Maghrib in your heart but only misspoke and said ‘Isha’, the intention in your heart governs. If you actually intended and performed the obligatory Isha prayer, it does not fulfil the obligatory Maghrib prayer, so Maghrib still needs to be prayed. If Isha time had not yet begun, it is not valid as the obligatory Isha prayer either, because the prayer time must have entered.",
+    nl: "Bepalend is eerst welk gebed je bij het beginnen in je hart bedoelde. Als je in je hart Maghrib bedoelde maar je je alleen versprak en ‘Isha’ zei, geldt de intentie in je hart. Als je werkelijk het verplichte Isha-gebed bedoelde en uitvoerde, vervult dat niet het verplichte Maghrib-gebed; Maghrib moet dan nog worden gebeden. Als de Isha-tijd nog niet was ingegaan, is het ook niet geldig als het verplichte Isha-gebed, omdat de gebedstijd eerst moet zijn ingegaan.",
+    tr: "Öncelikle belirleyici olan, namaza başlarken kalben hangi namazı kılmaya niyet ettiğinizdir. Kalbinizde akşam namazını amaçladığınız hâlde yalnızca diliniz sürçüp ‘yatsı’ dediyseniz, kalpteki niyet esas alınır. Fakat gerçekten yatsı namazının farzına niyet edip onu kıldıysanız, bu akşam namazının farzı yerine geçmez; akşam namazını ayrıca kılmanız gerekir. Yatsı vakti henüz girmemişse, vakit namazın şartı olduğu için kıldığınız namaz yatsının farzı olarak da geçerli olmaz."
+  }[language];
+  const caveat = {
+    en: "If you changed your intention during the prayer, prayed behind an imam, or are unsure what you intended in your heart, describe that detail or ask a qualified local imam.",
+    nl: "Als je tijdens het gebed van intentie veranderde, achter een imam bad of niet meer weet wat je in je hart bedoelde, vermeld dat detail of vraag een bevoegde lokale imam.",
+    tr: "Namaz sırasında niyetinizi değiştirdiyseniz, imama uyduysanız veya kalben neye niyet ettiğinizden emin değilseniz bu ayrıntıyı belirtin ya da yetkin bir yerel imama danışın."
+  }[language];
+
+  return {
+    outcome: "answer",
+    perspective: input.perspective,
+    answer,
+    citations: [
+      {
+        id: "diyanet-obligatory-prayer-intention-selection",
+        sourceId: "diyanet-prayer-handbook",
+        title: "Namaz Ilmihali",
+        locator: "Niyet and Niyetin Zamani, printed pages 238-239",
+        url: "https://namaz.diyanet.gov.tr/namaz/html/kutuphane/HTML/NamazIlmihali/assets/basic-html/page-24.html",
+        sourceLanguage: "tr",
+        sourceDate: "2011"
+      },
+      {
+        id: "diyanet-prayer-prerequisites-and-pillars",
+        sourceId: "diyanet-prayer-handbook",
+        title: "Namaz Ilmihali",
+        locator: "Namazin Farzlari, printed pages 90-132 (PDF pages 89-131)",
+        url: "https://namaz.diyanet.gov.tr/namaz/assets/dosya/Namaz_ilmihali_2011(SON).pdf",
+        sourceLanguage: "tr",
+        sourceDate: "2011"
+      }
+    ],
+    caveat,
+    followUpQuestion: null,
+    meta: {
+      topicId: "mistaken_prayer_intention",
+      evidenceCount: 2,
       providerRequestId: null,
       answerMode: "sourced"
     }

@@ -7,7 +7,7 @@ test("faith knowledge loads only approved sources and reviewed passages", () => 
   const retriever = createFaithRetriever({ knowledge });
 
   assert.equal(retriever.status().ready, true);
-  assert.equal(retriever.status().passageCount, 71);
+  assert.equal(retriever.status().passageCount, 72);
   assert.ok(knowledge.corpus.passages.every((passage) => passage.summary && !passage.excerpt));
 });
 
@@ -19,6 +19,25 @@ test("topic classifier handles Dutch, Turkish and deterministic app tools", () =
   assert.equal(retriever.classify("Hoe laat is Fajr vandaag?").kind, "deterministic_tool");
   assert.equal(retriever.classify("Kun je mijn echtscheiding beoordelen?").kind, "qualified_referral");
   assert.equal(retriever.classify("How do I fix a JavaScript error?").kind, "out_of_scope");
+});
+
+test("natural Fajr timing and mistaken-prayer wording use reviewed deterministic routes", () => {
+  const retriever = createFaithRetriever();
+  const rows = [
+    ["Sabah namazı tam olarak ne vakitte kılınmalı?", "fajr_imsak_rule"],
+    ["Sabah namazı ne zaman giriyor?", "fajr_imsak_rule"],
+    ["When should Fajr be prayed?", "fajr_imsak_rule"],
+    ["Wanneer gaat de tijd voor Fajr in?", "fajr_imsak_rule"],
+    ["Yanlışlıkla akşam namazı yerine yatsıyı kıldım, ne yapmam lazım?", "mistaken_prayer_intention"],
+    ["I accidentally prayed Isha instead of Maghrib. What should I do?", "mistaken_prayer_intention"],
+    ["Ik heb per ongeluk Isha in plaats van Maghrib gebeden. Wat moet ik doen?", "mistaken_prayer_intention"]
+  ];
+
+  for (const [question, routeId] of rows) {
+    const classification = retriever.classify(question);
+    assert.equal(classification.kind, "deterministic_tool", question);
+    assert.equal(classification.routeId, routeId, question);
+  }
 });
 
 test("retrieval finds exact evidence and refuses weak topical matches", () => {

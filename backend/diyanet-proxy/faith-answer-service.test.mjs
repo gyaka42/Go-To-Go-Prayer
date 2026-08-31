@@ -236,7 +236,9 @@ test("Fajr and imsak relation is source-backed and never calls Groq in every app
   const cases = [
     { language: "en", question: "As a Hanafi, should I pray Fajr before imsak?", marker: /begins at true dawn/i },
     { language: "nl", question: "Moet ik als Hanafi Fajr vóór imsak bidden?", marker: /begint bij de ware dageraad/i },
-    { language: "tr", question: "Hanefi mezhebine göre Sabah namazı imsak'tan önce mi kılınmalı?", marker: /imsak vaktinin girmesiyle başlar/i }
+    { language: "tr", question: "Hanefi mezhebine göre Sabah namazı imsak'tan önce mi kılınmalı?", marker: /imsak vaktinin girmesiyle başlar/i },
+    { language: "tr", question: "Sabah namazı tam olarak ne vakitte kılınmalı?", marker: /imsak vaktinin girmesiyle başlar/i },
+    { language: "tr", question: "Sabah namazı ne zaman giriyor?", marker: /imsak vaktinin girmesiyle başlar/i }
   ];
 
   for (const row of cases) {
@@ -249,6 +251,32 @@ test("Fajr and imsak relation is source-backed and never calls Groq in every app
     assert.equal(result.meta.answerMode, "sourced");
     assert.equal(result.meta.providerRequestId, null);
     assert.equal(result.citations[0]?.id, "diyanet-fajr-starts-at-imsak");
+    assert.match(result.answer, row.marker);
+  }
+
+  assert.equal(groq.calls.length, 0);
+});
+
+test("mistaken obligatory prayer questions receive a sourced conditional answer without Groq", async () => {
+  const groq = mockGroq({});
+  const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
+  const cases = [
+    { language: "en", question: "I accidentally prayed Isha instead of Maghrib. What should I do?", marker: /intended in your heart/i },
+    { language: "nl", question: "Ik heb per ongeluk Isha in plaats van Maghrib gebeden. Wat moet ik doen?", marker: /in je hart bedoelde/i },
+    { language: "tr", question: "Yanlışlıkla akşam namazı yerine yatsıyı kıldım, ne yapmam lazım?", marker: /kalben hangi namazı/i }
+  ];
+
+  for (const row of cases) {
+    const result = await service.answer({
+      question: row.question,
+      language: row.language,
+      perspective: "hanafi"
+    });
+    assert.equal(result.outcome, "answer");
+    assert.equal(result.meta.answerMode, "sourced");
+    assert.equal(result.meta.providerRequestId, null);
+    assert.equal(result.citations[0]?.id, "diyanet-obligatory-prayer-intention-selection");
+    assert.equal(result.citations[1]?.id, "diyanet-prayer-prerequisites-and-pillars");
     assert.match(result.answer, row.marker);
   }
 

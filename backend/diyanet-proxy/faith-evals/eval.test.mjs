@@ -85,9 +85,14 @@ test("boundary and deterministic evals never call the model", async () => {
     });
     assert.equal(groq.calls.length, 0, `${row.id}: model call`);
 
-    const isSourcedDeterministic = row.expected.routeId === "fajr_imsak_rule";
+    const deterministicCitationIds = {
+      fajr_imsak_rule: "diyanet-fajr-starts-at-imsak",
+      mistaken_prayer_intention: "diyanet-obligatory-prayer-intention-selection"
+    };
+    const expectedCitationId = deterministicCitationIds[row.expected.routeId];
+    const isSourcedDeterministic = Boolean(expectedCitationId);
     if (isSourcedDeterministic) {
-      assert.equal(result.citations[0]?.id, "diyanet-fajr-starts-at-imsak", `${row.id}: reviewed citation`);
+      assert.equal(result.citations[0]?.id, expectedCitationId, `${row.id}: reviewed citation`);
     } else {
       assert.equal(result.citations.length, 0, `${row.id}: local result citations`);
     }

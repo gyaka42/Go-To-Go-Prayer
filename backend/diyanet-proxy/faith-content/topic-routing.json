@@ -59,7 +59,11 @@
     },
     {
       "id": "fajr_imsak_rule",
-      "terms": ["does fajr start at imsak", "when does fajr prayer start", "pray fajr before imsak", "pray fajr after imsak", "fajr time begins at imsak", "begint fajr bij imsak", "wanneer begint het fajr gebed", "fajr voor imsak bidden", "fajr na imsak bidden", "imsak is het begin van fajr", "sabah namazı imsak'tan önce mi kılınmalı", "sabah namazı ne zaman başlar", "imsaktan önce sabah namazı", "imsaktan sonra sabah namazı", "imsakla sabah namazı vakti girer mi", "imsak vakti sabah namazı başladı mı"]
+      "terms": ["does fajr start at imsak", "when does fajr prayer start", "when does fajr time begin", "when should fajr be prayed", "what is the valid fajr time", "pray fajr before imsak", "pray fajr after imsak", "fajr time begins at imsak", "begint fajr bij imsak", "wanneer begint het fajr gebed", "wanneer gaat de tijd voor fajr in", "wanneer moet het fajr gebed worden gebeden", "binnen welke tijd mag fajr worden gebeden", "fajr voor imsak bidden", "fajr na imsak bidden", "imsak is het begin van fajr", "sabah namazı imsak'tan önce mi kılınmalı", "sabah namazı ne zaman başlar", "sabah namazı ne zaman giriyor", "sabah namazı vakti ne zaman girer", "sabah namazı tam olarak ne vakitte kılınmalı", "sabah namazı hangi vakitte kılınır", "imsaktan önce sabah namazı", "imsaktan sonra sabah namazı", "imsakla sabah namazı vakti girer mi", "imsak vakti sabah namazı başladı mı"]
+    },
+    {
+      "id": "mistaken_prayer_intention",
+      "terms": ["prayed the wrong prayer", "prayed isha instead of maghrib", "prayed maghrib instead of isha", "intended the wrong obligatory prayer", "said the wrong prayer in my intention", "verkeerde gebed gebeden", "isha in plaats van maghrib gebeden", "maghrib in plaats van isha gebeden", "verkeerde verplichte gebed bedoeld", "verkeerde gebed bij mijn intentie gezegd", "yanlış namazı kıldım", "yanlis namazi kildim", "akşam namazı yerine yatsıyı kıldım", "aksam namazi yerine yatsiyi kildim", "yatsı yerine akşamı kıldım", "yatsi yerine aksami kildim", "başka namaza niyet ettim", "baska namaza niyet ettim", "namaza yanlış niyet ettim", "namaza yanlis niyet ettim"]
     },
     {
       "id": "current_prayer_times",

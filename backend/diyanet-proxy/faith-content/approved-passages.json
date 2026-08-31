@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "corpusId": "faith-assistant-v1-curated-passages",
-  "lastReviewed": "2026-08-27",
+  "lastReviewed": "2026-08-31",
   "contentPolicy": "Manually written summaries of short, exact sections from runtime-approved sources. No full-page copies.",
   "passages": [
     {
@@ -395,6 +395,20 @@
       "perspectives": ["general_sunni"],
       "summary": "The High Board defines intention as a decision of the heart: knowing which act one is undertaking and for what purpose. It states that saying the intention aloud is recommended but not required for validity. A prayer remains valid when the intention was present in the heart even if no verbal formula was spoken.",
       "searchTerms": ["must intention be spoken for prayer", "forgot to say intention", "intention in heart salah", "niyyah prayer", "intentie hardop zeggen gebed", "intentie vergeten uitspreken", "intentie in hart", "namaz niyeti kalpten yeter mi", "niyet etmeyi söylemeyi unuttum", "niyet etmeyi soylemeyi unuttum", "namaza niyet dil ile"]
+    },
+    {
+      "id": "diyanet-obligatory-prayer-intention-selection",
+      "sourceId": "diyanet-prayer-handbook",
+      "sourceTitle": "Namaz Ilmihali",
+      "sourceUrl": "https://namaz.diyanet.gov.tr/namaz/html/kutuphane/HTML/NamazIlmihali/assets/basic-html/page-24.html",
+      "sourceLanguage": "tr",
+      "sourceDate": "2011",
+      "reviewedAt": "2026-08-31",
+      "locator": "Niyet and Niyetin Zamani, printed pages 238-239",
+      "topics": ["prayer", "madhhab_differences"],
+      "perspectives": ["general_sunni", "hanafi"],
+      "summary": "The Hanafi-oriented Diyanet prayer handbook states that intention is fundamentally made in the heart and that, when spoken wording conflicts with the heart, the heart's intention governs. For obligatory prayers, the worshipper must identify which obligatory prayer is intended, although intending the obligatory prayer of the current time is sufficient when that time is known. The initial intention continues to govern even if the person later becomes confused about which prayer they are performing.",
+      "searchTerms": ["prayed the wrong prayer", "prayed isha instead of maghrib", "wrong obligatory prayer intention", "heart intention differs from words", "verkeerde gebed gebeden", "isha in plaats van maghrib gebeden", "verkeerde intentie verplicht gebed", "intentie in hart anders dan woorden", "yanlış namazı kıldım", "yanlis namazi kildim", "akşam yerine yatsıyı kıldım", "aksam yerine yatsiyi kildim", "farz namazı yanlış niyet", "farz namazi yanlis niyet", "kalpteki niyet dildeki niyet farklı", "kalpteki niyet dildeki niyet farkli"]
     },
     {
       "id": "diyanet-laughing-in-prayer",
