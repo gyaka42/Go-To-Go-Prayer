@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "corpusId": "faith-assistant-v1-curated-passages",
-  "lastReviewed": "2026-08-31",
+  "lastReviewed": "2026-09-06",
   "contentPolicy": "Manually written summaries of short, exact sections from runtime-approved sources. No full-page copies.",
   "passages": [
     {
@@ -802,6 +802,20 @@
       "perspectives": ["general_sunni", "hanafi"],
       "summary": "In its Hanafi presentation, the handbook lists common invalidators of prayer such as ordinary human speech, greeting someone, eating or drinking, turning the chest away from qibla, excessive unrelated movement, deliberate invalid recitation, exposing the required covering for the specified duration, and loss of ritual purity. Small movements and unavoidable coughing are treated differently from excessive action or deliberate speech. Because details can differ by school and circumstance, an answer should identify the actual event before giving a conclusion.",
       "searchTerms": ["what invalidates prayer", "what breaks salah", "does talking break prayer", "eating during prayer", "turning away qibla prayer", "wat maakt gebed ongeldig", "wat verbreekt het gebed", "praten tijdens gebed", "eten tijdens gebed", "namazı ne bozar", "namazi ne bozar", "namazda konuşmak", "namazda konusmak", "namazda yemek", "namaz bozulur mu"]
+    },
+    {
+      "id": "diyanet-yawning-in-prayer",
+      "sourceId": "diyanet-prayer-handbook",
+      "sourceTitle": "Namaz Ilmihali",
+      "sourceUrl": "https://namaz.diyanet.gov.tr/namaz/html/kutuphane/HTML/NamazIlmihali/assets/basic-html/page-44.html",
+      "sourceLanguage": "tr",
+      "sourceDate": "2011",
+      "reviewedAt": "2026-09-06",
+      "locator": "Namazin Mekruhlari, printed page 258",
+      "topics": ["prayer", "madhhab_differences"],
+      "perspectives": ["general_sunni", "hanafi"],
+      "summary": "The Hanafi-oriented Diyanet prayer handbook lists yawning and stretching during prayer among disliked actions, not among the actions that invalidate the prayer. It advises trying to suppress a yawn and, when that is not possible, covering the mouth with the right hand.",
+      "searchTerms": ["does yawning invalidate prayer", "yawning during prayer", "cover mouth when yawning prayer", "maakt gapen gebed ongeldig", "gapen tijdens gebed", "mond bedekken bij gapen gebed", "namazda esnemek namazı bozar mı", "namazda esnemek namazi bozar mi", "namaz kılarken esnemek", "namaz kilarken esnemek", "esnerken ağzı kapatmak", "esnerken agzi kapatmak"]
     },
     {
       "id": "diyanet-eid-prayer-method",

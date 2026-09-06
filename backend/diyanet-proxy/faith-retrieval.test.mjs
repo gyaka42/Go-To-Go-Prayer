@@ -7,7 +7,7 @@ test("faith knowledge loads only approved sources and reviewed passages", () => 
   const retriever = createFaithRetriever({ knowledge });
 
   assert.equal(retriever.status().ready, true);
-  assert.equal(retriever.status().passageCount, 72);
+  assert.equal(retriever.status().passageCount, 73);
   assert.ok(knowledge.corpus.passages.every((passage) => passage.summary && !passage.excerpt));
 });
 
@@ -38,6 +38,27 @@ test("natural Fajr timing and mistaken-prayer wording use reviewed deterministic
     assert.equal(classification.kind, "deterministic_tool", question);
     assert.equal(classification.routeId, routeId, question);
   }
+});
+
+test("common prayer wording and assistant capability questions route without model guessing", () => {
+  const retriever = createFaithRetriever();
+  const rows = [
+    ["Namazda sureleri nelerdir?", "prayer_recitation_basics"],
+    ["Namazda hangi sureler okunmalı?", "prayer_recitation_basics"],
+    ["Namaz esnasında esnemek, namazı bozar mı?", "yawning_in_prayer"],
+    ["Sabah namazı ne zaman çıkıyor?", "fajr_imsak_rule"],
+    ["Hangi soruları sorabilirim sana?", "assistant_capabilities"]
+  ];
+
+  for (const [question, routeId] of rows) {
+    const classification = retriever.classify(question);
+    assert.equal(classification.kind, "deterministic_tool", question);
+    assert.equal(classification.routeId, routeId, question);
+  }
+
+  const forgotten = retriever.classify("Namazda okuyacağım sureyi unuttum, ne yapmalıyım?");
+  assert.equal(forgotten.kind, "allowed");
+  assert.equal(forgotten.topicId, "prayer");
 });
 
 test("retrieval finds exact evidence and refuses weak topical matches", () => {

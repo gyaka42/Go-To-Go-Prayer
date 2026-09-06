@@ -87,6 +87,8 @@ test("boundary and deterministic evals never call the model", async () => {
 
     const deterministicCitationIds = {
       fajr_imsak_rule: "diyanet-fajr-starts-at-imsak",
+      prayer_recitation_basics: "diyanet-fatiha-only-prayer",
+      yawning_in_prayer: "diyanet-yawning-in-prayer",
       mistaken_prayer_intention: "diyanet-obligatory-prayer-intention-selection"
     };
     const expectedCitationId = deterministicCitationIds[row.expected.routeId];
@@ -97,9 +99,16 @@ test("boundary and deterministic evals never call the model", async () => {
       assert.equal(result.citations.length, 0, `${row.id}: local result citations`);
     }
 
+    const deterministicAnswers = new Set([
+      "fajr_imsak_rule",
+      "prayer_recitation_basics",
+      "yawning_in_prayer",
+      "assistant_capabilities",
+      "mistaken_prayer_intention"
+    ]);
     const expectedOutcome = {
       qualified_referral: "qualified_referral",
-      deterministic_tool: isSourcedDeterministic ? "answer" : "out_of_scope",
+      deterministic_tool: deterministicAnswers.has(row.expected.routeId) ? "answer" : "out_of_scope",
       out_of_scope: "out_of_scope"
     }[row.expected.kind];
     assert.equal(result.outcome, expectedOutcome, `${row.id}: local outcome`);

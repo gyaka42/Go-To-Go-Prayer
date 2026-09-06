@@ -182,10 +182,10 @@ test("an allowed general Sunni question without evidence uses labelled general A
   assert.doesNotMatch(JSON.stringify(groq.calls[0].messages), /13:08|2026-08-25/);
 });
 
-test("Hanafi questions without reviewed evidence fail closed without calling Groq", async () => {
+test("standard Hanafi education without reviewed evidence uses labelled general AI", async () => {
   const groq = mockGroq({
     outcome: "answer",
-    answer: "An unsupported Hanafi ruling.",
+    answer: "A cautious general Hanafi educational explanation.",
     sourceIds: [],
     caveat: null,
     followUpQuestion: null
@@ -201,6 +201,60 @@ test("Hanafi questions without reviewed evidence fail closed without calling Gro
 
   const result = await service.answer({
     question: "Hanefi mezhebinde bu namaz hükmü nedir?",
+    language: "tr",
+    perspective: "hanafi"
+  });
+
+  assert.equal(result.outcome, "answer");
+  assert.equal(result.meta.answerMode, "general_ai");
+  assert.deepEqual(result.citations, []);
+  assert.match(result.caveat, /yapay zeka/i);
+  assert.equal(groq.calls.length, 1);
+});
+
+test("a novel low-risk Islamic question can use the labelled Hanafi AI fallback", async () => {
+  const groq = mockGroq({
+    outcome: "answer",
+    answer: "Kedi beslemek genel olarak caiz kabul edilir; hayvana iyi bakılmalıdır.",
+    sourceIds: [],
+    caveat: null,
+    followUpQuestion: null
+  });
+  const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
+
+  const result = await service.answer({
+    question: "Kedi beslemek caiz mi?",
+    language: "tr",
+    perspective: "hanafi"
+  });
+
+  assert.equal(result.outcome, "answer");
+  assert.equal(result.meta.topicId, "islamic_general");
+  assert.equal(result.meta.answerMode, "general_ai");
+  assert.deepEqual(result.citations, []);
+  assert.match(result.caveat, /onaylı bir kaynak bulunamadı/i);
+  assert.equal(groq.calls.length, 1);
+});
+
+test("context-sensitive Hanafi questions without reviewed evidence still fail closed", async () => {
+  const groq = mockGroq({
+    outcome: "answer",
+    answer: "This must not be used.",
+    sourceIds: [],
+    caveat: null,
+    followUpQuestion: null
+  });
+  const retriever = {
+    status: () => ({ ready: true, passageCount: 0 }),
+    retrieve: () => ({
+      classification: { kind: "allowed", topicId: "ritual_purity", topics: [{ id: "ritual_purity" }] },
+      passages: []
+    })
+  };
+  const service = createFaithAnswerService({ groqClient: groq, retriever });
+
+  const result = await service.answer({
+    question: "Hanefi mezhebinde özel durumumda abdestim geçerli mi?",
     language: "tr",
     perspective: "hanafi"
   });
@@ -252,6 +306,54 @@ test("Fajr and imsak relation is source-backed and never calls Groq in every app
     assert.equal(result.meta.providerRequestId, null);
     assert.equal(result.citations[0]?.id, "diyanet-fajr-starts-at-imsak");
     assert.match(result.answer, row.marker);
+  }
+
+  assert.equal(groq.calls.length, 0);
+});
+
+test("common prayer questions and assistant help are answered locally from reviewed rules", async () => {
+  const groq = mockGroq({});
+  const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
+  const cases = [
+    {
+      question: "Namazda sureleri nelerdir?",
+      topicId: "prayer_recitation_basics",
+      citationId: "diyanet-fatiha-only-prayer",
+      marker: /sabit bir sûre listesi yoktur/i
+    },
+    {
+      question: "Namazda hangi sureler okunmalı?",
+      topicId: "prayer_recitation_basics",
+      citationId: "diyanet-fatiha-only-prayer",
+      marker: /Fâtiha'dan sonra/i
+    },
+    {
+      question: "Namaz esnasında esnemek, namazı bozar mı?",
+      topicId: "yawning_in_prayer",
+      citationId: "diyanet-yawning-in-prayer",
+      marker: /namazı bozmaz/i
+    },
+    {
+      question: "Sabah namazı ne zaman çıkıyor?",
+      topicId: "fajr_imsak_rule",
+      citationId: "diyanet-fajr-starts-at-imsak",
+      marker: /güneş doğana kadar/i
+    },
+    {
+      question: "Hangi soruları sorabilirim sana?",
+      topicId: "assistant_capabilities",
+      citationId: null,
+      marker: /İslam inancı, namaz/i
+    }
+  ];
+
+  for (const row of cases) {
+    const result = await service.answer({ question: row.question, language: "tr", perspective: "hanafi" });
+    assert.equal(result.outcome, "answer", row.question);
+    assert.equal(result.meta.topicId, row.topicId, row.question);
+    assert.equal(result.meta.providerRequestId, null, row.question);
+    assert.equal(result.citations[0]?.id || null, row.citationId, row.question);
+    assert.match(result.answer, row.marker, row.question);
   }
 
   assert.equal(groq.calls.length, 0);

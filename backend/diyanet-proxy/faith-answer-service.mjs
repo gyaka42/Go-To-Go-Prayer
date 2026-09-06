@@ -35,6 +35,15 @@ const GENERAL_RESPONSE_SCHEMA = {
   additionalProperties: false
 };
 
+const REVIEWED_EVIDENCE_REQUIRED_TOPICS = new Set([
+  "ritual_purity",
+  "travel_prayer",
+  "fasting",
+  "zakat_basics",
+  "hajj_umrah",
+  "madhhab_differences"
+]);
+
 const MESSAGES = {
   en: {
     out_of_scope: "I can only help with the supported Islamic faith and worship topics in this first version.",
@@ -43,7 +52,7 @@ const MESSAGES = {
     safety_refusal: "I cannot help with violence, extremism, political mobilisation, or judging whether a person is outside Islam. Speak with an appropriate qualified local professional if support is needed.",
     insufficient_sources: "I do not yet have enough approved source material to answer this reliably.",
     deterministic_tool: "Please use the app's dedicated prayer-time, qibla, or calculation tool for this question.",
-    general_ai_caveat: "This is a general AI explanation, not a personal fatwa. Verify important personal rulings with a qualified scholar."
+    general_ai_caveat: "No matching approved source was found for this answer. This is a general AI explanation, not a personal fatwa; verify important rulings with a qualified scholar."
   },
   nl: {
     out_of_scope: "Ik kan in deze eerste versie alleen helpen met de ondersteunde islamitische geloofs- en aanbiddingsonderwerpen.",
@@ -52,7 +61,7 @@ const MESSAGES = {
     safety_refusal: "Ik kan niet helpen met geweld, extremisme, politieke mobilisatie of het beoordelen of iemand buiten de islam valt. Neem indien nodig contact op met een passende gekwalificeerde lokale professional.",
     insufficient_sources: "Ik heb nog onvoldoende goedgekeurd bronmateriaal om dit betrouwbaar te beantwoorden.",
     deterministic_tool: "Gebruik hiervoor de speciale gebedstijden-, qibla- of rekentool in de app.",
-    general_ai_caveat: "Dit is een algemene AI-uitleg, geen persoonlijke fatwa. Controleer belangrijke persoonlijke regels bij een gekwalificeerde geleerde."
+    general_ai_caveat: "Voor dit antwoord is geen passende goedgekeurde bron gevonden. Dit is algemene AI-uitleg, geen persoonlijke fatwa; controleer belangrijke regels bij een gekwalificeerde geleerde."
   },
   tr: {
     out_of_scope: "Bu ilk sürümde yalnızca desteklenen İslami inanç ve ibadet konularında yardımcı olabilirim.",
@@ -61,7 +70,7 @@ const MESSAGES = {
     safety_refusal: "Şiddet, aşırıcılık, siyasi yönlendirme veya bir kişinin İslam dışı olduğuna hükmetme konusunda yardımcı olamam. Gerekirse uygun ve yetkin bir yerel uzmana başvurun.",
     insufficient_sources: "Bunu güvenilir biçimde yanıtlamak için henüz yeterli onaylı kaynak içeriğim yok.",
     deterministic_tool: "Bu soru için uygulamadaki namaz vakti, kıble veya hesaplama aracını kullanın.",
-    general_ai_caveat: "Bu genel bir yapay zeka açıklamasıdır, kişisel fetva değildir. Önemli kişisel hükümleri yetkin bir din görevlisine doğrulatın."
+    general_ai_caveat: "Bu yanıt için eşleşen onaylı bir kaynak bulunamadı. Bu genel bir yapay zeka açıklamasıdır, kişisel fetva değildir; önemli hükümleri yetkin bir din görevlisine doğrulatın."
   }
 };
 
@@ -112,7 +121,7 @@ export function createFaithAnswerService(options) {
         return localResult("out_of_scope", input.perspective, language, classification, "out_of_scope", "boundary");
       }
       if (retrieval.passages.length === 0) {
-        if (requiresReviewedEvidence(input)) {
+        if (requiresReviewedEvidence(input, classification)) {
           return localResult("insufficient_sources", input.perspective, language, classification, "insufficient_sources");
         }
         await hooks.beforeProviderCall?.();
@@ -132,7 +141,7 @@ export function createFaithAnswerService(options) {
       });
       const sourcedResult = normalizeGeneratedResult(completion.data, input, retrieval, completion.meta);
       if (sourcedResult.outcome !== "insufficient_sources") return sourcedResult;
-      if (requiresReviewedEvidence(input)) return sourcedResult;
+      if (requiresReviewedEvidence(input, classification)) return sourcedResult;
 
       if (hooks.beforeAdditionalProviderCall) {
         await hooks.beforeAdditionalProviderCall();
@@ -338,6 +347,15 @@ function buildDeterministicResult(input, classification, language) {
   if (classification.routeId === "fajr_imsak_rule") {
     return buildFajrImsakResult(input, language);
   }
+  if (classification.routeId === "prayer_recitation_basics") {
+    return buildPrayerRecitationBasicsResult(input, language);
+  }
+  if (classification.routeId === "yawning_in_prayer") {
+    return buildYawningInPrayerResult(input, language);
+  }
+  if (classification.routeId === "assistant_capabilities") {
+    return buildAssistantCapabilitiesResult(input, language);
+  }
   if (classification.routeId === "mistaken_prayer_intention") {
     return buildMistakenPrayerIntentionResult(input, language);
   }
@@ -410,6 +428,87 @@ function buildFajrImsakResult(input, language) {
     meta: {
       topicId: "fajr_imsak_rule",
       evidenceCount: 1,
+      providerRequestId: null,
+      answerMode: "sourced"
+    }
+  };
+}
+
+function buildPrayerRecitationBasicsResult(input, language) {
+  const answer = {
+    en: "There is no fixed list of particular surahs that must always be recited in prayer. In the Hanafi school, al-Fatiha is recited while standing; in the first two units of an obligatory prayer, and in every unit of Sunnah or voluntary prayers, it is followed by a surah or by at least three short verses (or one verse of an equivalent length). You may recite any passage you know; short surahs such as al-Ikhlas, al-Falaq and an-Nas are common examples, not a required list.",
+    nl: "Er is geen vaste lijst met bepaalde soera's die altijd in het gebed moet worden gelezen. Binnen de Hanafi-school wordt tijdens het staan al-Fatiha gelezen; in de eerste twee rakaat van een verplicht gebed en in iedere rakaat van sunnah- of vrijwillige gebeden volgt daarna een soera, minstens drie korte verzen of één vers van vergelijkbare lengte. Je mag iedere passage lezen die je kent; korte soera's zoals al-Ikhlas, al-Falaq en an-Nas zijn veelgebruikte voorbeelden, geen verplichte lijst.",
+    tr: "Namazda mutlaka okunması gereken sabit bir sûre listesi yoktur. Hanefî mezhebinde kıyamda Fâtiha okunur; farz namazların ilk iki rekâtında, sünnet ve nâfile namazların ise her rekâtında Fâtiha'dan sonra bir sûre, en az üç kısa âyet veya buna denk uzunlukta bir âyet okunur. Bildiğiniz herhangi bir bölümü okuyabilirsiniz; İhlâs, Felak ve Nâs gibi kısa sûreler yaygın örneklerdir, zorunlu bir liste değildir."
+  }[language];
+  const caveat = {
+    en: "Recitation behind an imam and the later units of obligatory prayers have separate details.",
+    nl: "Recitatie achter een imam en de latere rakaat van verplichte gebeden hebben afzonderlijke regels.",
+    tr: "İmama uyan kişinin kıraati ile farz namazların sonraki rekâtlarına ilişkin ayrıntılar farklıdır."
+  }[language];
+
+  return sourcedLocalAnswer(input, "prayer_recitation_basics", answer, caveat, [{
+    id: "diyanet-fatiha-only-prayer",
+    sourceId: "diyanet-high-board",
+    title: "Namazda sadece Fâtiha okumakla, farz olan kıraat yerine gelir mi?",
+    locator: "Answer",
+    url: "https://kurul.diyanet.gov.tr/tr/fetva/namazda-sadece-fatiha-okumakla-farz-olan-kiraat-yerine-gelir-mi/0193c42d-4ec3-7453-b0d2-4a6842b47170",
+    sourceLanguage: "tr",
+    sourceDate: "2017-07-12"
+  }]);
+}
+
+function buildYawningInPrayerResult(input, language) {
+  const answer = {
+    en: "Yawning during prayer does not invalidate the prayer. In the Hanafi-oriented Diyanet handbook it is treated as disliked: try to suppress it, and if you cannot, cover your mouth with your right hand.",
+    nl: "Gapen tijdens het gebed maakt het gebed niet ongeldig. In het Hanafi-gerichte Diyanet-handboek geldt het als afkeurenswaardig: probeer het te onderdrukken en bedek, als dat niet lukt, je mond met je rechterhand.",
+    tr: "Namaz esnasında esnemek namazı bozmaz. Hanefî esaslı Diyanet ilmihalinde mekruh davranışlar arasında sayılır; mümkün olduğunca esnemeyi önlemeye çalışın, engelleyemezseniz ağzınızı sağ elinizle kapatın."
+  }[language];
+
+  return sourcedLocalAnswer(input, "yawning_in_prayer", answer, null, [{
+    id: "diyanet-yawning-in-prayer",
+    sourceId: "diyanet-prayer-handbook",
+    title: "Namaz Ilmihali",
+    locator: "Namazin Mekruhlari, printed page 258",
+    url: "https://namaz.diyanet.gov.tr/namaz/html/kutuphane/HTML/NamazIlmihali/assets/basic-html/page-44.html",
+    sourceLanguage: "tr",
+    sourceDate: "2011"
+  }]);
+}
+
+function buildAssistantCapabilitiesResult(input, language) {
+  const answer = {
+    en: "You can ask me about Islamic belief, prayer, wudu and purification, fasting, Quran, dua and dhikr, zakat basics, Hajj and Umrah, everyday ethics, Islamic terms, and common Hanafi practice. I can give educational information and cite approved sources when available. For personal fatwas or high-consequence matters such as divorce, inheritance, medical decisions or complex finance, I will direct you to a qualified person.",
+    nl: "Je kunt mij vragen stellen over islamitisch geloof, gebed, wudu en reiniging, vasten, de Koran, dua en dhikr, zakat-basisregels, hadj en umrah, dagelijkse ethiek, islamitische begrippen en gangbare Hanafi-praktijk. Ik geef educatieve informatie en vermeld goedgekeurde bronnen wanneer die beschikbaar zijn. Voor persoonlijke fatwa's of zwaarwegende zaken zoals scheiding, erfenis, medische beslissingen of complexe financiën verwijs ik naar een deskundige.",
+    tr: "İslam inancı, namaz, abdest ve temizlik, oruç, Kur'an, dua ve zikir, zekâtın temel bilgileri, hac ve umre, günlük ahlak, İslami kavramlar ve yaygın Hanefî uygulamaları hakkında soru sorabilirsiniz. Eğitici bilgi verir, mevcut olduğunda onaylı kaynakları gösteririm. Kişisel fetva veya boşanma, miras, tıbbi kararlar ve karmaşık finans gibi ciddi sonuçları olan konularda yetkin bir uzmana yönlendiririm."
+  }[language];
+
+  return {
+    outcome: "answer",
+    perspective: input.perspective,
+    answer,
+    citations: [],
+    caveat: null,
+    followUpQuestion: null,
+    meta: {
+      topicId: "assistant_capabilities",
+      evidenceCount: 0,
+      providerRequestId: null,
+      answerMode: "app_data"
+    }
+  };
+}
+
+function sourcedLocalAnswer(input, topicId, answer, caveat, citations) {
+  return {
+    outcome: "answer",
+    perspective: input.perspective,
+    answer,
+    citations,
+    caveat,
+    followUpQuestion: null,
+    meta: {
+      topicId,
+      evidenceCount: citations.length,
       providerRequestId: null,
       answerMode: "sourced"
     }
@@ -534,8 +633,12 @@ function referralMessageKey(routeId) {
   return "qualified_referral";
 }
 
-function requiresReviewedEvidence(input) {
-  return input.perspective === "hanafi";
+function requiresReviewedEvidence(input, classification) {
+  if (input.perspective !== "hanafi") return false;
+  const topicIds = Array.isArray(classification?.topics)
+    ? classification.topics.map((topic) => topic.id)
+    : [classification?.topicId].filter(Boolean);
+  return topicIds.some((topicId) => REVIEWED_EVIDENCE_REQUIRED_TOPICS.has(topicId));
 }
 
 function cleanText(value, maxLength) {

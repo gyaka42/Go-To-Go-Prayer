@@ -59,7 +59,20 @@
     },
     {
       "id": "fajr_imsak_rule",
-      "terms": ["does fajr start at imsak", "when does fajr prayer start", "when does fajr time begin", "when should fajr be prayed", "what is the valid fajr time", "pray fajr before imsak", "pray fajr after imsak", "fajr time begins at imsak", "begint fajr bij imsak", "wanneer begint het fajr gebed", "wanneer gaat de tijd voor fajr in", "wanneer moet het fajr gebed worden gebeden", "binnen welke tijd mag fajr worden gebeden", "fajr voor imsak bidden", "fajr na imsak bidden", "imsak is het begin van fajr", "sabah namazı imsak'tan önce mi kılınmalı", "sabah namazı ne zaman başlar", "sabah namazı ne zaman giriyor", "sabah namazı vakti ne zaman girer", "sabah namazı tam olarak ne vakitte kılınmalı", "sabah namazı hangi vakitte kılınır", "imsaktan önce sabah namazı", "imsaktan sonra sabah namazı", "imsakla sabah namazı vakti girer mi", "imsak vakti sabah namazı başladı mı"]
+      "terms": ["does fajr start at imsak", "when does fajr prayer start", "when does fajr time begin", "when does fajr time end", "when should fajr be prayed", "what is the valid fajr time", "pray fajr before imsak", "pray fajr after imsak", "fajr time begins at imsak", "fajr ends at sunrise", "begint fajr bij imsak", "wanneer begint het fajr gebed", "wanneer eindigt het fajr gebed", "wanneer gaat de tijd voor fajr in", "wanneer gaat de tijd voor fajr uit", "wanneer moet het fajr gebed worden gebeden", "binnen welke tijd mag fajr worden gebeden", "fajr voor imsak bidden", "fajr na imsak bidden", "imsak is het begin van fajr", "sabah namazı imsak'tan önce mi kılınmalı", "sabah namazı ne zaman başlar", "sabah namazı ne zaman giriyor", "sabah namazı ne zaman çıkıyor", "sabah namazı vakti ne zaman girer", "sabah namazı vakti ne zaman çıkar", "sabah namazı tam olarak ne vakitte kılınmalı", "sabah namazı hangi vakitte kılınır", "imsaktan önce sabah namazı", "imsaktan sonra sabah namazı", "imsakla sabah namazı vakti girer mi", "imsak vakti sabah namazı başladı mı", "güneş doğunca sabah namazı vakti çıkar mı"]
+    },
+    {
+      "id": "prayer_recitation_basics",
+      "terms": ["which surahs are read in prayer", "which surah should i recite in prayer", "what surahs do i need for prayer", "surahs used in salah", "welke soeras lees je tijdens het gebed", "welke soera moet ik in het gebed lezen", "welke soeras heb ik nodig voor het gebed", "namazda sureleri nelerdir", "namazda hangi sureler okunmalı", "namazda hangi sure okunur", "namazda okunacak sureler", "namaz sureleri hangileri"],
+      "exclusionTerms": ["forgot", "forgotten", "mistake", "wrong order", "vergeten", "vergat", "fout", "verkeerde volgorde", "unuttum", "hata", "yanlış sıra", "yanlis sira"]
+    },
+    {
+      "id": "yawning_in_prayer",
+      "terms": ["does yawning invalidate prayer", "yawning during prayer", "yawned while praying", "maakt gapen het gebed ongeldig", "gapen tijdens het gebed", "ik gaapte tijdens het bidden", "namaz esnasında esnemek namazı bozar mı", "namazda esnemek namazı bozar mı", "namazda esnemek", "namaz kılarken esnedim"]
+    },
+    {
+      "id": "assistant_capabilities",
+      "terms": ["what can i ask you", "which questions can i ask", "what topics do you answer", "wat kan ik jou vragen", "welke vragen kan ik stellen", "welke onderwerpen beantwoord je", "hangi soruları sorabilirim sana", "sana ne sorabilirim", "hangi konuları cevaplıyorsun"]
     },
     {
       "id": "mistaken_prayer_intention",

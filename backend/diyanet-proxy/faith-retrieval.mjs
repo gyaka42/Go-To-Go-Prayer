@@ -201,6 +201,10 @@ function bestRouteMatch(normalizedQuestion, routes) {
 function allRouteMatches(normalizedQuestion, routes) {
   return routes
     .map((route) => {
+      const excluded = (route.exclusionTerms || []).some((term) =>
+        termMatches(normalizedQuestion, normalizeForFaithSearch(term))
+      );
+      if (excluded) return { route, matchedTerms: [], score: 0 };
       const normalizedTerms = [...new Set(route.terms.map((term) => normalizeForFaithSearch(term)))];
       const matchedByMeaning = new Map();
       for (const term of normalizedTerms.filter((candidate) => termMatches(normalizedQuestion, candidate))) {
