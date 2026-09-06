@@ -108,7 +108,9 @@ test("boundary and deterministic evals never call the model", async () => {
     ]);
     const expectedOutcome = {
       qualified_referral: "qualified_referral",
-      deterministic_tool: deterministicAnswers.has(row.expected.routeId) ? "answer" : "out_of_scope",
+      deterministic_tool: row.expected.routeId === "ambiguous_prayer_fragment"
+        ? "clarification_needed"
+        : deterministicAnswers.has(row.expected.routeId) ? "answer" : "out_of_scope",
       out_of_scope: "out_of_scope"
     }[row.expected.kind];
     assert.equal(result.outcome, expectedOutcome, `${row.id}: local outcome`);

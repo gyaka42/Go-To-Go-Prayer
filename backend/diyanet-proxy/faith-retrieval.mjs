@@ -206,6 +206,12 @@ function allRouteMatches(normalizedQuestion, routes) {
       );
       if (excluded) return { route, matchedTerms: [], score: 0 };
       const normalizedTerms = [...new Set(route.terms.map((term) => normalizeForFaithSearch(term)))];
+      if (route.exactOnly === true) {
+        const exactTerm = normalizedTerms.find((term) => term === normalizedQuestion);
+        return exactTerm
+          ? { route, matchedTerms: [exactTerm], score: 100 }
+          : { route, matchedTerms: [], score: 0 };
+      }
       const matchedByMeaning = new Map();
       for (const term of normalizedTerms.filter((candidate) => termMatches(normalizedQuestion, candidate))) {
         const meaningful = [...meaningfulTokens(term)].sort().join(" ") || term;

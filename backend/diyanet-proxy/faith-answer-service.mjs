@@ -356,6 +356,9 @@ function buildDeterministicResult(input, classification, language) {
   if (classification.routeId === "assistant_capabilities") {
     return buildAssistantCapabilitiesResult(input, language);
   }
+  if (classification.routeId === "ambiguous_prayer_fragment") {
+    return buildAmbiguousPrayerFragmentResult(input, language);
+  }
   if (classification.routeId === "mistaken_prayer_intention") {
     return buildMistakenPrayerIntentionResult(input, language);
   }
@@ -494,6 +497,34 @@ function buildAssistantCapabilitiesResult(input, language) {
       evidenceCount: 0,
       providerRequestId: null,
       answerMode: "app_data"
+    }
+  };
+}
+
+function buildAmbiguousPrayerFragmentResult(input, language) {
+  const answer = {
+    en: "Please make your prayer question a little more specific.",
+    nl: "Maak je vraag over het gebed iets specifieker.",
+    tr: "Lütfen namazla ilgili sorunuzu biraz daha açık belirtin."
+  }[language];
+  const followUpQuestion = {
+    en: "Do you want to know its time, number of units, recitations, method, or a ruling about something that happened during prayer?",
+    nl: "Wil je de tijd, het aantal rakaat, de recitaties, de uitvoering of een regel over iets tijdens het gebed weten?",
+    tr: "Vaktini, rekât sayısını, okunacak sûre ve duaları, kılınışını veya namazda yaşanan bir durumun hükmünü mü öğrenmek istiyorsunuz?"
+  }[language];
+
+  return {
+    outcome: "clarification_needed",
+    perspective: input.perspective,
+    answer,
+    citations: [],
+    caveat: null,
+    followUpQuestion,
+    meta: {
+      topicId: "ambiguous_prayer_fragment",
+      evidenceCount: 0,
+      providerRequestId: null,
+      answerMode: "clarification"
     }
   };
 }

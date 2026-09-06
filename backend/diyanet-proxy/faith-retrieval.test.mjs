@@ -59,6 +59,11 @@ test("common prayer wording and assistant capability questions route without mod
   const forgotten = retriever.classify("Namazda okuyacağım sureyi unuttum, ne yapmalıyım?");
   assert.equal(forgotten.kind, "allowed");
   assert.equal(forgotten.topicId, "prayer");
+
+  const fragment = retriever.classify("Sabah namaz");
+  assert.equal(fragment.kind, "deterministic_tool");
+  assert.equal(fragment.routeId, "ambiguous_prayer_fragment");
+  assert.equal(retriever.classify("Sabah namazı kaç rekat?").kind, "allowed");
 });
 
 test("retrieval finds exact evidence and refuses weak topical matches", () => {

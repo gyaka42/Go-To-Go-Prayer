@@ -359,6 +359,19 @@ test("common prayer questions and assistant help are answered locally from revie
   assert.equal(groq.calls.length, 0);
 });
 
+test("an incomplete prayer fragment asks for clarification without Groq", async () => {
+  const groq = mockGroq({});
+  const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });
+  const result = await service.answer({ question: "Sabah namaz", language: "tr", perspective: "hanafi" });
+
+  assert.equal(result.outcome, "clarification_needed");
+  assert.equal(result.meta.topicId, "ambiguous_prayer_fragment");
+  assert.equal(result.meta.answerMode, "clarification");
+  assert.equal(result.meta.providerRequestId, null);
+  assert.match(result.followUpQuestion, /Vaktini, rekât sayısını/i);
+  assert.equal(groq.calls.length, 0);
+});
+
 test("mistaken obligatory prayer questions receive a sourced conditional answer without Groq", async () => {
   const groq = mockGroq({});
   const service = createFaithAnswerService({ groqClient: groq, retriever: createFaithRetriever() });

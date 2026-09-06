@@ -75,6 +75,11 @@
       "terms": ["what can i ask you", "which questions can i ask", "what topics do you answer", "wat kan ik jou vragen", "welke vragen kan ik stellen", "welke onderwerpen beantwoord je", "hangi soruları sorabilirim sana", "sana ne sorabilirim", "hangi konuları cevaplıyorsun"]
     },
     {
+      "id": "ambiguous_prayer_fragment",
+      "exactOnly": true,
+      "terms": ["prayer", "fajr prayer", "morning prayer", "gebed", "fajr gebed", "ochtendgebed", "namaz", "sabah namaz", "sabah namazı"]
+    },
+    {
       "id": "mistaken_prayer_intention",
       "terms": ["prayed the wrong prayer", "prayed isha instead of maghrib", "prayed maghrib instead of isha", "intended the wrong obligatory prayer", "said the wrong prayer in my intention", "verkeerde gebed gebeden", "isha in plaats van maghrib gebeden", "maghrib in plaats van isha gebeden", "verkeerde verplichte gebed bedoeld", "verkeerde gebed bij mijn intentie gezegd", "yanlış namazı kıldım", "yanlis namazi kildim", "akşam namazı yerine yatsıyı kıldım", "aksam namazi yerine yatsiyi kildim", "yatsı yerine akşamı kıldım", "yatsi yerine aksami kildim", "başka namaza niyet ettim", "baska namaza niyet ettim", "namaza yanlış niyet ettim", "namaza yanlis niyet ettim"]
     },
