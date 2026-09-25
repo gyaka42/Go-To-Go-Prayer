@@ -16,6 +16,7 @@ import { createFaithRateLimiter, FaithRateLimitError } from "./faith-rate-limit.
 import { createFaithRetriever } from "./faith-retrieval.mjs";
 import { createGroqClient, GroqClientError } from "./groq-client.mjs";
 import { HttpBodyError, readJsonBody } from "./http-json.mjs";
+import { createMosqueService, validateMosqueSearchParams } from "./mosque-service.mjs";
 import { extractClientIp } from "./request-identity.mjs";
 
 const DIYANET_BASE = "https://awqatsalah.diyanet.gov.tr";
@@ -46,6 +47,11 @@ const faithRuntimeConfig = resolveFaithRuntimeConfig(process.env, {
 const groqClient = createGroqClient({ config: faithRuntimeConfig.groq });
 const faithAnswerService = createFaithAnswerService({ groqClient, retriever: faithRetriever });
 const faithRateLimiter = createFaithRateLimiter({ config: faithRuntimeConfig.abuseProtection });
+const mosqueService = createMosqueService({
+  timeoutMs: Number(process.env.MOSQUE_UPSTREAM_TIMEOUT_MS || 12_000),
+  cacheTtlMs: Number(process.env.MOSQUE_CACHE_TTL_MS || 24 * 60 * 60 * 1000),
+  staleTtlMs: Number(process.env.MOSQUE_STALE_TTL_MS || 7 * 24 * 60 * 60 * 1000)
+});
 
 let tokenState = null; // { token: string, expMs: number }
 let citiesState = null; // { items: Array<City>, atMs: number }
@@ -150,9 +156,38 @@ async function handleRequest(req, res) {
         countries: countriesCache.size,
         states: statesCache.size,
         districts: districtsCache.size,
-        citiesLoaded: Boolean(citiesState?.items?.length)
+        citiesLoaded: Boolean(citiesState?.items?.length),
+        mosques: mosqueService.status()
       }
     });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/mosques") {
+    const params = {
+      lat: Number(url.searchParams.get("lat")),
+      lon: Number(url.searchParams.get("lon")),
+      radiusKm: Number(url.searchParams.get("radiusKm"))
+    };
+    const validated = validateMosqueSearchParams(params);
+    if (!validated.ok) {
+      sendJson(res, 400, { error: validated.error });
+      return;
+    }
+
+    try {
+      const result = await mosqueService.search({
+        ...validated.value,
+        forceRefresh: url.searchParams.get("forceRefresh") === "true"
+      });
+      sendJson(res, 200, result);
+    } catch (error) {
+      console.warn("[mosques] upstream failure", String(error));
+      sendJson(res, 502, {
+        error: "Mosque data is temporarily unavailable",
+        retryable: true
+      });
+    }
     return;
   }
 

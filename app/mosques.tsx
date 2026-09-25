@@ -293,8 +293,11 @@ export default function MosquesScreen() {
           setWarningMessage(t("mosques.refresh_failed_cache"));
           setState("ready");
         } else {
+          if (__DEV__) {
+            console.warn("[mosques] load failed", message);
+          }
           setState("error");
-          setError(message);
+          setError(t("mosques.fetch_failed_body"));
         }
       } finally {
         setRefreshing(false);

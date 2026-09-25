@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { Platform } from "react-native";
 import { fetchJson } from "@/services/http";
 import { Settings } from "@/types/prayer";
 
@@ -9,7 +10,7 @@ export async function getCurrentLocation(): Promise<{ lat: number; lon: number }
   }
 
   const position = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.Balanced
+    accuracy: Platform.OS === "android" ? Location.Accuracy.High : Location.Accuracy.Balanced
   });
 
   return {

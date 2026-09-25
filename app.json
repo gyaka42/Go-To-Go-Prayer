@@ -34,6 +34,11 @@
         "ITSAppUsesNonExemptEncryption": false
       }
     },
+    "android": {
+      "package": "com.gogo22.gotogoprayer",
+      "versionCode": 1,
+      "permissions": ["android.permission.SCHEDULE_EXACT_ALARM"]
+    },
     "experiments": {
       "typedRoutes": true
     },

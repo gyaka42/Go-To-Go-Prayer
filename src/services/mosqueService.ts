@@ -4,6 +4,7 @@ import { Mosque } from "@/types/mosque";
 import { haversineDistanceKm } from "@/utils/geo";
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+const DEFAULT_PROXY_URL = "https://go-to-go-prayer-production.up.railway.app";
 const MOSQUE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const OVERPASS_TIMEOUT_MS = 8000;
 const OVERPASS_RETRY_DELAYS_MS = [1000, 2000];
@@ -39,6 +40,11 @@ type OverpassElement = {
 
 type OverpassResponse = {
   elements?: OverpassElement[];
+};
+
+type MosqueProxyResponse = OverpassResponse & {
+  source?: "cache" | "network";
+  stale?: boolean;
 };
 
 function normalizeMosqueName(tags?: Record<string, string>): string {
@@ -142,6 +148,27 @@ async function fetchMosquesFromOverpass(lat: number, lon: number, radiusKm: numb
   throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "Overpass request failed"));
 }
 
+async function fetchMosquesFromProxy(lat: number, lon: number, radiusKm: number): Promise<Mosque[]> {
+  const baseUrl = (process.env.EXPO_PUBLIC_DIYANET_PROXY_URL?.trim() || DEFAULT_PROXY_URL).replace(/\/+$/, "");
+  const url = new URL(`${baseUrl}/mosques`);
+  url.searchParams.set("lat", String(lat));
+  url.searchParams.set("lon", String(lon));
+  url.searchParams.set("radiusKm", String(radiusKm));
+
+  const payload = await fetchJson<MosqueProxyResponse>(url.toString(), { timeoutMs: 15_000 });
+  const elements = Array.isArray(payload.elements) ? payload.elements : [];
+  return mapOverpassElementsToMosques(elements, lat, lon);
+}
+
+async function fetchMosquesFromNetwork(lat: number, lon: number, radiusKm: number): Promise<Mosque[]> {
+  try {
+    return await fetchMosquesFromProxy(lat, lon, radiusKm);
+  } catch (error) {
+    console.log(`[mosques] proxy failed; trying direct Overpass error=${String(error)}`);
+    return fetchMosquesFromOverpass(lat, lon, radiusKm);
+  }
+}
+
 export async function getMosques(params: GetMosquesParams): Promise<GetMosquesResult> {
   const startedAt = Date.now();
   const forceRefresh = params.forceRefresh === true;
@@ -170,7 +197,7 @@ export async function getMosques(params: GetMosquesParams): Promise<GetMosquesRe
     }
 
     try {
-      const mosques = await fetchMosquesFromOverpass(params.lat, params.lon, params.radiusKm);
+      const mosques = await fetchMosquesFromNetwork(params.lat, params.lon, params.radiusKm);
       const payload: CachedMosquesPayload = {
         fetchedAt: Date.now(),
         mosques
