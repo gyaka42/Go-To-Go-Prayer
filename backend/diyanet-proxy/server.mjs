@@ -50,7 +50,8 @@ const faithRateLimiter = createFaithRateLimiter({ config: faithRuntimeConfig.abu
 const mosqueService = createMosqueService({
   timeoutMs: Number(process.env.MOSQUE_UPSTREAM_TIMEOUT_MS || 12_000),
   cacheTtlMs: Number(process.env.MOSQUE_CACHE_TTL_MS || 24 * 60 * 60 * 1000),
-  staleTtlMs: Number(process.env.MOSQUE_STALE_TTL_MS || 7 * 24 * 60 * 60 * 1000)
+  staleTtlMs: Number(process.env.MOSQUE_STALE_TTL_MS || 7 * 24 * 60 * 60 * 1000),
+  nominatimUrl: process.env.NOMINATIM_BASE_URL
 });
 
 let tokenState = null; // { token: string, expMs: number }

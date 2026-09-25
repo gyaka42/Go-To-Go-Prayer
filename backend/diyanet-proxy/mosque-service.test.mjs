@@ -20,6 +20,7 @@ test("mosque service falls back to another endpoint and caches sanitized results
   let calls = 0;
   const service = createMosqueService({
     endpoints: ["https://first.invalid", "https://second.example"],
+    nominatimEnabled: false,
     fetchImpl: async (url) => {
       calls += 1;
       if (url.includes("first")) return new Response("no", { status: 503 });
@@ -49,6 +50,7 @@ test("mosque service returns recent stale cache when every provider is unavailab
   let online = true;
   const service = createMosqueService({
     endpoints: ["https://overpass.example"],
+    nominatimEnabled: false,
     cacheTtlMs: 100,
     staleTtlMs: 1_000,
     now: () => currentTime,
@@ -65,4 +67,41 @@ test("mosque service returns recent stale cache when every provider is unavailab
 
   assert.equal(fallback.source, "cache");
   assert.equal(fallback.stale, true);
+});
+
+test("mosque service can fall back to a bounded Nominatim place-of-worship search", async () => {
+  const service = createMosqueService({
+    endpoints: [],
+    nominatimDelayMs: 0,
+    fetchImpl: async (url) => {
+      assert.match(String(url), /bounded=1/);
+      assert.match(String(url), /extratags=1/);
+      return new Response(
+        JSON.stringify([
+          {
+            osm_type: "node",
+            osm_id: 42,
+            lat: "52.36",
+            lon: "4.90",
+            name: "Test Moskee",
+            extratags: { religion: "muslim" }
+          },
+          {
+            osm_type: "node",
+            osm_id: 43,
+            lat: "52.37",
+            lon: "4.91",
+            name: "Other church",
+            extratags: { religion: "christian" }
+          }
+        ]),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  });
+
+  const result = await service.search({ lat: 52.3676, lon: 4.9041, radiusKm: 5 });
+  assert.equal(result.provider, "nominatim");
+  assert.equal(result.elements.length, 1);
+  assert.equal(result.elements[0].tags.name, "Test Moskee");
 });

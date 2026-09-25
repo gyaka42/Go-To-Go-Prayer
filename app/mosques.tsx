@@ -625,6 +625,9 @@ export default function MosquesScreen() {
               })}
               {locationLabel ? ` • ${t("mosques.location_prefix")}: ${locationLabel}` : ""}
             </Text>
+            <Pressable onPress={() => void Linking.openURL("https://www.openstreetmap.org/copyright")}>
+              <Text style={[styles.attribution, { color: colors.textSecondary }]}>{t("mosques.attribution")}</Text>
+            </Pressable>
           </EaseView>
         ) : null}
         <EaseView initialAnimate={easeInitialFade} animate={easeVisibleFade} transition={stateTransition}>
@@ -817,6 +820,11 @@ const styles = StyleSheet.create({
   statusLine: {
     marginTop: 8,
     fontSize: 12
+  },
+  attribution: {
+    marginTop: 3,
+    fontSize: 11,
+    textDecorationLine: "underline"
   },
   statusChipWrap: {
     minHeight: 32,

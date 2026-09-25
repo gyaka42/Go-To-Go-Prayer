@@ -3,6 +3,7 @@ const DEFAULT_ENDPOINTS = [
   "https://overpass.private.coffee/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
 ];
+const DEFAULT_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 
 const DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_STALE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -33,6 +34,10 @@ export function buildMosqueQuery(lat, lon, radiusKm) {
 
 function cacheKey(lat, lon, radiusKm) {
   return `${lat.toFixed(2)}:${lon.toFixed(2)}:${Number(radiusKm.toFixed(1))}`;
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function sanitizeElement(value) {
@@ -86,15 +91,102 @@ async function fetchEndpoint(fetchImpl, endpoint, query, timeoutMs) {
   }
 }
 
+function nominatimViewbox(lat, lon, radiusKm) {
+  const latDelta = radiusKm / 111.32;
+  const longitudeScale = Math.max(0.1, Math.cos((lat * Math.PI) / 180));
+  const lonDelta = radiusKm / (111.32 * longitudeScale);
+  return [lon - lonDelta, lat + latDelta, lon + lonDelta, lat - latDelta].join(",");
+}
+
+function nominatimRowToElement(row) {
+  if (!row || typeof row !== "object") return null;
+  const lat = Number(row.lat);
+  const lon = Number(row.lon);
+  const id = Number(row.osm_id);
+  const typeMap = { N: "node", W: "way", R: "relation" };
+  const type = typeMap[row.osm_type] || row.osm_type;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(id)) return null;
+  if (!(type === "node" || type === "way" || type === "relation")) return null;
+
+  const extra = row.extratags && typeof row.extratags === "object" ? row.extratags : {};
+  const religion = String(extra.religion || "").toLowerCase();
+  const denomination = String(extra.denomination || "").toLowerCase();
+  const name = String(row.name || row.namedetails?.name || row.display_name?.split(",")[0] || "").trim();
+  const looksMuslim =
+    religion === "muslim" ||
+    /(^|[;, ])(sunni|shia|shiite|alevi)([;, ]|$)/.test(denomination) ||
+    /\b(mosque|masjid|moskee|cami|camii)\b/i.test(name);
+  if (!looksMuslim) return null;
+
+  return {
+    type,
+    id,
+    lat,
+    lon,
+    tags: {
+      name: name || "Mosque",
+      religion: "muslim"
+    }
+  };
+}
+
+async function fetchNominatim(fetchImpl, endpoint, lat, lon, radiusKm, timeoutMs) {
+  const url = new URL(endpoint);
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("q", "[place_of_worship]");
+  url.searchParams.set("viewbox", nominatimViewbox(lat, lon, radiusKm));
+  url.searchParams.set("bounded", "1");
+  url.searchParams.set("limit", "50");
+  url.searchParams.set("addressdetails", "0");
+  url.searchParams.set("namedetails", "1");
+  url.searchParams.set("extratags", "1");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(url, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "GoToGo-Prayer/1.0 mosque-proxy"
+      },
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`Nominatim HTTP ${response.status}`);
+    const payload = await response.json();
+    if (!Array.isArray(payload)) throw new Error("Nominatim response is not a list");
+    const elements = payload.map(nominatimRowToElement).filter(Boolean).slice(0, 50);
+    if (elements.length === 0) throw new Error("Nominatim returned no matching mosques");
+    return elements;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export function createMosqueService(options = {}) {
   const fetchImpl = options.fetchImpl || fetch;
   const endpoints = options.endpoints || DEFAULT_ENDPOINTS;
   const timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS;
   const cacheTtlMs = options.cacheTtlMs || DEFAULT_CACHE_TTL_MS;
   const staleTtlMs = options.staleTtlMs || DEFAULT_STALE_TTL_MS;
+  const nominatimEnabled = options.nominatimEnabled !== false;
+  const nominatimUrl = options.nominatimUrl || DEFAULT_NOMINATIM_URL;
+  const nominatimDelayMs = options.nominatimDelayMs ?? 3_000;
   const now = options.now || Date.now;
   const cache = new Map();
   const inFlight = new Map();
+  let nominatimQueue = Promise.resolve();
+  let lastNominatimRequestAt = 0;
+
+  function scheduleNominatim(task) {
+    const scheduled = nominatimQueue.then(async () => {
+      const waitMs = Math.max(0, 1_000 - (Date.now() - lastNominatimRequestAt));
+      if (waitMs > 0) await delay(waitMs);
+      lastNominatimRequestAt = Date.now();
+      return task();
+    });
+    nominatimQueue = scheduled.catch(() => undefined);
+    return scheduled;
+  }
 
   async function search({ lat, lon, radiusKm, forceRefresh = false }) {
     const key = cacheKey(lat, lon, radiusKm);
@@ -110,14 +202,31 @@ export function createMosqueService(options = {}) {
     const request = (async () => {
       const query = buildMosqueQuery(lat, lon, radiusKm);
       try {
-        const elements = await Promise.any(
-          endpoints.map((endpoint) => fetchEndpoint(fetchImpl, endpoint, query, timeoutMs))
-        );
+        let settled = false;
+        const attempts = endpoints.map(async (endpoint) => ({
+          elements: await fetchEndpoint(fetchImpl, endpoint, query, timeoutMs),
+          provider: "overpass"
+        }));
+        if (nominatimEnabled) {
+          attempts.push(
+            delay(nominatimDelayMs).then(() =>
+              settled
+                ? Promise.reject(new Error("Nominatim fallback was not needed"))
+                : scheduleNominatim(async () => ({
+                    elements: await fetchNominatim(fetchImpl, nominatimUrl, lat, lon, radiusKm, timeoutMs),
+                    provider: "nominatim"
+                  }))
+            )
+          );
+        }
+        const winner = await Promise.any(attempts);
+        settled = true;
         const result = {
-          elements,
+          elements: winner.elements,
           fetchedAt: now(),
           source: "network",
-          stale: false
+          stale: false,
+          provider: winner.provider
         };
         cache.set(key, result);
         return result;
@@ -141,7 +250,7 @@ export function createMosqueService(options = {}) {
   return {
     search,
     status() {
-      return { cacheEntries: cache.size, endpointCount: endpoints.length };
+      return { cacheEntries: cache.size, endpointCount: endpoints.length + (nominatimEnabled ? 1 : 0) };
     }
   };
 }
