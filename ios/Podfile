@@ -2,7 +2,9 @@ require File.join(File.dirname(`node --print "require.resolve('expo/package.json
 require File.join(File.dirname(`node --print "require.resolve('react-native/package.json')"`), "scripts/react_native_pods")
 
 require 'json'
+require 'rubygems'
 podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties.json'))) rescue {}
+ios_deployment_target = podfile_properties['ios.deploymentTarget'] || '15.1'
 
 def ccache_enabled?(podfile_properties)
   # Environment variable takes precedence
@@ -16,7 +18,7 @@ ENV['RCT_NEW_ARCH_ENABLED'] ||= '0' if podfile_properties['newArchEnabled'] == '
 ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] ||= podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
 ENV['RCT_USE_RN_DEP'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true' && podfile_properties['newArchEnabled'] != 'false'
 ENV['RCT_USE_PREBUILT_RNCORE'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true' && podfile_properties['newArchEnabled'] != 'false'
-platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
+platform :ios, ios_deployment_target
 
 prepare_react_native_project!
 
@@ -59,6 +61,19 @@ target 'GoToGoPrayer' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    # Xcode 27 no longer accepts iOS deployment targets below 15.0.
+    # Some pod resource bundles keep the minimum from their podspec instead
+    # of inheriting the application's platform, so raise only older targets.
+    minimum_ios_version = Gem::Version.new(ios_deployment_target)
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        current_target = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+        next if current_target && Gem::Version.new(current_target) >= minimum_ios_version
+
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = ios_deployment_target
+      end
+    end
 
     # Xcode 26.4 is stricter about consteval handling in fmt 11.x.
     # Restrict fmt itself to C++17 to avoid archive failures without
