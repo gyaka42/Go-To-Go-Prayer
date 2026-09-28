@@ -1,4 +1,9 @@
-import { Audio, AVPlaybackStatus } from "expo-av";
+import {
+  configurePlaybackAudio,
+  createManagedAudioPlayer,
+  ManagedAudioPlayer,
+  PlaybackStatus
+} from "@/services/audioPlayer";
 import { useFonts } from "expo-font";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -68,7 +73,7 @@ export default function NamazAsirDetailScreen() {
     showTransliteration: true
   });
 
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<ManagedAudioPlayer | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
   const audioTokenRef = useRef(0);
   const audioProgressIdRef = useRef("");
@@ -126,7 +131,7 @@ export default function NamazAsirDetailScreen() {
     setCurrentAudioIndex(index);
   }, []);
 
-  const persistAudioProgress = useCallback((status: AVPlaybackStatus, force = false) => {
+  const persistAudioProgress = useCallback((status: PlaybackStatus, force = false) => {
     if (!status.isLoaded) {
       return;
     }
@@ -453,20 +458,14 @@ export default function NamazAsirDetailScreen() {
       audioTokenRef.current = token;
       setActiveAudioIndex(index);
       setAudioState("preparing");
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false
-      });
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUrls[index] },
-        { shouldPlay: false }
-      );
+      await configurePlaybackAudio();
+      const sound = await createManagedAudioPlayer({ uri: audioUrls[index] });
       if (audioTokenRef.current !== token) {
         await sound.unloadAsync().catch(() => undefined);
         return;
       }
       soundRef.current = sound;
-      sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+      sound.setOnPlaybackStatusUpdate((status: PlaybackStatus) => {
         if (audioTokenRef.current !== token || soundRef.current !== sound) {
           return;
         }

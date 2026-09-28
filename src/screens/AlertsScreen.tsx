@@ -12,7 +12,13 @@ import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
-import { getPrayerNotificationScheduleSummary, PrayerNotificationScheduleSummary, registerForLocalNotifications, replanAll } from "@/services/notifications";
+import {
+  getPrayerNotificationScheduleSummary,
+  isNotificationPermissionGranted,
+  PrayerNotificationScheduleSummary,
+  registerForLocalNotifications,
+  replanAll
+} from "@/services/notifications";
 import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
@@ -74,7 +80,7 @@ export default function AlertsScreen({ showBackButton = false }: AlertsScreenPro
     setSettings(saved);
     setScheduleSummary(summary);
     setPermissionState(
-      permissions?.granted || permissions?.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
+      permissions && isNotificationPermissionGranted(permissions)
         ? "granted"
         : "needed"
     );
@@ -97,8 +103,7 @@ export default function AlertsScreen({ showBackButton = false }: AlertsScreenPro
     async (nextSettings: Settings) => {
       try {
         const permissions = await Notifications.getPermissionsAsync();
-        const canSchedule =
-          permissions.granted || permissions.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+        const canSchedule = isNotificationPermissionGranted(permissions);
         setPermissionState(canSchedule ? "granted" : "needed");
 
         if (!canSchedule) {

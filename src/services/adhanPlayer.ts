@@ -1,6 +1,11 @@
-import { Audio, AVPlaybackStatus } from "expo-av";
+import {
+  configurePlaybackAudio,
+  createManagedAudioPlayer,
+  ManagedAudioPlayer,
+  PlaybackStatus
+} from "@/services/audioPlayer";
 
-let currentSound: Audio.Sound | null = null;
+let currentSound: ManagedAudioPlayer | null = null;
 
 async function cleanupCurrentSound(): Promise<void> {
   if (!currentSound) {
@@ -25,18 +30,12 @@ async function cleanupCurrentSound(): Promise<void> {
 export async function playFullAdhan(): Promise<void> {
   await cleanupCurrentSound();
 
-  await Audio.setAudioModeAsync({
-    playsInSilentModeIOS: true,
-    staysActiveInBackground: false
-  });
+  await configurePlaybackAudio();
 
-  const { sound } = await Audio.Sound.createAsync(
-    require("../../assets/sounds/majid_al_hamthany.wav"),
-    { shouldPlay: true }
-  );
+  const sound = await createManagedAudioPlayer(require("../../assets/sounds/majid_al_hamthany.wav"));
 
   currentSound = sound;
-  sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+  sound.setOnPlaybackStatusUpdate((status: PlaybackStatus) => {
     if (!status.isLoaded) {
       return;
     }
@@ -44,6 +43,7 @@ export async function playFullAdhan(): Promise<void> {
       void cleanupCurrentSound();
     }
   });
+  await sound.playAsync();
 }
 
 export async function stopAdhanPlayback(): Promise<void> {

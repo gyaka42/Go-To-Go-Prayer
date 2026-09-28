@@ -1,4 +1,9 @@
-import { Audio, AVPlaybackStatus } from "expo-av";
+import {
+  configurePlaybackAudio,
+  createManagedAudioPlayer,
+  ManagedAudioPlayer,
+  PlaybackStatus
+} from "@/services/audioPlayer";
 import { useFonts } from "expo-font";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -71,7 +76,7 @@ export default function NamazDuaDetailScreen() {
   const scrollViewRef = useRef<ScrollView | null>(null);
   const lastRecentSaveRef = useRef(0);
   const didRestoreScrollRef = useRef(false);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<ManagedAudioPlayer | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
   const audioTokenRef = useRef(0);
   const audioProgressIdRef = useRef("");
@@ -112,7 +117,7 @@ export default function NamazDuaDetailScreen() {
     setAudioState("ready");
   }, []);
 
-  const persistAudioProgress = useCallback((status: AVPlaybackStatus, force = false) => {
+  const persistAudioProgress = useCallback((status: PlaybackStatus, force = false) => {
     if (!status.isLoaded) {
       return;
     }
@@ -382,17 +387,14 @@ export default function NamazDuaDetailScreen() {
         setAudioState("preparing");
         const token = audioTokenRef.current + 1;
         audioTokenRef.current = token;
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false
-        });
-        const { sound } = await Audio.Sound.createAsync(audioSource, { shouldPlay: false });
+        await configurePlaybackAudio();
+        const sound = await createManagedAudioPlayer(audioSource);
         if (audioTokenRef.current !== token) {
           await sound.unloadAsync().catch(() => undefined);
           return;
         }
         soundRef.current = sound;
-        sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+        sound.setOnPlaybackStatusUpdate((status: PlaybackStatus) => {
           if (audioTokenRef.current !== token || soundRef.current !== sound) {
             return;
           }

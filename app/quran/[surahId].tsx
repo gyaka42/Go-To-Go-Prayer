@@ -1,4 +1,9 @@
-import { Audio, AVPlaybackStatus } from "expo-av";
+import {
+  configurePlaybackAudio,
+  createManagedAudioPlayer,
+  ManagedAudioPlayer,
+  PlaybackStatus
+} from "@/services/audioPlayer";
 import { useFonts } from "expo-font";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -88,7 +93,7 @@ export default function QuranSurahDetailScreen() {
     showTransliteration: true
   });
 
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<ManagedAudioPlayer | null>(null);
   const audioQueueRef = useRef<Promise<void>>(Promise.resolve());
   const audioTokenRef = useRef(0);
   const audioProgressIdRef = useRef("");
@@ -139,7 +144,7 @@ export default function QuranSurahDetailScreen() {
     setAudioState("ready");
   }, []);
 
-  const persistAudioProgress = useCallback((status: AVPlaybackStatus, force = false) => {
+  const persistAudioProgress = useCallback((status: PlaybackStatus, force = false) => {
     if (!status.isLoaded) {
       return;
     }
@@ -485,20 +490,14 @@ export default function QuranSurahDetailScreen() {
         const token = audioTokenRef.current + 1;
         audioTokenRef.current = token;
         setAudioState("preparing");
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false
-        });
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: audioUrl },
-          { shouldPlay: false }
-        );
+        await configurePlaybackAudio();
+        const sound = await createManagedAudioPlayer({ uri: audioUrl });
         if (token !== audioTokenRef.current) {
           await sound.unloadAsync();
           return;
         }
         soundRef.current = sound;
-        sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+        sound.setOnPlaybackStatusUpdate((status: PlaybackStatus) => {
           if (token !== audioTokenRef.current) {
             return;
           }

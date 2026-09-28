@@ -19,14 +19,28 @@ Notifications.setNotificationHandler({
   }
 });
 
+export function isNotificationPermissionGranted(
+  permission: Notifications.NotificationPermissionsStatus
+): boolean {
+  // SDK 55 omits `granted` from this public TypeScript type even though the
+  // documented native response still contains it. The typing is fixed in SDK 56.
+  const permissionWithGranted = permission as Notifications.NotificationPermissionsStatus & {
+    granted?: boolean;
+  };
+  return (
+    permissionWithGranted.granted === true ||
+    permission.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
+  );
+}
+
 export async function registerForLocalNotifications(): Promise<boolean> {
   const settings = await Notifications.getPermissionsAsync();
-  if (settings.granted || settings.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
+  if (isNotificationPermissionGranted(settings)) {
     return true;
   }
 
   const request = await Notifications.requestPermissionsAsync();
-  return request.granted || request.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+  return isNotificationPermissionGranted(request);
 }
 
 export async function cancelAllScheduled(): Promise<void> {

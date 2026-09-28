@@ -1,4 +1,9 @@
-import { Audio, AVPlaybackStatus } from "expo-av";
+import {
+  configurePlaybackAudio,
+  createManagedAudioPlayer,
+  ManagedAudioPlayer,
+  PlaybackStatus
+} from "@/services/audioPlayer";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -43,7 +48,7 @@ export default function ToneSelectionScreen() {
   const [previewState, setPreviewState] = useState<PreviewState>("idle");
   const [previewTone, setPreviewTone] = useState<"Adhan" | "Beep" | null>(null);
   const [inlineStatus, setInlineStatus] = useState<{ label: string; tone: InlineStatusTone } | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<ManagedAudioPlayer | null>(null);
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enterTransition = useMotionTransition(easeEnterTransition);
   const pressTransition = useMotionTransition(easePressTransition);
@@ -214,14 +219,11 @@ export default function ToneSelectionScreen() {
         setPreviewTone("Adhan");
 
         await cleanupPreview();
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false
-        });
+        await configurePlaybackAudio();
 
-        const { sound } = await Audio.Sound.createAsync(require("../assets/sounds/adhan_short.wav"));
+        const sound = await createManagedAudioPlayer(require("../assets/sounds/adhan_short.wav"));
         soundRef.current = sound;
-        sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+        sound.setOnPlaybackStatusUpdate((status: PlaybackStatus) => {
           if (!status.isLoaded) {
             return;
           }
