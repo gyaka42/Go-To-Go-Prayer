@@ -1,6 +1,5 @@
 {
   "expo.jsEngine": "hermes",
-  "expo.useHermesV1": "false",
   "ios.deploymentTarget": "16.4",
   "EX_DEV_CLIENT_NETWORK_INSPECTOR": "true",
   "ios.buildReactNativeFromSource": "true"
