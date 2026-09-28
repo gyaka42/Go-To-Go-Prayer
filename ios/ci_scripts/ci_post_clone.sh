@@ -46,6 +46,25 @@ run_pod_install_with_retries() {
   run_with_heartbeat "pod install --repo-update" pod install --repo-update
 }
 
+prepare_react_native_pod_lock() {
+  local installed_react_native_version
+  installed_react_native_version="$(node --print "require('../node_modules/react-native/package.json').version")"
+
+  if [ ! -f Podfile.lock ]; then
+    echo "==> No Podfile.lock found; CocoaPods will generate one for React Native ${installed_react_native_version}"
+    return 0
+  fi
+
+  if grep -Fq -- "  - React-Core (${installed_react_native_version})" Podfile.lock; then
+    echo "==> Podfile.lock matches React Native ${installed_react_native_version}"
+    return 0
+  fi
+
+  echo "==> Podfile.lock does not match React Native ${installed_react_native_version}"
+  echo "==> Moving the stale lock aside so CocoaPods can resolve the complete upgraded pod graph"
+  mv -f Podfile.lock Podfile.lock.pre-sdk-upgrade
+}
+
 ensure_node_in_path() {
   local candidate
   for candidate in \
@@ -124,6 +143,7 @@ fi
 
 echo "==> Installing CocoaPods dependencies"
 cd ios
+prepare_react_native_pod_lock
 
 # React Native from source requires cmake (hermes-engine podspec checks it).
 if grep -q '"ios.buildReactNativeFromSource": "true"' Podfile.properties.json 2>/dev/null; then
