@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "expo-router/react-navigation";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {

@@ -15,12 +15,6 @@ export type PlaybackStatus = {
 };
 
 type PlaybackSubscription = { remove(): void };
-type ObservableAudioPlayer = AudioPlayer & {
-  addListener(
-    event: "playbackStatusUpdate",
-    listener: (status: AudioStatus) => void
-  ): PlaybackSubscription;
-};
 
 function toPlaybackStatus(status: AudioStatus): PlaybackStatus {
   return {
@@ -43,7 +37,7 @@ export class ManagedAudioPlayer {
   private subscription: PlaybackSubscription | null = null;
   private released = false;
 
-  constructor(private readonly player: ObservableAudioPlayer) {}
+  constructor(private readonly player: AudioPlayer) {}
 
   setOnPlaybackStatusUpdate(listener: ((status: PlaybackStatus) => void) | null): void {
     this.subscription?.remove();
@@ -89,6 +83,6 @@ export class ManagedAudioPlayer {
 }
 
 export async function createManagedAudioPlayer(source: AudioSource): Promise<ManagedAudioPlayer> {
-  const player = createAudioPlayer(source, { updateInterval: 500 }) as ObservableAudioPlayer;
+  const player = createAudioPlayer(source, { updateInterval: 500 });
   return new ManagedAudioPlayer(player);
 }

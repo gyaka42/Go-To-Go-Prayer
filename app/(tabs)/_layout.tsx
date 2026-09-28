@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     borderWidth: 1
   },
   glassOverlay: {
-    ...StyleSheet.absoluteFillObject
+    ...StyleSheet.absoluteFill
   },
   menuIcon: {
     tintColor: "#8EA4BF"

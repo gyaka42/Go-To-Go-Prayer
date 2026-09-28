@@ -1,5 +1,5 @@
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
