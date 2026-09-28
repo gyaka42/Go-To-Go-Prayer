@@ -30,6 +30,17 @@
         "NSLocationWhenInUseUsageDescription": "Your location is used to calculate accurate prayer times, Qibla direction, and nearby mosques.",
         "NSMotionUsageDescription": "Motion sensors are used to determine the Qibla direction.",
         "NSUserNotificationsUsageDescription": "Notifications are used to remind you of prayer times.",
+        "UIApplicationSceneManifest": {
+          "UIApplicationSupportsMultipleScenes": false,
+          "UISceneConfigurations": {
+            "UIWindowSceneSessionRoleApplication": [
+              {
+                "UISceneConfigurationName": "Default Configuration",
+                "UISceneDelegateClassName": "EXExpoAppSceneDelegate"
+              }
+            ]
+          }
+        },
         "LSApplicationQueriesSchemes": ["comgooglemaps"],
         "ITSAppUsesNonExemptEncryption": false
       }

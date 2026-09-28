@@ -102,12 +102,23 @@ ok(Boolean(ios.bundleIdentifier), "iOS bundleIdentifier is configured");
 ok(infoPlist.ITSAppUsesNonExemptEncryption === false, "ITSAppUsesNonExemptEncryption is false");
 
 const locationText = infoPlist.NSLocationWhenInUseUsageDescription;
+const motionText = infoPlist.NSMotionUsageDescription;
 const notificationText = infoPlist.NSUserNotificationsUsageDescription;
+const sceneManifest = infoPlist.UIApplicationSceneManifest || {};
+const applicationScenes =
+  sceneManifest.UISceneConfigurations?.UIWindowSceneSessionRoleApplication || [];
 
 ok(typeof locationText === "string" && locationText.length >= 30, "location permission text is present");
+ok(typeof motionText === "string" && motionText.length >= 20, "motion permission text is present");
 ok(typeof notificationText === "string" && notificationText.length >= 20, "notification permission text is present");
 ok(!containsNonEnglishPermissionText(locationText), "location permission text is English-only");
+ok(!containsNonEnglishPermissionText(motionText), "motion permission text is English-only");
 ok(!containsNonEnglishPermissionText(notificationText), "notification permission text is English-only");
+ok(
+  sceneManifest.UIApplicationSupportsMultipleScenes === false &&
+    applicationScenes.some((scene) => scene.UISceneDelegateClassName === "EXExpoAppSceneDelegate"),
+  "iOS 27 scene lifecycle is configured",
+);
 
 const projectPath = path.join(root, "ios/GoToGoPrayer.xcodeproj/project.pbxproj");
 if (fs.existsSync(projectPath)) {
@@ -116,6 +127,23 @@ if (fs.existsSync(projectPath)) {
   ok(project.includes(`CURRENT_PROJECT_VERSION = ${buildNumber};`), "Xcode CURRENT_PROJECT_VERSION matches app.json buildNumber");
 } else {
   warn(false, "iOS project file not found; run expo prebuild/run:ios before final archive checks");
+}
+
+const appDelegatePath = path.join(root, "ios/GoToGoPrayer/AppDelegate.swift");
+const nativeInfoPlistPath = path.join(root, "ios/GoToGoPrayer/Info.plist");
+if (fs.existsSync(appDelegatePath) && fs.existsSync(nativeInfoPlistPath)) {
+  const appDelegate = fs.readFileSync(appDelegatePath, "utf8");
+  const nativeInfoPlist = fs.readFileSync(nativeInfoPlistPath, "utf8");
+  ok(appDelegate.includes("ExpoReactNativeFactoryProvider"), "native AppDelegate provides the React Native factory");
+  ok(!appDelegate.includes("factory.startReactNative"), "native AppDelegate defers startup to the scene delegate");
+  ok(nativeInfoPlist.includes("<key>NSMotionUsageDescription</key>"), "native Info.plist contains motion permission text");
+  ok(
+    nativeInfoPlist.includes("<key>UIApplicationSceneManifest</key>") &&
+      nativeInfoPlist.includes("<string>EXExpoAppSceneDelegate</string>"),
+    "native Info.plist contains the iOS 27 scene manifest",
+  );
+} else {
+  warn(false, "native iOS app files not found; run expo prebuild/run:ios before final archive checks");
 }
 
 const translationsByLanguage = translationEntriesByLanguage("src/i18n/translations.ts");
