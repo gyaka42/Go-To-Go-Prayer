@@ -28,6 +28,7 @@
       "bundleIdentifier": "com.gogo22.gotogoprayer",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Your location is used to calculate accurate prayer times, Qibla direction, and nearby mosques.",
+        "NSMotionUsageDescription": "Motion sensors are used to determine the Qibla direction.",
         "NSUserNotificationsUsageDescription": "Notifications are used to remind you of prayer times.",
         "LSApplicationQueriesSchemes": ["comgooglemaps"],
         "ITSAppUsesNonExemptEncryption": false

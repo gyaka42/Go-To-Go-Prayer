@@ -1,2 +1,3 @@
 "NSLocationWhenInUseUsageDescription" = "Je locatie wordt gebruikt om nauwkeurige gebedstijden, de qiblarichting en nabijgelegen moskeeën te tonen.";
+"NSMotionUsageDescription" = "Bewegingssensoren worden gebruikt om de qiblarichting te bepalen.";
 "NSUserNotificationsUsageDescription" = "Meldingen worden gebruikt om je aan gebedstijden te herinneren.";

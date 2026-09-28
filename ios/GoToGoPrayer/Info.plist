@@ -49,6 +49,8 @@
     </dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Your location is used to calculate accurate prayer times, Qibla direction, and nearby mosques.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Motion sensors are used to determine the Qibla direction.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
