@@ -1,0 +1,31 @@
+# Dependencies and local Expo state are recreated by EAS Build.
+node_modules/
+.expo/
+
+# Version-control and local agent metadata are never build inputs.
+.git/
+.agents/
+.codex/
+
+# Local Android/Gradle output can be several gigabytes and may contain
+# Windows binaries that are not executable on the Linux EAS builder.
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+*.iml
+
+# Native dependency/build output is regenerated in the cloud.
+ios/Pods/
+ios/build/
+
+# Local-only configuration and miscellaneous generated files.
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+
