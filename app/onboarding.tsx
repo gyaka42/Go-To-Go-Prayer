@@ -1,5 +1,4 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import * as ExpoLocation from "expo-location";
 import { Magnetometer } from "expo-sensors";
 import { useMemo, useState } from "react";
@@ -18,9 +17,10 @@ import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { type LanguageMode, useI18n } from "@/i18n/I18nProvider";
+import { useOnboarding } from "@/onboarding/OnboardingProvider";
 import { getCurrentLocationDetails } from "@/services/location";
 import { registerForLocalNotifications } from "@/services/notifications";
-import { getSettings, saveOnboardingSeen, saveSettings } from "@/services/storage";
+import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
 type StepId = "language" | "trust" | "location" | "notifications" | "qibla" | "widgets";
@@ -30,10 +30,10 @@ type PermissionState = "idle" | "granted" | "denied";
 const STEP_ORDER: StepId[] = ["language", "trust", "location", "notifications", "qibla", "widgets"];
 
 export default function OnboardingScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, resolvedTheme } = useAppTheme();
   const { t, mode: languageMode, setMode: setLanguageMode } = useI18n();
+  const { completeOnboarding } = useOnboarding();
   const { height } = useWindowDimensions();
   const isLight = resolvedTheme === "light";
   const isCompactHeight = height < 880;
@@ -99,8 +99,7 @@ export default function OnboardingScreen() {
   const finishOnboarding = async () => {
     setBusy(true);
     try {
-      await saveOnboardingSeen(true);
-      router.replace("/(tabs)");
+      await completeOnboarding();
     } finally {
       setBusy(false);
     }
