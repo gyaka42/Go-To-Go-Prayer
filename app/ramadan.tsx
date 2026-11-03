@@ -36,6 +36,7 @@ import {
   getSettings,
   getLatestCachedLocation,
   RamadanDayEntry,
+  RamadanDailyPlanEntry,
   RamadanDailyPlanKey,
   RamadanFastStatus,
   RamadanNotificationSettings,
@@ -106,11 +107,28 @@ export default function RamadanScreen() {
     tone: "success" | "error";
     label: string;
   } | null>(null);
+  const [previewUnlocked, setPreviewUnlocked] = useState(false);
+  const [previewDay, setPreviewDay] = useState<1 | 15 | 29 | null>(null);
+  const [previewFastEntries, setPreviewFastEntries] = useState<Record<string, RamadanDayEntry>>({});
+  const [previewDailyPlans, setPreviewDailyPlans] = useState<Record<string, RamadanDailyPlanEntry>>({});
 
   const range = useMemo(
     () => (state ? getRamadanRange(now, state.dateCorrection) : null),
     [now, state]
   );
+  const displayNow = useMemo(() => {
+    if (!previewDay || !range) return now;
+    const simulatedDate = range.days[Math.min(previewDay - 1, range.days.length - 1)];
+    return new Date(
+      simulatedDate.getFullYear(),
+      simulatedDate.getMonth(),
+      simulatedDate.getDate(),
+      12,
+      0,
+      0,
+      0
+    );
+  }, [now, previewDay, range]);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 30000);
@@ -207,11 +225,11 @@ export default function RamadanScreen() {
     void loadTimings(range);
   }, [loadTimings, range?.hijriYear, range?.start.getTime()]);
 
-  const todayKey = localDateKey(now);
-  const currentDay = range ? getRamadanDayNumber(now, range) : null;
+  const todayKey = localDateKey(displayNow);
+  const currentDay = range ? getRamadanDayNumber(displayNow, range) : null;
   const todayRow = rows.find((row) => row.dateKey === todayKey) ?? null;
-  const isUpcoming = Boolean(range && dateAtStart(now) < dateAtStart(range.start));
-  const isFinished = Boolean(range && dateAtStart(now) > dateAtStart(range.end));
+  const isUpcoming = Boolean(range && dateAtStart(displayNow) < dateAtStart(range.start));
+  const isFinished = Boolean(range && dateAtStart(displayNow) > dateAtStart(range.end));
   const displayRow = currentDay
     ? todayRow
     : isUpcoming
@@ -223,31 +241,34 @@ export default function RamadanScreen() {
     if (isUpcoming) {
       return {
         label: t("ramadan.until_start"),
-        value: formatCountdown(dateAtStart(range.start).getTime() - now.getTime())
+        value: formatCountdown(dateAtStart(range.start).getTime() - displayNow.getTime())
       };
     }
     if (isFinished) {
       return { label: t("ramadan.completed"), value: t("ramadan.completed_short") };
     }
     if (!todayRow?.timings) return null;
-    const imsak = timeOnDate(now, todayRow.timings.times.Fajr);
-    const iftar = timeOnDate(now, todayRow.timings.times.Maghrib);
-    if (imsak && now < imsak) {
-      return { label: t("ramadan.until_imsak"), value: formatCountdown(imsak.getTime() - now.getTime()) };
+    const imsak = timeOnDate(displayNow, todayRow.timings.times.Fajr);
+    const iftar = timeOnDate(displayNow, todayRow.timings.times.Maghrib);
+    if (imsak && displayNow < imsak) {
+      return { label: t("ramadan.until_imsak"), value: formatCountdown(imsak.getTime() - displayNow.getTime()) };
     }
-    if (iftar && now < iftar) {
-      return { label: t("ramadan.until_iftar"), value: formatCountdown(iftar.getTime() - now.getTime()) };
+    if (iftar && displayNow < iftar) {
+      return { label: t("ramadan.until_iftar"), value: formatCountdown(iftar.getTime() - displayNow.getTime()) };
     }
     const tomorrow = rows.find((row) => row.date.getTime() > todayRow.date.getTime() && row.timings);
     const tomorrowImsak = tomorrow?.timings ? timeOnDate(tomorrow.date, tomorrow.timings.times.Fajr) : null;
     return tomorrowImsak
-      ? { label: t("ramadan.until_tomorrow_imsak"), value: formatCountdown(tomorrowImsak.getTime() - now.getTime()) }
+      ? { label: t("ramadan.until_tomorrow_imsak"), value: formatCountdown(tomorrowImsak.getTime() - displayNow.getTime()) }
       : { label: t("ramadan.completed"), value: t("ramadan.completed_short") };
-  }, [isFinished, isUpcoming, now, range, rows, t, todayRow]);
+  }, [displayNow, isFinished, isUpcoming, range, rows, t, todayRow]);
+
+  const effectiveFastEntries = previewDay ? previewFastEntries : (state?.days ?? {});
+  const effectiveDailyPlans = previewDay ? previewDailyPlans : (state?.dailyPlans ?? {});
 
   const summary = useMemo(() => {
     const validKeys = new Set(range?.days.map(localDateKey) ?? []);
-    return Object.entries(state?.days ?? {}).reduce(
+    return Object.entries(effectiveFastEntries).reduce(
       (acc, [key, entry]) => {
         if (!validKeys.has(key)) return acc;
         if (entry.status === "fasted") acc.fasted += 1;
@@ -258,10 +279,10 @@ export default function RamadanScreen() {
       },
       { fasted: 0, makeUp: 0, excused: 0, madeUp: 0 }
     );
-  }, [range, state]);
+  }, [effectiveFastEntries, range]);
 
   const dailyPlanKeys: RamadanDailyPlanKey[] = ["quran", "zikr", "dua", "charity"];
-  const todayPlan = state?.dailyPlans[todayKey] ?? null;
+  const todayPlan = effectiveDailyPlans[todayKey] ?? null;
   const dailyPlanCompleted = dailyPlanKeys.filter((key) => todayPlan?.[key]).length;
 
   const missingTimingCount = useMemo(
@@ -347,6 +368,19 @@ export default function RamadanScreen() {
 
   const setDayStatus = useCallback((dateKey: string, status: RamadanFastStatus | null) => {
     if (!state) return;
+    if (previewDay) {
+      setPreviewFastEntries((current) => {
+        const next = { ...current };
+        if (status) {
+          next[dateKey] = { status, updatedAt: Date.now() };
+        } else {
+          delete next[dateKey];
+        }
+        return next;
+      });
+      setSelectedDay(null);
+      return;
+    }
     const days = { ...state.days };
     if (status) {
       days[dateKey] = { status, updatedAt: Date.now() };
@@ -355,10 +389,30 @@ export default function RamadanScreen() {
     }
     void updateState({ ...state, days, updatedAt: Date.now() });
     setSelectedDay(null);
-  }, [state, updateState]);
+  }, [previewDay, state, updateState]);
 
   const toggleDailyPlanItem = useCallback((key: RamadanDailyPlanKey) => {
     if (!state || !currentDay) return;
+    if (previewDay) {
+      setPreviewDailyPlans((current) => {
+        const previous = current[todayKey] ?? {
+          quran: false,
+          zikr: false,
+          dua: false,
+          charity: false,
+          updatedAt: Date.now()
+        };
+        return {
+          ...current,
+          [todayKey]: {
+            ...previous,
+            [key]: !previous[key],
+            updatedAt: Date.now()
+          }
+        };
+      });
+      return;
+    }
     const previous = state.dailyPlans[todayKey] ?? {
       quran: false,
       zikr: false,
@@ -378,7 +432,7 @@ export default function RamadanScreen() {
       },
       updatedAt: Date.now()
     });
-  }, [currentDay, state, todayKey, updateState]);
+  }, [currentDay, previewDay, state, todayKey, updateState]);
 
   const formatDate = useCallback((date: Date) => {
     try {
@@ -438,7 +492,14 @@ export default function RamadanScreen() {
                   {formatDate(displayRow?.date ?? range.start)}
                 </Text>
               </View>
-              <Ionicons name="moon" size={34} color={colors.accent} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("ramadan.preview_unlock")}
+                delayLongPress={1200}
+                onLongPress={() => setPreviewUnlocked(true)}
+              >
+                <Ionicons name="moon" size={34} color={colors.accent} />
+              </Pressable>
             </View>
             {nextMoment ? (
               <View style={styles.countdownWrap}>
@@ -453,6 +514,57 @@ export default function RamadanScreen() {
               </View>
             ) : null}
           </View>
+
+          {previewUnlocked ? (
+            <View style={[styles.previewCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <View style={styles.previewHeader}>
+                <View style={styles.previewTitleWrap}>
+                  <Ionicons name="flask-outline" size={20} color={colors.accent} />
+                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("ramadan.preview_title")}</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("ramadan.preview_close")}
+                  onPress={() => {
+                    setPreviewDay(null);
+                    setPreviewUnlocked(false);
+                    setSelectedDay(null);
+                  }}
+                >
+                  <Ionicons name="close" size={22} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+              <Text style={[styles.previewHelp, { color: colors.textSecondary }]}>{t("ramadan.preview_help")}</Text>
+              <View style={styles.previewOptions}>
+                {([null, 1, 15, 29] as const).map((value) => {
+                  const active = previewDay === value;
+                  return (
+                    <Pressable
+                      key={value ?? "off"}
+                      style={[
+                        styles.previewButton,
+                        { borderColor: colors.cardBorder },
+                        active && { backgroundColor: colors.accent, borderColor: colors.accent }
+                      ]}
+                      onPress={() => {
+                        setPreviewDay(value);
+                        setSelectedDay(null);
+                      }}
+                    >
+                      <Text style={[styles.previewButtonText, { color: active ? "#FFFFFF" : colors.textPrimary }]}>
+                        {value ? t("ramadan.preview_day", { day: value }) : t("ramadan.preview_off")}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {previewDay ? (
+                <View style={styles.previewStatus}>
+                  <StatusChip visible tone="warning" label={t("ramadan.preview_active", { day: previewDay })} />
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           <View style={styles.timeRow}>
             <View style={[styles.timeCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -515,10 +627,10 @@ export default function RamadanScreen() {
               <View style={styles.todayTrackerText}>
                 <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("ramadan.track_today")}</Text>
                 <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-                  {statusLabel(state.days[todayKey])}
+                  {statusLabel(effectiveFastEntries[todayKey])}
                 </Text>
               </View>
-              <Ionicons name={statusIcon(state.days[todayKey]?.status)} size={26} color={colors.accent} />
+              <Ionicons name={statusIcon(effectiveFastEntries[todayKey]?.status)} size={26} color={colors.accent} />
             </Pressable>
           ) : null}
 
@@ -750,8 +862,8 @@ export default function RamadanScreen() {
               <View style={styles.statusColumn} />
             </View>
             {rows.map((row, index) => {
-              const entry = state.days[row.dateKey];
-              const future = isAfterDay(row.date, now);
+              const entry = effectiveFastEntries[row.dateKey];
+              const future = isAfterDay(row.date, displayNow);
               const today = row.dateKey === todayKey;
               return (
                 <Pressable
@@ -794,7 +906,7 @@ export default function RamadanScreen() {
             ] as const).map(([status, icon, color]) => (
               <Pressable
                 key={status}
-                style={[styles.modalOption, { borderColor: colors.cardBorder }, state.days[selectedDay?.dateKey ?? ""]?.status === status && { backgroundColor: colors.accentSoft }]}
+                style={[styles.modalOption, { borderColor: colors.cardBorder }, effectiveFastEntries[selectedDay?.dateKey ?? ""]?.status === status && { backgroundColor: colors.accentSoft }]}
                 onPress={() => selectedDay && setDayStatus(selectedDay.dateKey, status)}
               >
                 <Ionicons name={icon} size={22} color={color} />
@@ -830,6 +942,14 @@ const styles = StyleSheet.create({
   countdownValue: { marginTop: 3, fontSize: 38, fontWeight: "900", letterSpacing: -1 },
   locationRow: { marginTop: 16, flexDirection: "row", alignItems: "center", gap: 5 },
   locationText: { flex: 1, fontSize: 12 },
+  previewCard: { marginTop: 12, borderRadius: 17, borderWidth: 1, padding: 14 },
+  previewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  previewTitleWrap: { flexDirection: "row", alignItems: "center", gap: 8 },
+  previewHelp: { marginTop: 7, fontSize: 11, lineHeight: 16 },
+  previewOptions: { marginTop: 12, flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  previewButton: { minHeight: 36, borderRadius: 11, borderWidth: 1, paddingHorizontal: 11, alignItems: "center", justifyContent: "center" },
+  previewButtonText: { fontSize: 12, fontWeight: "800" },
+  previewStatus: { marginTop: 10 },
   timeRow: { marginTop: 12, flexDirection: "row", gap: 10 },
   timeCard: { flex: 1, borderRadius: 18, borderWidth: 1, padding: 14 },
   timeLabel: { marginTop: 8, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
