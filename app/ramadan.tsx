@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFonts } from "expo-font";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -35,6 +36,7 @@ import {
   getSettings,
   getLatestCachedLocation,
   RamadanDayEntry,
+  RamadanDailyPlanKey,
   RamadanFastStatus,
   RamadanNotificationSettings,
   RamadanReminderMinutes,
@@ -87,6 +89,9 @@ export default function RamadanScreen() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t, localeTag } = useI18n();
   const isLight = resolvedTheme === "light";
+  const [fontsLoaded] = useFonts({
+    QuranArabic: require("../assets/fonts/NotoNaskhArabic-Regular.ttf")
+  });
 
   const [state, setState] = useState<RamadanState | null>(null);
   const [rows, setRows] = useState<RamadanTimingRow[]>([]);
@@ -255,6 +260,10 @@ export default function RamadanScreen() {
     );
   }, [range, state]);
 
+  const dailyPlanKeys: RamadanDailyPlanKey[] = ["quran", "zikr", "dua", "charity"];
+  const todayPlan = state?.dailyPlans[todayKey] ?? null;
+  const dailyPlanCompleted = dailyPlanKeys.filter((key) => todayPlan?.[key]).length;
+
   const missingTimingCount = useMemo(
     () => rows.filter((row) => !row.timings).length,
     [rows]
@@ -348,6 +357,29 @@ export default function RamadanScreen() {
     setSelectedDay(null);
   }, [state, updateState]);
 
+  const toggleDailyPlanItem = useCallback((key: RamadanDailyPlanKey) => {
+    if (!state || !currentDay) return;
+    const previous = state.dailyPlans[todayKey] ?? {
+      quran: false,
+      zikr: false,
+      dua: false,
+      charity: false,
+      updatedAt: Date.now()
+    };
+    void updateState({
+      ...state,
+      dailyPlans: {
+        ...state.dailyPlans,
+        [todayKey]: {
+          ...previous,
+          [key]: !previous[key],
+          updatedAt: Date.now()
+        }
+      },
+      updatedAt: Date.now()
+    });
+  }, [currentDay, state, todayKey, updateState]);
+
   const formatDate = useCallback((date: Date) => {
     try {
       return new Intl.DateTimeFormat(localeTag, { weekday: "short", day: "numeric", month: "short" }).format(date);
@@ -361,7 +393,7 @@ export default function RamadanScreen() {
     return t(`ramadan.status_${entry.status}`);
   }, [t]);
 
-  if (!state || !range) {
+  if (!state || !range || !fontsLoaded) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <View style={styles.centered}><ActivityIndicator color={colors.accent} /></View>
@@ -489,6 +521,104 @@ export default function RamadanScreen() {
               <Ionicons name={statusIcon(state.days[todayKey]?.status)} size={26} color={colors.accent} />
             </Pressable>
           ) : null}
+
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            {t("ramadan.daily_plan")}
+          </Text>
+          <View style={[styles.dailyPlanCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            {currentDay ? (
+              <>
+                <View style={styles.dailyPlanHeader}>
+                  <View>
+                    <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+                      {t("ramadan.daily_plan_day", { day: currentDay })}
+                    </Text>
+                    <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+                      {t("ramadan.daily_plan_progress", { completed: dailyPlanCompleted, total: dailyPlanKeys.length })}
+                    </Text>
+                  </View>
+                  <Text style={[styles.dailyPlanPercent, { color: colors.accent }]}>
+                    {Math.round((dailyPlanCompleted / dailyPlanKeys.length) * 100)}%
+                  </Text>
+                </View>
+                <View style={[styles.progressTrack, { backgroundColor: colors.cardBorder }]}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { backgroundColor: colors.accent, width: `${(dailyPlanCompleted / dailyPlanKeys.length) * 100}%` }
+                    ]}
+                  />
+                </View>
+                {([
+                  ["quran", "book-outline", "/quran"],
+                  ["zikr", "radio-button-on-outline", "/zikr"],
+                  ["dua", "hand-left-outline", "/namaz"],
+                  ["charity", "heart-outline", null]
+                ] as const).map(([key, icon, route]) => {
+                  const completed = Boolean(todayPlan?.[key]);
+                  return (
+                    <View key={key} style={[styles.planItem, { borderTopColor: colors.cardBorder }]}>
+                      <Pressable
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: completed }}
+                        style={styles.planToggle}
+                        onPress={() => toggleDailyPlanItem(key)}
+                      >
+                        <Ionicons
+                          name={completed ? "checkmark-circle" : icon}
+                          size={23}
+                          color={completed ? "#22C55E" : colors.accent}
+                        />
+                        <View style={styles.planItemText}>
+                          <Text style={[styles.planItemTitle, { color: colors.textPrimary }]}>
+                            {t(`ramadan.plan_${key}`)}
+                          </Text>
+                          <Text style={[styles.planItemSubtitle, { color: colors.textSecondary }]}>
+                            {t(`ramadan.plan_${key}_hint`)}
+                          </Text>
+                        </View>
+                      </Pressable>
+                      {route ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={t("ramadan.open_activity")}
+                          style={[styles.openActivityButton, { backgroundColor: colors.accentSoft }]}
+                          onPress={() => router.push(route as never)}
+                        >
+                          <Ionicons name="arrow-forward" size={17} color={colors.accent} />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </>
+            ) : (
+              <View style={styles.dailyPlanLocked}>
+                <Ionicons name="calendar-outline" size={26} color={colors.accent} />
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("ramadan.daily_plan_upcoming")}</Text>
+                <Text style={[styles.cardSubtitle, styles.dailyPlanLockedText, { color: colors.textSecondary }]}>
+                  {t("ramadan.daily_plan_upcoming_hint")}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            {t("ramadan.duas_section")}
+          </Text>
+          <View style={[styles.duaCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("ramadan.intention_title")}</Text>
+            <Text style={[styles.duaBody, { color: colors.textSecondary }]}>{t("ramadan.intention_body")}</Text>
+          </View>
+          <View style={[styles.duaCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("ramadan.iftar_dua_title")}</Text>
+            <Text style={[styles.arabicDua, { color: colors.textPrimary }]}>
+              ذَهَبَ الظَّمَأُ وَابْتَلَّتِ الْعُرُوقُ وَثَبَتَ الْأَجْرُ إِنْ شَاءَ اللَّهُ
+            </Text>
+            <Text style={[styles.transliteration, { color: colors.accent }]}>{t("ramadan.iftar_dua_transliteration")}</Text>
+            <Text style={[styles.duaBody, { color: colors.textSecondary }]}>{t("ramadan.iftar_dua_meaning")}</Text>
+            <Text style={[styles.duaSource, { color: colors.textSecondary }]}>{t("ramadan.iftar_dua_source")}</Text>
+          </View>
 
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
             {t("ramadan.notifications_section")}
@@ -717,6 +847,24 @@ const styles = StyleSheet.create({
   todayTrackerText: { flex: 1 },
   cardTitle: { fontSize: 16, fontWeight: "800" },
   cardSubtitle: { marginTop: 4, fontSize: 12, lineHeight: 17 },
+  dailyPlanCard: { borderRadius: 17, borderWidth: 1, padding: 15 },
+  dailyPlanHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  dailyPlanPercent: { fontSize: 20, fontWeight: "900" },
+  progressTrack: { marginTop: 12, height: 7, borderRadius: 999, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 999 },
+  planItem: { minHeight: 66, marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center" },
+  planToggle: { flex: 1, flexDirection: "row", alignItems: "center", gap: 11 },
+  planItemText: { flex: 1 },
+  planItemTitle: { fontSize: 14, fontWeight: "800" },
+  planItemSubtitle: { marginTop: 2, fontSize: 11, lineHeight: 15 },
+  openActivityButton: { width: 36, height: 36, marginLeft: 8, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  dailyPlanLocked: { alignItems: "center", paddingVertical: 9 },
+  dailyPlanLockedText: { maxWidth: 360, textAlign: "center" },
+  duaCard: { marginBottom: 10, borderRadius: 17, borderWidth: 1, padding: 15 },
+  arabicDua: { marginTop: 14, fontFamily: "QuranArabic", fontSize: 25, lineHeight: 44, textAlign: "right", writingDirection: "rtl" },
+  transliteration: { marginTop: 10, fontSize: 13, lineHeight: 20, fontStyle: "italic" },
+  duaBody: { marginTop: 9, fontSize: 12, lineHeight: 18 },
+  duaSource: { marginTop: 10, fontSize: 10, fontWeight: "700" },
   notificationCard: { borderRadius: 17, borderWidth: 1, paddingHorizontal: 15, paddingBottom: 14 },
   notificationHelp: { marginTop: 14, marginBottom: 2 },
   notificationEvent: { marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },

@@ -50,10 +50,15 @@ export type RamadanDayEntry = {
   status: RamadanFastStatus;
   updatedAt: number;
 };
+export type RamadanDailyPlanKey = "quran" | "zikr" | "dua" | "charity";
+export type RamadanDailyPlanEntry = Record<RamadanDailyPlanKey, boolean> & {
+  updatedAt: number;
+};
 export type RamadanState = {
   dateCorrection: -1 | 0 | 1;
   notifications: RamadanNotificationSettings;
   days: Record<string, RamadanDayEntry>;
+  dailyPlans: Record<string, RamadanDailyPlanEntry>;
   updatedAt: number;
 };
 
@@ -142,6 +147,7 @@ function createDefaultRamadanState(): RamadanState {
       vibration: true
     },
     days: {},
+    dailyPlans: {},
     updatedAt: Date.now()
   };
 }
@@ -158,6 +164,7 @@ function sanitizeRamadanReminderMinutes(
 function sanitizeRamadanState(value: Partial<RamadanState> | null | undefined): RamadanState {
   const defaults = createDefaultRamadanState();
   const days: Record<string, RamadanDayEntry> = {};
+  const dailyPlans: Record<string, RamadanDailyPlanEntry> = {};
   if (value?.days && typeof value.days === "object") {
     for (const [dateKey, entry] of Object.entries(value.days)) {
       const status = sanitizeRamadanStatus(entry?.status);
@@ -168,6 +175,23 @@ function sanitizeRamadanState(value: Partial<RamadanState> | null | undefined): 
         status,
         updatedAt:
           typeof entry?.updatedAt === "number" && Number.isFinite(entry.updatedAt)
+            ? entry.updatedAt
+            : Date.now()
+      };
+    }
+  }
+  if (value?.dailyPlans && typeof value.dailyPlans === "object") {
+    for (const [dateKey, entry] of Object.entries(value.dailyPlans)) {
+      if (!/^\d{2}-\d{2}-\d{4}$/.test(dateKey) || !entry || typeof entry !== "object") {
+        continue;
+      }
+      dailyPlans[dateKey] = {
+        quran: entry.quran === true,
+        zikr: entry.zikr === true,
+        dua: entry.dua === true,
+        charity: entry.charity === true,
+        updatedAt:
+          typeof entry.updatedAt === "number" && Number.isFinite(entry.updatedAt)
             ? entry.updatedAt
             : Date.now()
       };
@@ -204,6 +228,7 @@ function sanitizeRamadanState(value: Partial<RamadanState> | null | undefined): 
           : defaults.notifications.vibration
     },
     days,
+    dailyPlans,
     updatedAt:
       typeof value?.updatedAt === "number" && Number.isFinite(value.updatedAt)
         ? value.updatedAt
