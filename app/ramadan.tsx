@@ -725,7 +725,7 @@ export default function RamadanScreen() {
           <View style={[styles.duaCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("ramadan.iftar_dua_title")}</Text>
             <Text style={[styles.arabicDua, { color: colors.textPrimary }]}>
-              ذَهَبَ الظَّمَأُ وَابْتَلَّتِ الْعُرُوقُ وَثَبَتَ الْأَجْرُ إِنْ شَاءَ اللَّهُ
+              اللّٰهُمَّ لَكَ صُمْتُ وَعَلَيْكَ تَوَكَّلْتُ وَعَلَى رِزْقِكَ أَفْطَرْتُ، تَقَبَّلْهُ مِنِّي إِنَّكَ أَنْتَ السَّمِيعُ الْعَلِيمُ، ذَهَبَ الظَّمَأُ وَابْتَلَّتِ الْعُرُوقُ وَثَبَتَ الْأَجْرُ إِنْ شَاءَ اللّٰهُ
             </Text>
             <Text style={[styles.transliteration, { color: colors.accent }]}>{t("ramadan.iftar_dua_transliteration")}</Text>
             <Text style={[styles.duaBody, { color: colors.textSecondary }]}>{t("ramadan.iftar_dua_meaning")}</Text>
