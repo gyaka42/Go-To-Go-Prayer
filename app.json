@@ -4,7 +4,7 @@
     "slug": "go-to-go-prayer",
     "scheme": "gotogoprayer",
     "icon": "./assets/images/Light/AppIcon~ios-marketing.png",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "plugins": [
@@ -23,7 +23,7 @@
         "light": "./assets/images/Light/AppIcon~ios-marketing.png",
         "dark": "./assets/images/Dark/AppIcon~ios-marketing.png"
       },
-      "buildNumber": "73",
+      "buildNumber": "74",
       "supportsTablet": true,
       "bundleIdentifier": "com.gogo22.gotogoprayer",
       "infoPlist": {
@@ -47,7 +47,7 @@
     },
     "android": {
       "package": "com.gogo22.gotogoprayer",
-      "versionCode": 9,
+      "versionCode": 10,
       "permissions": ["android.permission.SCHEDULE_EXACT_ALARM"]
     },
     "experiments": {
