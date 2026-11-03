@@ -7,6 +7,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View
 } from "react-native";
@@ -24,11 +25,19 @@ import {
 } from "@/ramadan/calendar";
 import { resolveLocationForSettings } from "@/services/location";
 import {
+  getRamadanNotificationScheduleSummary,
+  registerForLocalNotifications,
+  replanAll,
+  scheduleRamadanTestNotification
+} from "@/services/notifications";
+import {
   getRamadanState,
   getSettings,
   getLatestCachedLocation,
   RamadanDayEntry,
   RamadanFastStatus,
+  RamadanNotificationSettings,
+  RamadanReminderMinutes,
   RamadanState,
   saveLatestCachedLocation,
   saveRamadanState
@@ -84,8 +93,14 @@ export default function RamadanScreen() {
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [locationLabel, setLocationLabel] = useState<string>("");
+  const [resolvedLocation, setResolvedLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<RamadanTimingRow | null>(null);
+  const [savingNotifications, setSavingNotifications] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState<{
+    tone: "success" | "error";
+    label: string;
+  } | null>(null);
 
   const range = useMemo(
     () => (state ? getRamadanRange(now, state.dateCorrection) : null),
@@ -137,6 +152,7 @@ export default function RamadanScreen() {
       }
 
       setLocationLabel(location.label);
+      setResolvedLocation({ lat: location.lat, lon: location.lon });
       const combined = new Map<string, RamadanTimingRow>();
       for (const month of uniqueMonths(targetRange)) {
         let snapshot = await getMonthlyCacheSnapshot({ month, location, settings });
@@ -249,10 +265,76 @@ export default function RamadanScreen() {
     await saveRamadanState(next);
   }, []);
 
+  const replanForRamadanState = useCallback(async (next: RamadanState) => {
+    await updateState(next);
+    if (!resolvedLocation) return;
+    const settings = await getSettings();
+    await replanAll({
+      lat: resolvedLocation.lat,
+      lon: resolvedLocation.lon,
+      methodId: settings.methodId,
+      settings
+    });
+  }, [resolvedLocation, updateState]);
+
   const changeCorrection = useCallback((correction: -1 | 0 | 1) => {
     if (!state || correction === state.dateCorrection) return;
-    void updateState({ ...state, dateCorrection: correction, updatedAt: Date.now() });
-  }, [state, updateState]);
+    void replanForRamadanState({ ...state, dateCorrection: correction, updatedAt: Date.now() });
+  }, [replanForRamadanState, state]);
+
+  const updateNotificationSettings = useCallback(async (
+    patch: Partial<RamadanNotificationSettings>
+  ) => {
+    if (!state || savingNotifications) return;
+    const nextNotifications = { ...state.notifications, ...patch };
+    const enabling =
+      (nextNotifications.imsakEnabled || nextNotifications.iftarEnabled) &&
+      !state.notifications.imsakEnabled &&
+      !state.notifications.iftarEnabled;
+    setSavingNotifications(true);
+    setNotificationStatus(null);
+    try {
+      if (enabling) {
+        const granted = await registerForLocalNotifications();
+        if (!granted) {
+          setNotificationStatus({ tone: "error", label: t("ramadan.notifications_permission_denied") });
+          return;
+        }
+      }
+      const next = { ...state, notifications: nextNotifications, updatedAt: Date.now() };
+      await replanForRamadanState(next);
+      const summary = await getRamadanNotificationScheduleSummary().catch(() => null);
+      setNotificationStatus({
+        tone: "success",
+        label: summary?.total
+          ? t("ramadan.notifications_scheduled", { count: summary.total })
+          : t("ramadan.notifications_saved")
+      });
+    } catch {
+      setNotificationStatus({ tone: "error", label: t("ramadan.notifications_save_error") });
+    } finally {
+      setSavingNotifications(false);
+    }
+  }, [replanForRamadanState, savingNotifications, state, t]);
+
+  const sendTestNotification = useCallback(async () => {
+    if (!state || savingNotifications) return;
+    setSavingNotifications(true);
+    setNotificationStatus(null);
+    try {
+      const scheduled = await scheduleRamadanTestNotification(state.notifications);
+      setNotificationStatus({
+        tone: scheduled ? "success" : "error",
+        label: scheduled
+          ? t("ramadan.notifications_test_sent")
+          : t("ramadan.notifications_permission_denied")
+      });
+    } catch {
+      setNotificationStatus({ tone: "error", label: t("ramadan.notifications_save_error") });
+    } finally {
+      setSavingNotifications(false);
+    }
+  }, [savingNotifications, state, t]);
 
   const setDayStatus = useCallback((dateKey: string, status: RamadanFastStatus | null) => {
     if (!state) return;
@@ -408,6 +490,95 @@ export default function RamadanScreen() {
             </Pressable>
           ) : null}
 
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            {t("ramadan.notifications_section")}
+          </Text>
+          <View style={[styles.notificationCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.cardSubtitle, styles.notificationHelp, { color: colors.textSecondary }]}>
+              {t("ramadan.notifications_help")}
+            </Text>
+            {(["imsak", "iftar"] as const).map((event) => {
+              const enabledKey = event === "imsak" ? "imsakEnabled" : "iftarEnabled";
+              const minutesKey = event === "imsak" ? "imsakMinutesBefore" : "iftarMinutesBefore";
+              const enabled = state.notifications[enabledKey];
+              const minutes = state.notifications[minutesKey];
+              return (
+                <View key={event} style={[styles.notificationEvent, { borderTopColor: colors.cardBorder }]}>
+                  <View style={styles.notificationEventHeader}>
+                    <View style={styles.notificationEventText}>
+                      <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+                        {t(`ramadan.${event}_reminder`)}
+                      </Text>
+                      <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+                        {t("ramadan.minutes_before", { mins: minutes })}
+                      </Text>
+                    </View>
+                    <Switch
+                      value={enabled}
+                      disabled={savingNotifications}
+                      onValueChange={(value) => void updateNotificationSettings({ [enabledKey]: value })}
+                      trackColor={{ false: colors.cardBorder, true: colors.accent }}
+                    />
+                  </View>
+                  {enabled ? (
+                    <View style={styles.minuteOptions}>
+                      {([5, 10, 15, 30, 60] as RamadanReminderMinutes[]).map((value) => (
+                        <Pressable
+                          key={value}
+                          disabled={savingNotifications}
+                          onPress={() => void updateNotificationSettings({ [minutesKey]: value })}
+                          style={[
+                            styles.minuteButton,
+                            { borderColor: colors.cardBorder },
+                            minutes === value && { backgroundColor: colors.accent, borderColor: colors.accent }
+                          ]}
+                        >
+                          <Text style={[styles.minuteButtonText, { color: minutes === value ? "#FFFFFF" : colors.textPrimary }]}>
+                            {value}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+            <View style={[styles.notificationPreferences, { borderTopColor: colors.cardBorder }]}>
+              <View style={styles.preferenceRow}>
+                <Text style={[styles.preferenceLabel, { color: colors.textPrimary }]}>{t("ramadan.notification_sound")}</Text>
+                <Switch
+                  value={state.notifications.playSound}
+                  disabled={savingNotifications}
+                  onValueChange={(value) => void updateNotificationSettings({ playSound: value })}
+                  trackColor={{ false: colors.cardBorder, true: colors.accent }}
+                />
+              </View>
+              <View style={styles.preferenceRow}>
+                <Text style={[styles.preferenceLabel, { color: colors.textPrimary }]}>{t("ramadan.notification_vibration")}</Text>
+                <Switch
+                  value={state.notifications.vibration}
+                  disabled={savingNotifications}
+                  onValueChange={(value) => void updateNotificationSettings({ vibration: value })}
+                  trackColor={{ false: colors.cardBorder, true: colors.accent }}
+                />
+              </View>
+            </View>
+            <Pressable
+              disabled={savingNotifications}
+              style={[styles.testNotificationButton, { backgroundColor: colors.accent }, savingNotifications && { opacity: 0.6 }]}
+              onPress={() => void sendTestNotification()}
+            >
+              <Ionicons name="notifications-outline" size={17} color="#FFFFFF" />
+              <Text style={styles.testNotificationText}>{t("ramadan.notifications_test")}</Text>
+            </Pressable>
+            {savingNotifications ? <ActivityIndicator style={styles.notificationLoader} color={colors.accent} /> : null}
+            {notificationStatus ? (
+              <View style={styles.notificationStatus}>
+                <StatusChip visible tone={notificationStatus.tone} label={notificationStatus.label} />
+              </View>
+            ) : null}
+          </View>
+
           <View style={[styles.correctionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <View style={styles.correctionHeader}>
               <View style={styles.correctionText}>
@@ -546,6 +717,21 @@ const styles = StyleSheet.create({
   todayTrackerText: { flex: 1 },
   cardTitle: { fontSize: 16, fontWeight: "800" },
   cardSubtitle: { marginTop: 4, fontSize: 12, lineHeight: 17 },
+  notificationCard: { borderRadius: 17, borderWidth: 1, paddingHorizontal: 15, paddingBottom: 14 },
+  notificationHelp: { marginTop: 14, marginBottom: 2 },
+  notificationEvent: { marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  notificationEventHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  notificationEventText: { flex: 1 },
+  minuteOptions: { marginTop: 11, flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  minuteButton: { minWidth: 42, height: 34, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  minuteButtonText: { fontSize: 12, fontWeight: "900" },
+  notificationPreferences: { marginTop: 14, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth },
+  preferenceRow: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  preferenceLabel: { fontSize: 14, fontWeight: "700" },
+  testNotificationButton: { marginTop: 10, minHeight: 42, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
+  testNotificationText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
+  notificationLoader: { marginTop: 8, alignSelf: "flex-start" },
+  notificationStatus: { marginTop: 8 },
   correctionCard: { marginTop: 14, borderRadius: 17, borderWidth: 1, padding: 15 },
   correctionHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
   correctionText: { flex: 1 },

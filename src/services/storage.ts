@@ -37,12 +37,22 @@ export type FaithDailyUsage = {
 };
 
 export type RamadanFastStatus = "fasted" | "make_up_later" | "excused" | "made_up";
+export type RamadanReminderMinutes = 5 | 10 | 15 | 30 | 60;
+export type RamadanNotificationSettings = {
+  imsakEnabled: boolean;
+  iftarEnabled: boolean;
+  imsakMinutesBefore: RamadanReminderMinutes;
+  iftarMinutesBefore: RamadanReminderMinutes;
+  playSound: boolean;
+  vibration: boolean;
+};
 export type RamadanDayEntry = {
   status: RamadanFastStatus;
   updatedAt: number;
 };
 export type RamadanState = {
   dateCorrection: -1 | 0 | 1;
+  notifications: RamadanNotificationSettings;
   days: Record<string, RamadanDayEntry>;
   updatedAt: number;
 };
@@ -123,12 +133,30 @@ function sanitizeRamadanStatus(value: unknown): RamadanFastStatus | null {
 function createDefaultRamadanState(): RamadanState {
   return {
     dateCorrection: 0,
+    notifications: {
+      imsakEnabled: false,
+      iftarEnabled: false,
+      imsakMinutesBefore: 30,
+      iftarMinutesBefore: 15,
+      playSound: true,
+      vibration: true
+    },
     days: {},
     updatedAt: Date.now()
   };
 }
 
+function sanitizeRamadanReminderMinutes(
+  value: unknown,
+  fallback: RamadanReminderMinutes
+): RamadanReminderMinutes {
+  return value === 5 || value === 10 || value === 15 || value === 30 || value === 60
+    ? value
+    : fallback;
+}
+
 function sanitizeRamadanState(value: Partial<RamadanState> | null | undefined): RamadanState {
+  const defaults = createDefaultRamadanState();
   const days: Record<string, RamadanDayEntry> = {};
   if (value?.days && typeof value.days === "object") {
     for (const [dateKey, entry] of Object.entries(value.days)) {
@@ -149,6 +177,32 @@ function sanitizeRamadanState(value: Partial<RamadanState> | null | undefined): 
   return {
     dateCorrection:
       value?.dateCorrection === -1 || value?.dateCorrection === 1 ? value.dateCorrection : 0,
+    notifications: {
+      imsakEnabled:
+        typeof value?.notifications?.imsakEnabled === "boolean"
+          ? value.notifications.imsakEnabled
+          : defaults.notifications.imsakEnabled,
+      iftarEnabled:
+        typeof value?.notifications?.iftarEnabled === "boolean"
+          ? value.notifications.iftarEnabled
+          : defaults.notifications.iftarEnabled,
+      imsakMinutesBefore: sanitizeRamadanReminderMinutes(
+        value?.notifications?.imsakMinutesBefore,
+        defaults.notifications.imsakMinutesBefore
+      ),
+      iftarMinutesBefore: sanitizeRamadanReminderMinutes(
+        value?.notifications?.iftarMinutesBefore,
+        defaults.notifications.iftarMinutesBefore
+      ),
+      playSound:
+        typeof value?.notifications?.playSound === "boolean"
+          ? value.notifications.playSound
+          : defaults.notifications.playSound,
+      vibration:
+        typeof value?.notifications?.vibration === "boolean"
+          ? value.notifications.vibration
+          : defaults.notifications.vibration
+    },
     days,
     updatedAt:
       typeof value?.updatedAt === "number" && Number.isFinite(value.updatedAt)

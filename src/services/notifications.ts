@@ -2,7 +2,9 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { AppLanguage } from "@/i18n/translations";
 import { getPreferredLanguage, translate, translatePrayerName } from "@/i18n/I18nProvider";
+import { getRamadanDayNumber, getRamadanRange } from "@/ramadan/calendar";
 import { getLocationName } from "@/services/location";
+import { getRamadanState, RamadanNotificationSettings, RamadanState } from "@/services/storage";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
 import { getDateKey, getTomorrow, parsePrayerTimeForDate } from "@/utils/time";
 import { PRAYER_NAMES, PrayerNotificationSetting, Settings, Timings } from "@/types/prayer";
@@ -93,6 +95,57 @@ export interface PrayerNotificationScheduleSummary {
   byPrayer: Record<(typeof PRAYER_NAMES)[number], number>;
 }
 
+export interface RamadanNotificationScheduleSummary {
+  total: number;
+  imsak: number;
+  iftar: number;
+}
+
+export async function getRamadanNotificationScheduleSummary(): Promise<RamadanNotificationScheduleSummary> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  let imsak = 0;
+  let iftar = 0;
+  for (const request of scheduled) {
+    const event = (request.content.data ?? {}).ramadanEvent;
+    if (event === "imsak") imsak += 1;
+    if (event === "iftar") iftar += 1;
+  }
+  return { total: imsak + iftar, imsak, iftar };
+}
+
+export async function scheduleRamadanTestNotification(
+  settings: RamadanNotificationSettings
+): Promise<boolean> {
+  const granted = await registerForLocalNotifications();
+  if (!granted) return false;
+  const language = await getPreferredLanguage();
+  const channelId = await ensureAndroidPrayerNotificationChannel({
+    playSound: settings.playSound,
+    tone: "Beep",
+    vibration: settings.vibration
+  });
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: translate(language, "ramadan.notifications_title"),
+      body: translate(language, "ramadan.notifications_test_body"),
+      data: {
+        ramadanEvent: "test",
+        playSound: settings.playSound,
+        vibration: settings.vibration
+      },
+      sound: settings.playSound ? "default" : false,
+      vibrate: settings.vibration ? ANDROID_VIBRATION_PATTERN : []
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: 3,
+      repeats: false,
+      ...(channelId ? { channelId } : {})
+    }
+  });
+  return true;
+}
+
 export async function getPrayerNotificationScheduleSummary(): Promise<PrayerNotificationScheduleSummary> {
   const byPrayer = PRAYER_NAMES.reduce((acc, prayer) => {
     acc[prayer] = 0;
@@ -153,6 +206,7 @@ function createReplanSignature(params: {
   methodId: number;
   settings: Settings;
   language: AppLanguage;
+  ramadanState: RamadanState;
 }): string {
   const roundedLat = Number(params.lat.toFixed(4));
   const roundedLon = Number(params.lon.toFixed(4));
@@ -170,6 +224,10 @@ function createReplanSignature(params: {
           lon: Number(params.settings.manualLocation.lon.toFixed(4))
         }
       : null,
+    ramadan: {
+      dateCorrection: params.ramadanState.dateCorrection,
+      notifications: params.ramadanState.notifications
+    },
     prayers: PRAYER_NAMES.map((prayer) => {
       const setting = params.settings.prayerNotifications[prayer];
       return {
@@ -183,6 +241,66 @@ function createReplanSignature(params: {
       };
     })
   });
+}
+
+async function scheduleRamadanReminder(params: {
+  triggerAt: Date;
+  event: "imsak" | "iftar";
+  dateKey: string;
+  minutesBefore: number;
+  settings: RamadanNotificationSettings;
+  language: AppLanguage;
+  dedupeSet: Set<string>;
+}): Promise<boolean> {
+  if (params.triggerAt.getTime() <= Date.now()) {
+    return false;
+  }
+
+  const dedupeKey = [
+    "ramadan",
+    params.dateKey,
+    params.event,
+    params.minutesBefore,
+    params.triggerAt.getTime()
+  ].join(":");
+  if (params.dedupeSet.has(dedupeKey)) {
+    return false;
+  }
+  params.dedupeSet.add(dedupeKey);
+
+  const channelId = await ensureAndroidPrayerNotificationChannel({
+    playSound: params.settings.playSound,
+    tone: "Beep",
+    vibration: params.settings.vibration
+  });
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: translate(params.language, "ramadan.notifications_title"),
+      body: translate(
+        params.language,
+        params.event === "imsak"
+          ? "ramadan.notifications_imsak_body"
+          : "ramadan.notifications_iftar_body",
+        { mins: params.minutesBefore }
+      ),
+      data: {
+        ramadanEvent: params.event,
+        dateKey: params.dateKey,
+        minutesBefore: params.minutesBefore,
+        playSound: params.settings.playSound,
+        vibration: params.settings.vibration,
+        dedupeKey
+      },
+      sound: params.settings.playSound ? "default" : false,
+      vibrate: params.settings.vibration ? ANDROID_VIBRATION_PATTERN : []
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: params.triggerAt,
+      ...(channelId ? { channelId } : {})
+    }
+  });
+  return true;
 }
 
 async function scheduleOne(params: {
@@ -329,7 +447,8 @@ async function replanAllOnce(params: {
   }
 
   const language = await getPreferredLanguage();
-  const signature = createReplanSignature({ ...params, language });
+  const ramadanState = await getRamadanState();
+  const signature = createReplanSignature({ ...params, language, ramadanState });
   if (signature === lastAppliedSignature && Date.now() - lastAppliedAt < 10_000) {
     const hasEnabledPrayer = PRAYER_NAMES.some((prayer) => params.settings.prayerNotifications[prayer]?.enabled);
     const summary = await getPrayerNotificationScheduleSummary().catch(() => null);
@@ -345,7 +464,8 @@ async function replanAllOnce(params: {
   const stats = {
     scheduled: 0,
     atTime: 0,
-    offset: 0
+    offset: 0,
+    ramadan: 0
   };
 
   const resolved = await getTodayTomorrowTimings({
@@ -429,12 +549,51 @@ async function replanAllOnce(params: {
   await scheduleWithStats(today, todayTimings);
   await scheduleWithStats(tomorrow, tomorrowTimings);
 
+  const ramadanRange = getRamadanRange(today, ramadanState.dateCorrection);
+  const scheduleRamadanForDate = async (date: Date, timings: Timings) => {
+    if (!ramadanRange || !getRamadanDayNumber(date, ramadanRange)) {
+      return;
+    }
+    const reminderSettings = ramadanState.notifications;
+    const reminders = [
+      {
+        enabled: reminderSettings.imsakEnabled,
+        event: "imsak" as const,
+        time: timings.times.Fajr,
+        minutesBefore: reminderSettings.imsakMinutesBefore
+      },
+      {
+        enabled: reminderSettings.iftarEnabled,
+        event: "iftar" as const,
+        time: timings.times.Maghrib,
+        minutesBefore: reminderSettings.iftarMinutesBefore
+      }
+    ];
+    for (const reminder of reminders) {
+      if (!reminder.enabled) continue;
+      const eventAt = parsePrayerTimeForDate(date, reminder.time);
+      const triggerAt = new Date(eventAt.getTime() - reminder.minutesBefore * 60 * 1000);
+      const scheduled = await scheduleRamadanReminder({
+        triggerAt,
+        event: reminder.event,
+        dateKey: timings.dateKey,
+        minutesBefore: reminder.minutesBefore,
+        settings: reminderSettings,
+        language,
+        dedupeSet
+      });
+      if (scheduled) stats.ramadan += 1;
+    }
+  };
+  await scheduleRamadanForDate(today, todayTimings);
+  await scheduleRamadanForDate(tomorrow, tomorrowTimings);
+
   lastAppliedSignature = signature;
   lastAppliedAt = Date.now();
 
   if (__DEV__) {
     console.log(
-      `[notifications] replanned total=${stats.scheduled} at_time=${stats.atTime} offset=${stats.offset} provider=${params.settings.timingsProvider} method=${params.methodId}`
+      `[notifications] replanned total=${stats.scheduled + stats.ramadan} at_time=${stats.atTime} offset=${stats.offset} ramadan=${stats.ramadan} provider=${params.settings.timingsProvider} method=${params.methodId}`
     );
   }
 }
