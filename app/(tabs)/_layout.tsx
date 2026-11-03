@@ -1,19 +1,49 @@
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
-import { Image, StyleSheet, View } from "react-native";
+import { Tabs, usePathname } from "expo-router";
+import { useEffect, useState } from "react";
+import { AppState, Image, StyleSheet, View } from "react-native";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { useI18n } from "@/i18n/I18nProvider";
+import { isRamadanDate } from "@/ramadan/calendar";
+import { useRamadanPreview } from "@/ramadan/RamadanPreviewProvider";
+import { getRamadanState } from "@/services/storage";
 
 export default function TabsLayout() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t } = useI18n();
+  const { previewDay } = useRamadanPreview();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const [ramadanActive, setRamadanActive] = useState(false);
   const tabBarBottom = Math.max(insets.bottom - 14, 0);
   const isLight = resolvedTheme === "light";
   const glassBorder = isLight ? "rgba(177, 201, 228, 0.8)" : "rgba(185, 213, 255, 0.24)";
   const fallbackGlass = isLight ? "rgba(245, 250, 255, 0.62)" : "rgba(8, 26, 46, 0.42)";
+  const showRamadanTab = ramadanActive || previewDay !== null;
+
+  useEffect(() => {
+    let active = true;
+    const refreshRamadanVisibility = async () => {
+      const state = await getRamadanState();
+      if (active) {
+        setRamadanActive(isRamadanDate(new Date(), state.dateCorrection));
+      }
+    };
+
+    void refreshRamadanVisibility();
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        void refreshRamadanVisibility();
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [pathname]);
 
   return (
     <Tabs
@@ -41,12 +71,12 @@ export default function TabsLayout() {
           paddingBottom: 8
         },
         tabBarItemStyle: {
-          marginHorizontal: 1,
+          marginHorizontal: 0,
           marginTop: 4,
           marginBottom: 1
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: showRamadanTab ? 10 : 11,
           fontWeight: "600"
         },
         sceneStyle: {
@@ -73,6 +103,8 @@ export default function TabsLayout() {
                 solid={focused}
               />
             );
+          } else if (route.name === "ramadan") {
+            iconName = focused ? "moon" : "moon-outline";
           } else if (route.name === "menu") {
             return (
               <Image
@@ -108,6 +140,13 @@ export default function TabsLayout() {
         name="qibla"
         options={{
           title: t("tabs.qibla")
+        }}
+      />
+      <Tabs.Screen
+        name="ramadan"
+        options={{
+          title: t("tabs.ramadan"),
+          href: showRamadanTab ? undefined : null
         }}
       />
       <Tabs.Screen

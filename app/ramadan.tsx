@@ -85,7 +85,13 @@ function statusIcon(status: RamadanFastStatus | undefined): keyof typeof Ionicon
   return "ellipse-outline";
 }
 
-export default function RamadanScreen() {
+export function RamadanScreen({
+  asTab = false,
+  tabBarHeight = 0
+}: {
+  asTab?: boolean;
+  tabBarHeight?: number;
+}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, resolvedTheme } = useAppTheme();
@@ -467,14 +473,16 @@ export default function RamadanScreen() {
       <View style={styles.root}>
         <AppBackground />
         <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t("ramadan.back")}
-            style={[styles.circleButton, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
-          </Pressable>
+          {!asTab ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("ramadan.back")}
+              style={[styles.circleButton, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
+            </Pressable>
+          ) : null}
           <View style={styles.headerText}>
             <Text style={[styles.title, { color: colors.textPrimary }]}>{t("ramadan.title")}</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("ramadan.subtitle")}</Text>
@@ -483,7 +491,10 @@ export default function RamadanScreen() {
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 28 }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(insets.bottom + 28, tabBarHeight + 28) }
+          ]}
         >
           <View style={[styles.hero, { backgroundColor: isLight ? "#E7F2FF" : "#102B47", borderColor: isLight ? "#B7D8FA" : "#28557F" }]}>
             <View style={styles.heroTop}>
@@ -928,6 +939,10 @@ export default function RamadanScreen() {
       </Modal>
     </SafeAreaView>
   );
+}
+
+export default function RamadanRoute() {
+  return <RamadanScreen />;
 }
 
 const styles = StyleSheet.create({
