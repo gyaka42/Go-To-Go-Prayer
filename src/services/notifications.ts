@@ -1,4 +1,5 @@
 import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
 import { AppLanguage } from "@/i18n/translations";
 import { getPreferredLanguage, translate, translatePrayerName } from "@/i18n/I18nProvider";
 import { getLocationName } from "@/services/location";
@@ -48,6 +49,42 @@ let lastAppliedAt = 0;
 
 type ScheduledIntent = "offset" | "at_time";
 const ADHAN_SOUND_FILE = "adhan_short.wav";
+const ANDROID_VIBRATION_PATTERN = [0, 250, 180, 250];
+
+export async function ensureAndroidPrayerNotificationChannel(params: {
+  playSound: boolean;
+  tone: PrayerNotificationSetting["tone"];
+  vibration: boolean;
+}): Promise<string | undefined> {
+  if (Platform.OS !== "android") {
+    return undefined;
+  }
+
+  const soundKey = params.playSound ? (params.tone === "Adhan" ? "adhan" : "default") : "silent";
+  const vibrationKey = params.vibration ? "vibrate" : "still";
+  const channelId = `prayer-${soundKey}-${vibrationKey}-v1`;
+  const sound = params.playSound
+    ? params.tone === "Adhan"
+      ? ADHAN_SOUND_FILE
+      : "default"
+    : null;
+
+  await Notifications.setNotificationChannelAsync(channelId, {
+    name: `Prayer alerts (${soundKey}, ${vibrationKey})`,
+    description: "Prayer time reminders from GoToGo Prayer",
+    importance: Notifications.AndroidImportance.HIGH,
+    sound,
+    enableVibrate: params.vibration,
+    vibrationPattern: params.vibration ? ANDROID_VIBRATION_PATTERN : null,
+    showBadge: false,
+    audioAttributes: {
+      usage: Notifications.AndroidAudioUsage.NOTIFICATION,
+      contentType: Notifications.AndroidAudioContentType.SONIFICATION
+    }
+  });
+
+  return channelId;
+}
 
 export interface PrayerNotificationScheduleSummary {
   total: number;
@@ -199,6 +236,12 @@ async function scheduleOne(params: {
           })
         : translate(params.language, "notifications.body_at_time", { prayer: prayerLabel });
 
+  const channelId = await ensureAndroidPrayerNotificationChannel({
+    playSound: params.playSound,
+    tone: params.tone,
+    vibration: params.vibration
+  });
+
   await Notifications.scheduleNotificationAsync({
     content: {
       title: translate(params.language, "notifications.title"),
@@ -213,11 +256,13 @@ async function scheduleOne(params: {
         vibration: params.vibration,
         dedupeKey
       },
-      sound: resolveNotificationSound(params.playSound, params.tone)
+      sound: resolveNotificationSound(params.playSound, params.tone),
+      vibrate: params.vibration ? ANDROID_VIBRATION_PATTERN : []
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
-      date: params.triggerAt
+      date: params.triggerAt,
+      ...(channelId ? { channelId } : {})
     }
   });
 }

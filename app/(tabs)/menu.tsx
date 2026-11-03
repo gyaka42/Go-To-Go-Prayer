@@ -176,6 +176,13 @@ export default function MenuScreen() {
       icon: <Ionicons name="bookmark-outline" size={21} color="#2B8CEE" />
     },
     {
+      id: "ramadan",
+      onPress: () => router.push("/ramadan" as never),
+      title: t("menu.ramadan.title"),
+      subtitle: t("menu.ramadan.subtitle"),
+      icon: <Ionicons name="moon-outline" size={22} color="#2B8CEE" />
+    },
+    {
       id: "monthly",
       onPress: () => router.push("/monthly" as never),
       title: t("menu.monthly.title"),

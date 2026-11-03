@@ -28,11 +28,23 @@ const ONBOARDING_SEEN_KEY = "onboarding:seen:v1";
 const FAITH_INSTALLATION_ID_KEY = "faith:installation_id:v1";
 const FAITH_HISTORY_KEY = "faith:history:v1";
 const FAITH_DAILY_USAGE_KEY = "faith:daily_usage:v1";
+const RAMADAN_STATE_KEY = "ramadan:state:v1";
 const MAX_FAITH_HISTORY_ITEMS = 20;
 
 export type FaithDailyUsage = {
   dateKey: string;
   count: number;
+};
+
+export type RamadanFastStatus = "fasted" | "make_up_later" | "excused" | "made_up";
+export type RamadanDayEntry = {
+  status: RamadanFastStatus;
+  updatedAt: number;
+};
+export type RamadanState = {
+  dateCorrection: -1 | 0 | 1;
+  days: Record<string, RamadanDayEntry>;
+  updatedAt: number;
 };
 
 export type HomeDateMode = "gregorian" | "hijri";
@@ -101,6 +113,66 @@ export type ReadingSettings = {
   showTranslation: boolean;
   showTransliteration: boolean;
 };
+
+function sanitizeRamadanStatus(value: unknown): RamadanFastStatus | null {
+  return value === "fasted" || value === "make_up_later" || value === "excused" || value === "made_up"
+    ? value
+    : null;
+}
+
+function createDefaultRamadanState(): RamadanState {
+  return {
+    dateCorrection: 0,
+    days: {},
+    updatedAt: Date.now()
+  };
+}
+
+function sanitizeRamadanState(value: Partial<RamadanState> | null | undefined): RamadanState {
+  const days: Record<string, RamadanDayEntry> = {};
+  if (value?.days && typeof value.days === "object") {
+    for (const [dateKey, entry] of Object.entries(value.days)) {
+      const status = sanitizeRamadanStatus(entry?.status);
+      if (!/^\d{2}-\d{2}-\d{4}$/.test(dateKey) || !status) {
+        continue;
+      }
+      days[dateKey] = {
+        status,
+        updatedAt:
+          typeof entry?.updatedAt === "number" && Number.isFinite(entry.updatedAt)
+            ? entry.updatedAt
+            : Date.now()
+      };
+    }
+  }
+
+  return {
+    dateCorrection:
+      value?.dateCorrection === -1 || value?.dateCorrection === 1 ? value.dateCorrection : 0,
+    days,
+    updatedAt:
+      typeof value?.updatedAt === "number" && Number.isFinite(value.updatedAt)
+        ? value.updatedAt
+        : Date.now()
+  };
+}
+
+export async function getRamadanState(): Promise<RamadanState> {
+  const raw = await AsyncStorage.getItem(RAMADAN_STATE_KEY);
+  if (!raw) {
+    return createDefaultRamadanState();
+  }
+  try {
+    return sanitizeRamadanState(JSON.parse(raw) as Partial<RamadanState>);
+  } catch {
+    return createDefaultRamadanState();
+  }
+}
+
+export async function saveRamadanState(state: RamadanState): Promise<void> {
+  const sanitized = sanitizeRamadanState({ ...state, updatedAt: Date.now() });
+  await AsyncStorage.setItem(RAMADAN_STATE_KEY, JSON.stringify(sanitized));
+}
 
 function createDefaultSettings(): Settings {
   return {

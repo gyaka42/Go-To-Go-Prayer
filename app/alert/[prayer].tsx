@@ -7,13 +7,13 @@ import {
   Alert,
   LayoutChangeEvent,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
-  View,
-  Vibration
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Notifications from "expo-notifications";
@@ -23,7 +23,12 @@ import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
 import { resolveLocationForSettings } from "@/services/location";
-import { registerForLocalNotifications, replanAll, resolveNotificationSound } from "@/services/notifications";
+import {
+  ensureAndroidPrayerNotificationChannel,
+  registerForLocalNotifications,
+  replanAll,
+  resolveNotificationSound
+} from "@/services/notifications";
 import { getSettings, saveSettings } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { PRAYER_NAMES, PrayerName, Settings } from "@/types/prayer";
@@ -203,15 +208,16 @@ export default function PrayerAlertPreferencesScreen() {
       return;
     }
 
-    if (entry.vibration) {
-      Vibration.vibrate(45);
-      setTimeout(() => Vibration.vibrate(45), 120);
-    }
-
     const locationLabel =
       settings?.locationMode === "manual" && settings?.manualLocation?.label
         ? settings.manualLocation.label.split(",")[0]?.trim() || null
         : null;
+
+    const channelId = await ensureAndroidPrayerNotificationChannel({
+      playSound: entry.playSound,
+      tone: entry.tone,
+      vibration: entry.vibration
+    });
 
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -232,12 +238,14 @@ export default function PrayerAlertPreferencesScreen() {
           playSound: entry.playSound,
           tone: entry.tone
         },
-        sound: resolveNotificationSound(entry.playSound, entry.tone)
+        sound: resolveNotificationSound(entry.playSound, entry.tone),
+        vibrate: entry.vibration ? [0, 250, 180, 250] : []
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
         seconds: 2,
-        repeats: false
+        repeats: false,
+        ...(channelId ? { channelId } : {})
       }
     });
     showFeedback({ tone: "success", label: t("alert.inline_test_sent") });
@@ -348,35 +356,37 @@ export default function PrayerAlertPreferencesScreen() {
               <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
             </Pressable>
 
-            <View style={styles.volumeWrap}>
-              <Pressable
-                style={styles.volButton}
-                onPress={() => updatePrayerSettings({ volume: Math.max(0, (entry?.volume ?? 75) - 5) })}
-              >
-                <Ionicons name="volume-low" size={16} color={isLight ? "#5C738A" : "#7F93AD"} />
-              </Pressable>
+            {Platform.OS === "ios" ? (
+              <View style={styles.volumeWrap}>
+                <Pressable
+                  style={styles.volButton}
+                  onPress={() => updatePrayerSettings({ volume: Math.max(0, (entry?.volume ?? 75) - 5) })}
+                >
+                  <Ionicons name="volume-low" size={16} color={isLight ? "#5C738A" : "#7F93AD"} />
+                </Pressable>
 
-              <View
-                style={styles.sliderTouchArea}
-                onLayout={(event: LayoutChangeEvent) => setSliderTrackWidth(event.nativeEvent.layout.width)}
-                {...sliderResponder.panHandlers}
-              >
-                <View style={[styles.sliderTrack, isLight ? { backgroundColor: "#DCE7F4" } : null]}>
-                  <View style={[styles.sliderFill, { width: `${volumeValue}%` }]} />
-                  <View style={[styles.sliderThumb, { left: `${thumbLeftPercent}%` }]} pointerEvents="none" />
+                <View
+                  style={styles.sliderTouchArea}
+                  onLayout={(event: LayoutChangeEvent) => setSliderTrackWidth(event.nativeEvent.layout.width)}
+                  {...sliderResponder.panHandlers}
+                >
+                  <View style={[styles.sliderTrack, isLight ? { backgroundColor: "#DCE7F4" } : null]}>
+                    <View style={[styles.sliderFill, { width: `${volumeValue}%` }]} />
+                    <View style={[styles.sliderThumb, { left: `${thumbLeftPercent}%` }]} pointerEvents="none" />
+                  </View>
                 </View>
-              </View>
 
-              <Pressable
-                style={styles.volButton}
-                onPress={() => updatePrayerSettings({ volume: Math.min(100, (entry?.volume ?? 75) + 5) })}
-              >
-                <Ionicons name="volume-high" size={16} color={isLight ? "#5C738A" : "#7F93AD"} />
-              </Pressable>
-            </View>
+                <Pressable
+                  style={styles.volButton}
+                  onPress={() => updatePrayerSettings({ volume: Math.min(100, (entry?.volume ?? 75) + 5) })}
+                >
+                  <Ionicons name="volume-high" size={16} color={isLight ? "#5C738A" : "#7F93AD"} />
+                </Pressable>
+              </View>
+            ) : null}
           </View>
           <Text style={[styles.helpText, isLight ? { color: "#617990" } : null]}>
-            {t("alert.volume_help")}
+            {t(Platform.OS === "android" ? "alert.volume_help_android" : "alert.volume_help")}
           </Text>
 
           <Text style={[styles.sectionLabel, isLight ? { color: "#617990" } : null]}>{t("alert.haptics")}</Text>

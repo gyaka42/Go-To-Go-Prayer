@@ -154,9 +154,9 @@ export function QiblaCompass({ qiblaBearingDeg, deviceHeadingDeg, mode, lightMod
         </Animated.View>
 
         <View style={[styles.centerDot, { backgroundColor: palette.center, borderColor: palette.needle }]} />
-        <View style={[styles.degreeBadge, { borderColor: palette.outerBorder }]}>
-          <Text style={[styles.centerLabel, { color: palette.degree }]}>{Math.round(qiblaBearingDeg)}deg</Text>
-        </View>
+      </View>
+      <View style={[styles.degreeBadge, { backgroundColor: palette.outer, borderColor: palette.outerBorder }]}>
+        <Text style={[styles.centerLabel, { color: palette.degree }]}>{Math.round(qiblaBearingDeg)}deg</Text>
       </View>
     </View>
   );
@@ -292,15 +292,13 @@ const styles = StyleSheet.create({
     zIndex: 3
   },
   degreeBadge: {
-    position: "absolute",
-    bottom: 22,
+    marginTop: 10,
     minWidth: 72,
     height: 28,
     borderRadius: 14,
     borderWidth: 1,
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#00000012"
+    justifyContent: "center"
   },
   centerLabel: {
     fontSize: 14,
