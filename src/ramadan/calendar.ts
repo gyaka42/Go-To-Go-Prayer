@@ -165,6 +165,11 @@ export function getRamadanDayNumber(date: Date, range: RamadanRange): number | n
   return difference + 1;
 }
 
+export function isRamadanDate(date: Date, correctionDays: -1 | 0 | 1): boolean {
+  const range = getRamadanRange(date, correctionDays);
+  return Boolean(range && getRamadanDayNumber(date, range));
+}
+
 export function timeOnDate(date: Date, hhmm: string | undefined): Date | null {
   const match = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || "").trim());
   if (!match) {

@@ -20,6 +20,8 @@ import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { StatusChip } from "@/components/StatusChip";
 import { useI18n } from "@/i18n/I18nProvider";
+import { isRamadanDate } from "@/ramadan/calendar";
+import { useRamadanPreview } from "@/ramadan/RamadanPreviewProvider";
 import { resolveLocationForSettings } from "@/services/location";
 import { replanAll } from "@/services/notifications";
 import { analyzeTimingsSanity, TimingSanityIssue } from "@/services/timingValidation";
@@ -31,6 +33,7 @@ import {
   getHomeDateMode,
   getLatestCachedLocation,
   getLatestCachedTimings,
+  getRamadanState,
   getSettings,
   saveHomeDateMode,
   saveLatestCachedLocation
@@ -66,6 +69,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { colors, resolvedTheme } = useAppTheme();
   const { t, prayerName, language, localeTag } = useI18n();
+  const { previewDay } = useRamadanPreview();
   const { width } = useWindowDimensions();
   const tabBarHeight = useBottomTabBarHeight();
   const enterTransition = useMotionTransition(easeEnterTransition);
@@ -86,6 +90,7 @@ export default function HomeScreen() {
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [locationName, setLocationName] = useState(t("common.current_location"));
   const [homeDateMode, setHomeDateMode] = useState<"gregorian" | "hijri">("gregorian");
+  const [ramadanActive, setRamadanActive] = useState(false);
   const lastReplanSignatureRef = useRef<string>("");
   const latestLoadRequestRef = useRef(0);
   const scheduleListRef = useRef<FlatList<PrayerName> | null>(null);
@@ -123,13 +128,14 @@ export default function HomeScreen() {
     setLoadState("loading");
     setStatusMessage(t("home.fetching_prayers"));
 
-    const savedSettings = await getSettings();
+    const [savedSettings, ramadanState] = await Promise.all([getSettings(), getRamadanState()]);
     if (isStale()) {
       return;
     }
     setSettings(savedSettings);
 
     const today = new Date();
+    setRamadanActive(isRamadanDate(today, ramadanState.dateCorrection));
     const tomorrow = getTomorrow(today);
     let widgetLocationLabel = t("common.current_location");
 
@@ -548,6 +554,36 @@ export default function HomeScreen() {
           </View>
         </EaseView>
 
+        {ramadanActive || previewDay !== null ? (
+          <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
+            <Pressable
+              style={[
+                styles.ramadanShortcut,
+                {
+                  backgroundColor: resolvedTheme === "light" ? "#FFF5DF" : "#2C2518",
+                  borderColor: resolvedTheme === "light" ? "#F5C76C" : "#765A27"
+                }
+              ]}
+              onPress={() => router.push("/ramadan" as never)}
+              accessibilityRole="button"
+              accessibilityLabel={t("menu.ramadan.title")}
+            >
+              <View style={styles.ramadanShortcutIcon}>
+                <Ionicons name="moon" size={22} color="#F59E0B" />
+              </View>
+              <View style={styles.ramadanShortcutText}>
+                <Text style={[styles.ramadanShortcutTitle, { color: colors.textPrimary }]}>
+                  {t("menu.ramadan.title")}
+                </Text>
+                <Text style={[styles.ramadanShortcutSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>
+                  {t("menu.ramadan.subtitle")}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#F59E0B" />
+            </Pressable>
+          </EaseView>
+        ) : null}
+
         <EaseView initialAnimate={easeInitialLift} animate={easeVisibleLift} transition={enterTransition}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("home.todays_schedule")}</Text>
         </EaseView>
@@ -732,6 +768,37 @@ const styles = StyleSheet.create({
   heroCardCompact: {
     padding: 18,
     borderRadius: 20
+  },
+  ramadanShortcut: {
+    minHeight: 82,
+    marginTop: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+  ramadanShortcutIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#FFF0C7",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  ramadanShortcutText: {
+    flex: 1
+  },
+  ramadanShortcutTitle: {
+    fontSize: 18,
+    fontWeight: "800"
+  },
+  ramadanShortcutSubtitle: {
+    marginTop: 3,
+    fontSize: 13,
+    lineHeight: 18
   },
   heroLabel: {
     fontSize: 18,

@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/theme/ThemeProvider";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import { OnboardingProvider, useOnboarding } from "@/onboarding/OnboardingProvider";
+import { RamadanPreviewProvider } from "@/ramadan/RamadanPreviewProvider";
 
 function RootNavigation() {
   const { resolvedTheme } = useAppTheme();
@@ -75,9 +76,11 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <I18nProvider>
-        <OnboardingProvider>
-          <RootNavigation />
-        </OnboardingProvider>
+        <RamadanPreviewProvider>
+          <OnboardingProvider>
+            <RootNavigation />
+          </OnboardingProvider>
+        </RamadanPreviewProvider>
       </I18nProvider>
     </ThemeProvider>
   );

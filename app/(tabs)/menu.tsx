@@ -7,12 +7,22 @@ import { easeEnterTransition, easeInitialLift, easePressTransition, easeVisibleL
 import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
-import { ContentFavorite, getContentFavorites, getQazaState, getRecentContent, getRecentContents, getZikrState } from "@/services/storage";
+import { isRamadanDate } from "@/ramadan/calendar";
+import { useRamadanPreview } from "@/ramadan/RamadanPreviewProvider";
+import { ContentFavorite, getContentFavorites, getQazaState, getRamadanState, getRecentContent, getRecentContents, getZikrState } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { useCallback, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 type MenuQazaKey = "fajr" | "dhuhr" | "asr" | "maghrib" | "isha" | "witr";
 type MenuZikrKey = "subhanallah" | "alhamdulillah" | "allahuakbar" | "la_ilaha_illallah" | "custom";
+type MenuItem = {
+  id: string;
+  onPress: () => void;
+  title: string;
+  subtitle: string;
+  icon: ReactNode;
+};
 
 const QAZA_KEYS: MenuQazaKey[] = ["fajr", "dhuhr", "asr", "maghrib", "isha", "witr"];
 
@@ -36,6 +46,7 @@ export default function MenuScreen() {
   const insets = useSafeAreaInsets();
   const { colors, resolvedTheme } = useAppTheme();
   const { t } = useI18n();
+  const { previewDay } = useRamadanPreview();
   const isLight = resolvedTheme === "light";
   const enterTransition = useMotionTransition(easeEnterTransition);
   const pressTransition = useMotionTransition(easePressTransition);
@@ -45,6 +56,7 @@ export default function MenuScreen() {
   const [recentReadingCount, setRecentReadingCount] = useState(0);
   const [zikrSummary, setZikrSummary] = useState<string | null>(null);
   const [qazaSummary, setQazaSummary] = useState<string | null>(null);
+  const [ramadanActive, setRamadanActive] = useState(false);
 
   const recentSubtitle =
     recentContent?.ayahNumber && recentContent.ayahNumber > 0
@@ -68,14 +80,15 @@ export default function MenuScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      void Promise.all([getRecentContent(), getContentFavorites(), getRecentContents(10), getZikrState(), getQazaState()]).then(
-        ([value, favorites, recent, zikr, qaza]) => {
+      void Promise.all([getRecentContent(), getContentFavorites(), getRecentContents(10), getZikrState(), getQazaState(), getRamadanState()]).then(
+        ([value, favorites, recent, zikr, qaza, ramadan]) => {
           if (active) {
             setRecentContent(value);
             setSavedReadingCount(favorites.length);
             setRecentReadingCount(recent.length);
             setZikrSummary(buildZikrSummary(zikr));
             setQazaSummary(buildQazaSummary(qaza));
+            setRamadanActive(isRamadanDate(new Date(), ramadan.dateCorrection));
           }
         }
       );
@@ -85,7 +98,7 @@ export default function MenuScreen() {
     }, [buildQazaSummary, buildZikrSummary])
   );
 
-  const menuItems = useMemo(() => [
+  const menuItems = useMemo<MenuItem[]>(() => [
     {
       id: "mosques",
       onPress: () => router.push("/mosques" as never),
@@ -204,6 +217,48 @@ export default function MenuScreen() {
     }
   ], [qazaSummary, recentReadingCount, savedReadingCount, t, zikrSummary]);
 
+  const showRamadanSeasonalPlacement = ramadanActive || previewDay !== null;
+  const featuredRamadanItem = showRamadanSeasonalPlacement
+    ? menuItems.find((item) => item.id === "ramadan") ?? null
+    : null;
+  const regularMenuItems = showRamadanSeasonalPlacement
+    ? menuItems.filter((item) => item.id !== "ramadan")
+    : menuItems;
+
+  const renderMenuItem = (item: MenuItem, spaced: boolean) => {
+    const pressed = pressedCard === item.id;
+    return (
+      <EaseView
+        key={item.id}
+        initialAnimate={easeInitialLift}
+        animate={{ opacity: 1, translateY: 0, scale: pressed ? 0.985 : 1 }}
+        transition={pressed ? pressTransition : enterTransition}
+      >
+        <Pressable
+          style={[
+            styles.menuCard,
+            spaced && styles.menuCardSpaced,
+            { backgroundColor: colors.card, borderColor: colors.cardBorder }
+          ]}
+          onPress={item.onPress}
+          onPressIn={() => setPressedCard(item.id)}
+          onPressOut={() => setPressedCard(null)}
+        >
+          <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
+            {item.icon}
+          </View>
+          <View style={styles.cardTextWrap}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+              {item.subtitle}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
+        </Pressable>
+      </EaseView>
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
@@ -215,8 +270,11 @@ export default function MenuScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 112 }]}
         >
+          {featuredRamadanItem ? renderMenuItem(featuredRamadanItem, false) : null}
+
           {recentContent ? (
             <EaseView
+              style={featuredRamadanItem ? styles.menuCardSpaced : undefined}
               initialAnimate={easeInitialLift}
               animate={{ opacity: 1, translateY: 0, scale: pressedCard === "continue-reading" ? 0.985 : 1 }}
               transition={pressedCard === "continue-reading" ? pressTransition : enterTransition}
@@ -253,39 +311,9 @@ export default function MenuScreen() {
             </EaseView>
           ) : null}
 
-          {menuItems.map((item, index) => {
-            const pressed = pressedCard === item.id;
-            return (
-              <EaseView
-                key={item.id}
-                initialAnimate={easeInitialLift}
-                animate={{ opacity: 1, translateY: 0, scale: pressed ? 0.985 : 1 }}
-                transition={pressed ? pressTransition : enterTransition}
-              >
-                <Pressable
-                  style={[
-                    styles.menuCard,
-                    (index > 0 || Boolean(recentContent)) && styles.menuCardSpaced,
-                    { backgroundColor: colors.card, borderColor: colors.cardBorder }
-                  ]}
-                  onPress={item.onPress}
-                  onPressIn={() => setPressedCard(item.id)}
-                  onPressOut={() => setPressedCard(null)}
-                >
-                  <View style={[styles.iconWrap, isLight ? { backgroundColor: "#EAF2FC" } : null]}>
-                    {item.icon}
-                  </View>
-                  <View style={styles.cardTextWrap}>
-                    <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{item.title}</Text>
-                    <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-                      {item.subtitle}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={isLight ? "#617990" : "#8EA4BF"} />
-                </Pressable>
-              </EaseView>
-            );
-          })}
+          {regularMenuItems.map((item, index) =>
+            renderMenuItem(item, index > 0 || Boolean(recentContent) || Boolean(featuredRamadanItem))
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>

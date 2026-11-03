@@ -24,6 +24,7 @@ import {
   RamadanRange,
   timeOnDate
 } from "@/ramadan/calendar";
+import { useRamadanPreview } from "@/ramadan/RamadanPreviewProvider";
 import { resolveLocationForSettings } from "@/services/location";
 import {
   getRamadanNotificationScheduleSummary,
@@ -89,6 +90,7 @@ export default function RamadanScreen() {
   const insets = useSafeAreaInsets();
   const { colors, resolvedTheme } = useAppTheme();
   const { t, localeTag } = useI18n();
+  const { previewDay, setPreviewDay } = useRamadanPreview();
   const isLight = resolvedTheme === "light";
   const [fontsLoaded] = useFonts({
     QuranArabic: require("../assets/fonts/NotoNaskhArabic-Regular.ttf")
@@ -108,7 +110,6 @@ export default function RamadanScreen() {
     label: string;
   } | null>(null);
   const [previewUnlocked, setPreviewUnlocked] = useState(false);
-  const [previewDay, setPreviewDay] = useState<1 | 15 | 29 | null>(null);
   const [previewFastEntries, setPreviewFastEntries] = useState<Record<string, RamadanDayEntry>>({});
   const [previewDailyPlans, setPreviewDailyPlans] = useState<Record<string, RamadanDailyPlanEntry>>({});
 
@@ -134,6 +135,12 @@ export default function RamadanScreen() {
     const interval = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (previewDay !== null) {
+      setPreviewUnlocked(true);
+    }
+  }, [previewDay]);
 
   useFocusEffect(
     useCallback(() => {
