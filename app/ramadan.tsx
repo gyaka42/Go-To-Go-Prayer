@@ -1,14 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFonts } from "expo-font";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View
 } from "react-native";
@@ -24,57 +21,25 @@ import {
   RamadanRange,
   timeOnDate
 } from "@/ramadan/calendar";
+import { RamadanCalendarTable } from "@/ramadan/components/RamadanCalendarTable";
+import { RamadanDuaKind, RamadanDuaModal } from "@/ramadan/components/RamadanDuaModal";
+import { RamadanStatusModal } from "@/ramadan/components/RamadanStatusModal";
 import { useRamadanPreview } from "@/ramadan/RamadanPreviewProvider";
-import { resolveLocationForSettings } from "@/services/location";
-import {
-  getRamadanNotificationScheduleSummary,
-  registerForLocalNotifications,
-  replanAll,
-  scheduleRamadanTestNotification
-} from "@/services/notifications";
 import {
   getRamadanState,
   getSettings,
-  getLatestCachedLocation,
   RamadanDayEntry,
-  RamadanDailyPlanEntry,
   RamadanDailyPlanKey,
   RamadanFastStatus,
-  RamadanNotificationSettings,
-  RamadanReminderMinutes,
   RamadanState,
-  saveLatestCachedLocation,
   saveRamadanState
 } from "@/services/storage";
-import { getMonthlyCacheSnapshot, prefetchMonthTimings } from "@/services/timingsCache";
-import { Timings } from "@/types/prayer";
+import { getRamadanPreviewRows, loadRamadanTimingRows, RamadanTimingRow } from "@/ramadan/timings";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
-type RamadanTimingRow = {
-  date: Date;
-  dateKey: string;
-  timings: Timings | null;
-  source: "cache" | "network" | "missing";
-};
-
 function dateAtStart(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function isAfterDay(a: Date, b: Date): boolean {
-  return dateAtStart(a).getTime() > dateAtStart(b).getTime();
-}
-
-function uniqueMonths(range: RamadanRange): Date[] {
-  const months = new Map<string, Date>();
-  for (const day of range.days) {
-    const key = `${day.getFullYear()}-${day.getMonth()}`;
-    if (!months.has(key)) {
-      months.set(key, new Date(day.getFullYear(), day.getMonth(), 1));
-    }
-  }
-  return Array.from(months.values());
 }
 
 function statusIcon(status: RamadanFastStatus | undefined): keyof typeof Ionicons.glyphMap {
@@ -96,28 +61,25 @@ export function RamadanScreen({
   const insets = useSafeAreaInsets();
   const { colors, resolvedTheme } = useAppTheme();
   const { t, localeTag } = useI18n();
-  const { previewDay, setPreviewDay } = useRamadanPreview();
+  const {
+    previewDay,
+    setPreviewDay,
+    previewFastEntries,
+    setPreviewFastStatus,
+    previewDailyPlans,
+    togglePreviewDailyPlanItem
+  } = useRamadanPreview();
   const isLight = resolvedTheme === "light";
-  const [fontsLoaded] = useFonts({
-    QuranArabic: require("../assets/fonts/NotoNaskhArabic-Regular.ttf")
-  });
 
   const [state, setState] = useState<RamadanState | null>(null);
   const [rows, setRows] = useState<RamadanTimingRow[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [locationLabel, setLocationLabel] = useState<string>("");
-  const [resolvedLocation, setResolvedLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<RamadanTimingRow | null>(null);
-  const [savingNotifications, setSavingNotifications] = useState(false);
-  const [notificationStatus, setNotificationStatus] = useState<{
-    tone: "success" | "error";
-    label: string;
-  } | null>(null);
+  const [selectedDua, setSelectedDua] = useState<RamadanDuaKind | null>(null);
   const [previewUnlocked, setPreviewUnlocked] = useState(false);
-  const [previewFastEntries, setPreviewFastEntries] = useState<Record<string, RamadanDayEntry>>({});
-  const [previewDailyPlans, setPreviewDailyPlans] = useState<Record<string, RamadanDailyPlanEntry>>({});
 
   const range = useMemo(
     () => (state ? getRamadanRange(now, state.dateCorrection) : null),
@@ -165,71 +127,19 @@ export function RamadanScreen({
     setErrorMessage(null);
     try {
       const settings = await getSettings();
-      let location: { lat: number; lon: number; label: string };
-      if (settings.locationMode === "manual" && settings.manualLocation) {
-        location = {
-          lat: settings.manualLocation.lat,
-          lon: settings.manualLocation.lon,
-          label: settings.manualLocation.label
-        };
-      } else {
-        try {
-          location = await resolveLocationForSettings(settings);
-          await saveLatestCachedLocation({
-            ...location,
-            mode: "gps",
-            updatedAt: new Date().toISOString()
-          });
-        } catch {
-          const cached = await getLatestCachedLocation();
-          if (!cached) throw new Error(t("ramadan.location_error"));
-          location = { lat: cached.lat, lon: cached.lon, label: cached.label };
-        }
-      }
-
-      setLocationLabel(location.label);
-      setResolvedLocation({ lat: location.lat, lon: location.lon });
-      const combined = new Map<string, RamadanTimingRow>();
-      for (const month of uniqueMonths(targetRange)) {
-        let snapshot = await getMonthlyCacheSnapshot({ month, location, settings });
-        let fetchedKeys = new Set<string>();
-        if (snapshot.missingDates.length > 0) {
-          const fetched = await prefetchMonthTimings({
-            year: month.getFullYear(),
-            monthIndex: month.getMonth(),
-            location,
-            locationLabel: location.label,
-            settings
-          });
-          fetchedKeys = new Set(Object.keys(fetched));
-          snapshot = await getMonthlyCacheSnapshot({ month, location, settings });
-        }
-        for (const row of snapshot.rows) {
-          combined.set(row.dateKey, {
-            date: row.date,
-            dateKey: row.dateKey,
-            timings: row.timings,
-            source: fetchedKeys.has(row.dateKey) ? "network" : row.source
-          });
-        }
-      }
-
-      const ramadanRows = targetRange.days.map((date) => {
-        const dateKey = localDateKey(date);
-        return (
-          combined.get(dateKey) ?? {
-            date,
-            dateKey,
-            timings: null,
-            source: "missing" as const
-          }
-        );
-      });
-      setRows(ramadanRows);
+      const result = await loadRamadanTimingRows({ range: targetRange, settings });
+      setLocationLabel(result.location.label);
+      setRows(result.rows);
       setLoadState("ready");
     } catch (error) {
       setLoadState("error");
-      setErrorMessage(error instanceof Error ? error.message : t("ramadan.load_error"));
+      setErrorMessage(
+        error instanceof Error && error.message === "RAMADAN_LOCATION_UNAVAILABLE"
+          ? t("ramadan.location_error")
+          : error instanceof Error
+            ? error.message
+            : t("ramadan.load_error")
+      );
     }
   }, [t]);
 
@@ -308,89 +218,10 @@ export function RamadanScreen({
     await saveRamadanState(next);
   }, []);
 
-  const replanForRamadanState = useCallback(async (next: RamadanState) => {
-    await updateState(next);
-    if (!resolvedLocation) return;
-    const settings = await getSettings();
-    await replanAll({
-      lat: resolvedLocation.lat,
-      lon: resolvedLocation.lon,
-      methodId: settings.methodId,
-      settings
-    });
-  }, [resolvedLocation, updateState]);
-
-  const changeCorrection = useCallback((correction: -1 | 0 | 1) => {
-    if (!state || correction === state.dateCorrection) return;
-    void replanForRamadanState({ ...state, dateCorrection: correction, updatedAt: Date.now() });
-  }, [replanForRamadanState, state]);
-
-  const updateNotificationSettings = useCallback(async (
-    patch: Partial<RamadanNotificationSettings>
-  ) => {
-    if (!state || savingNotifications) return;
-    const nextNotifications = { ...state.notifications, ...patch };
-    const enabling =
-      (nextNotifications.imsakEnabled || nextNotifications.iftarEnabled) &&
-      !state.notifications.imsakEnabled &&
-      !state.notifications.iftarEnabled;
-    setSavingNotifications(true);
-    setNotificationStatus(null);
-    try {
-      if (enabling) {
-        const granted = await registerForLocalNotifications();
-        if (!granted) {
-          setNotificationStatus({ tone: "error", label: t("ramadan.notifications_permission_denied") });
-          return;
-        }
-      }
-      const next = { ...state, notifications: nextNotifications, updatedAt: Date.now() };
-      await replanForRamadanState(next);
-      const summary = await getRamadanNotificationScheduleSummary().catch(() => null);
-      setNotificationStatus({
-        tone: "success",
-        label: summary?.total
-          ? t("ramadan.notifications_scheduled", { count: summary.total })
-          : t("ramadan.notifications_saved")
-      });
-    } catch {
-      setNotificationStatus({ tone: "error", label: t("ramadan.notifications_save_error") });
-    } finally {
-      setSavingNotifications(false);
-    }
-  }, [replanForRamadanState, savingNotifications, state, t]);
-
-  const sendTestNotification = useCallback(async () => {
-    if (!state || savingNotifications) return;
-    setSavingNotifications(true);
-    setNotificationStatus(null);
-    try {
-      const scheduled = await scheduleRamadanTestNotification(state.notifications);
-      setNotificationStatus({
-        tone: scheduled ? "success" : "error",
-        label: scheduled
-          ? t("ramadan.notifications_test_sent")
-          : t("ramadan.notifications_permission_denied")
-      });
-    } catch {
-      setNotificationStatus({ tone: "error", label: t("ramadan.notifications_save_error") });
-    } finally {
-      setSavingNotifications(false);
-    }
-  }, [savingNotifications, state, t]);
-
   const setDayStatus = useCallback((dateKey: string, status: RamadanFastStatus | null) => {
     if (!state) return;
     if (previewDay) {
-      setPreviewFastEntries((current) => {
-        const next = { ...current };
-        if (status) {
-          next[dateKey] = { status, updatedAt: Date.now() };
-        } else {
-          delete next[dateKey];
-        }
-        return next;
-      });
+      setPreviewFastStatus(dateKey, status);
       setSelectedDay(null);
       return;
     }
@@ -402,28 +233,12 @@ export function RamadanScreen({
     }
     void updateState({ ...state, days, updatedAt: Date.now() });
     setSelectedDay(null);
-  }, [previewDay, state, updateState]);
+  }, [previewDay, setPreviewFastStatus, state, updateState]);
 
   const toggleDailyPlanItem = useCallback((key: RamadanDailyPlanKey) => {
     if (!state || !currentDay) return;
     if (previewDay) {
-      setPreviewDailyPlans((current) => {
-        const previous = current[todayKey] ?? {
-          quran: false,
-          zikr: false,
-          dua: false,
-          charity: false,
-          updatedAt: Date.now()
-        };
-        return {
-          ...current,
-          [todayKey]: {
-            ...previous,
-            [key]: !previous[key],
-            updatedAt: Date.now()
-          }
-        };
-      });
+      togglePreviewDailyPlanItem(todayKey, key);
       return;
     }
     const previous = state.dailyPlans[todayKey] ?? {
@@ -445,7 +260,7 @@ export function RamadanScreen({
       },
       updatedAt: Date.now()
     });
-  }, [currentDay, previewDay, state, todayKey, updateState]);
+  }, [currentDay, previewDay, state, todayKey, togglePreviewDailyPlanItem, updateState]);
 
   const formatDate = useCallback((date: Date) => {
     try {
@@ -460,7 +275,10 @@ export function RamadanScreen({
     return t(`ramadan.status_${entry.status}`);
   }, [t]);
 
-  if (!state || !range || !fontsLoaded) {
+  const previewRows = getRamadanPreviewRows(rows, currentDay, isFinished, 5);
+  const activeReminderCount = Number(state?.notifications.imsakEnabled) + Number(state?.notifications.iftarEnabled);
+
+  if (!state || !range) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
         <View style={styles.centered}><ActivityIndicator color={colors.accent} /></View>
@@ -487,6 +305,14 @@ export function RamadanScreen({
             <Text style={[styles.title, { color: colors.textPrimary }]}>{t("ramadan.title")}</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t("ramadan.subtitle")}</Text>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("ramadan.settings_title")}
+            style={[styles.circleButton, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+            onPress={() => router.push("/ramadan-settings" as never)}
+          >
+            <Ionicons name="settings-outline" size={21} color={colors.textPrimary} />
+          </Pressable>
         </View>
 
         <ScrollView
@@ -499,7 +325,7 @@ export function RamadanScreen({
           <View style={[styles.hero, { backgroundColor: isLight ? "#E7F2FF" : "#102B47", borderColor: isLight ? "#B7D8FA" : "#28557F" }]}>
             <View style={styles.heroTop}>
               <View>
-                <Text style={[styles.eyebrow, { color: colors.accent }]}>
+                <Text style={[currentDay ? styles.heroDay : styles.eyebrow, { color: colors.accent }]}>
                   {currentDay
                     ? t("ramadan.day_of", { day: currentDay, total: range.days.length })
                     : isUpcoming
@@ -520,9 +346,11 @@ export function RamadanScreen({
               </Pressable>
             </View>
             {nextMoment ? (
-              <View style={styles.countdownWrap}>
+              <View style={[styles.countdownWrap, Boolean(currentDay) && styles.countdownWrapDuring]}>
                 <Text style={[styles.countdownLabel, { color: colors.textSecondary }]}>{nextMoment.label}</Text>
-                <Text style={[styles.countdownValue, { color: colors.textPrimary }]}>{nextMoment.value}</Text>
+                <Text style={[styles.countdownValue, Boolean(currentDay) && styles.countdownValueDuring, { color: colors.textPrimary }]}>
+                  {nextMoment.value}
+                </Text>
               </View>
             ) : null}
             {locationLabel ? (
@@ -736,207 +564,80 @@ export function RamadanScreen({
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
             {t("ramadan.duas_section")}
           </Text>
-          <View style={[styles.duaCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("ramadan.intention_title")}</Text>
-            <Text style={[styles.duaBody, { color: colors.textSecondary }]}>{t("ramadan.intention_body")}</Text>
-          </View>
-          <View style={[styles.duaCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("ramadan.iftar_dua_title")}</Text>
-            <Text style={[styles.arabicDua, { color: colors.textPrimary }]}>
-              اللّٰهُمَّ لَكَ صُمْتُ وَعَلَيْكَ تَوَكَّلْتُ وَعَلَى رِزْقِكَ أَفْطَرْتُ، تَقَبَّلْهُ مِنِّي إِنَّكَ أَنْتَ السَّمِيعُ الْعَلِيمُ، ذَهَبَ الظَّمَأُ وَابْتَلَّتِ الْعُرُوقُ وَثَبَتَ الْأَجْرُ إِنْ شَاءَ اللّٰهُ
-            </Text>
-            <Text style={[styles.transliteration, { color: colors.accent }]}>{t("ramadan.iftar_dua_transliteration")}</Text>
-            <Text style={[styles.duaBody, { color: colors.textSecondary }]}>{t("ramadan.iftar_dua_meaning")}</Text>
-            <Text style={[styles.duaSource, { color: colors.textSecondary }]}>{t("ramadan.iftar_dua_source")}</Text>
-          </View>
-
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-            {t("ramadan.notifications_section")}
-          </Text>
-          <View style={[styles.notificationCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <Text style={[styles.cardSubtitle, styles.notificationHelp, { color: colors.textSecondary }]}>
-              {t("ramadan.notifications_help")}
-            </Text>
-            {(["imsak", "iftar"] as const).map((event) => {
-              const enabledKey = event === "imsak" ? "imsakEnabled" : "iftarEnabled";
-              const minutesKey = event === "imsak" ? "imsakMinutesBefore" : "iftarMinutesBefore";
-              const enabled = state.notifications[enabledKey];
-              const minutes = state.notifications[minutesKey];
-              return (
-                <View key={event} style={[styles.notificationEvent, { borderTopColor: colors.cardBorder }]}>
-                  <View style={styles.notificationEventHeader}>
-                    <View style={styles.notificationEventText}>
-                      <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-                        {t(`ramadan.${event}_reminder`)}
-                      </Text>
-                      <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-                        {t("ramadan.minutes_before", { mins: minutes })}
-                      </Text>
-                    </View>
-                    <Switch
-                      value={enabled}
-                      disabled={savingNotifications}
-                      onValueChange={(value) => void updateNotificationSettings({ [enabledKey]: value })}
-                      trackColor={{ false: colors.cardBorder, true: colors.accent }}
-                    />
-                  </View>
-                  {enabled ? (
-                    <View style={styles.minuteOptions}>
-                      {([5, 10, 15, 30, 60] as RamadanReminderMinutes[]).map((value) => (
-                        <Pressable
-                          key={value}
-                          disabled={savingNotifications}
-                          onPress={() => void updateNotificationSettings({ [minutesKey]: value })}
-                          style={[
-                            styles.minuteButton,
-                            { borderColor: colors.cardBorder },
-                            minutes === value && { backgroundColor: colors.accent, borderColor: colors.accent }
-                          ]}
-                        >
-                          <Text style={[styles.minuteButtonText, { color: minutes === value ? "#FFFFFF" : colors.textPrimary }]}>
-                            {value}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  ) : null}
+          <View style={[styles.compactCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            {([
+              ["intention", "heart-outline", t("ramadan.intention_title")],
+              ["iftar", "restaurant-outline", t("ramadan.iftar_dua_title")]
+            ] as const).map(([kind, icon, label], index) => (
+              <Pressable
+                key={kind}
+                accessibilityRole="button"
+                style={[styles.compactRow, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.cardBorder }]}
+                onPress={() => setSelectedDua(kind)}
+              >
+                <View style={[styles.compactIcon, { backgroundColor: colors.accentSoft }]}>
+                  <Ionicons name={icon} size={21} color={colors.accent} />
                 </View>
-              );
-            })}
-            <View style={[styles.notificationPreferences, { borderTopColor: colors.cardBorder }]}>
-              <View style={styles.preferenceRow}>
-                <Text style={[styles.preferenceLabel, { color: colors.textPrimary }]}>{t("ramadan.notification_sound")}</Text>
-                <Switch
-                  value={state.notifications.playSound}
-                  disabled={savingNotifications}
-                  onValueChange={(value) => void updateNotificationSettings({ playSound: value })}
-                  trackColor={{ false: colors.cardBorder, true: colors.accent }}
-                />
-              </View>
-              <View style={styles.preferenceRow}>
-                <Text style={[styles.preferenceLabel, { color: colors.textPrimary }]}>{t("ramadan.notification_vibration")}</Text>
-                <Switch
-                  value={state.notifications.vibration}
-                  disabled={savingNotifications}
-                  onValueChange={(value) => void updateNotificationSettings({ vibration: value })}
-                  trackColor={{ false: colors.cardBorder, true: colors.accent }}
-                />
-              </View>
-            </View>
-            <Pressable
-              disabled={savingNotifications}
-              style={[styles.testNotificationButton, { backgroundColor: colors.accent }, savingNotifications && { opacity: 0.6 }]}
-              onPress={() => void sendTestNotification()}
-            >
-              <Ionicons name="notifications-outline" size={17} color="#FFFFFF" />
-              <Text style={styles.testNotificationText}>{t("ramadan.notifications_test")}</Text>
-            </Pressable>
-            {savingNotifications ? <ActivityIndicator style={styles.notificationLoader} color={colors.accent} /> : null}
-            {notificationStatus ? (
-              <View style={styles.notificationStatus}>
-                <StatusChip visible tone={notificationStatus.tone} label={notificationStatus.label} />
-              </View>
-            ) : null}
-          </View>
-
-          <View style={[styles.correctionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <View style={styles.correctionHeader}>
-              <View style={styles.correctionText}>
-                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("ramadan.date_correction")}</Text>
-                <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{t("ramadan.date_correction_help")}</Text>
-              </View>
-              <View style={styles.correctionControls}>
-                {([-1, 0, 1] as const).map((value) => (
-                  <Pressable
-                    key={value}
-                    style={[
-                      styles.correctionButton,
-                      { borderColor: colors.cardBorder },
-                      state.dateCorrection === value && { backgroundColor: colors.accent, borderColor: colors.accent }
-                    ]}
-                    onPress={() => changeCorrection(value)}
-                  >
-                    <Text style={[styles.correctionButtonText, { color: state.dateCorrection === value ? "#FFFFFF" : colors.textPrimary }]}>
-                      {value > 0 ? `+${value}` : value}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-            <Text style={[styles.disclaimer, { color: colors.textSecondary }]}>{t("ramadan.local_announcement")}</Text>
+                <Text style={[styles.compactTitle, { color: colors.textPrimary }]}>{label}</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              </Pressable>
+            ))}
           </View>
 
           <View style={styles.calendarHeader}>
             <Text style={[styles.sectionTitle, styles.calendarTitle, { color: colors.textPrimary }]}>{t("ramadan.calendar")}</Text>
             <Text style={[styles.calendarMeta, { color: colors.textSecondary }]}>{range.days.length} {t("ramadan.days")}</Text>
           </View>
+          <RamadanCalendarTable
+            rows={previewRows}
+            rangeStart={range.start}
+            currentDay={currentDay}
+            entries={effectiveFastEntries}
+            formatDate={formatDate}
+            onSelect={setSelectedDay}
+            disabledAfterDate={displayNow}
+            compact
+          />
+          <Pressable
+            accessibilityRole="button"
+            style={[styles.fullCalendarButton, { borderColor: colors.cardBorder }]}
+            onPress={() => router.push("/ramadan-calendar" as never)}
+          >
+            <Text style={[styles.fullCalendarText, { color: colors.accent }]}>{t("ramadan.view_full_calendar")}</Text>
+            <Ionicons name="arrow-forward" size={17} color={colors.accent} />
+          </Pressable>
 
-          <View style={[styles.calendarCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <View style={[styles.calendarRow, styles.calendarColumns, { borderBottomColor: colors.cardBorder }]}>
-              <Text style={[styles.dayColumn, styles.columnLabel, { color: colors.textSecondary }]}>{t("ramadan.day")}</Text>
-              <Text style={[styles.dateColumn, styles.columnLabel, { color: colors.textSecondary }]}>{t("ramadan.date")}</Text>
-              <Text style={[styles.timeColumn, styles.columnLabel, { color: colors.textSecondary }]}>{t("ramadan.imsak")}</Text>
-              <Text style={[styles.timeColumn, styles.columnLabel, { color: colors.textSecondary }]}>{t("ramadan.iftar")}</Text>
-              <View style={styles.statusColumn} />
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            {t("ramadan.notifications_section")}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            style={[styles.reminderCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+            onPress={() => router.push("/ramadan-reminders" as never)}
+          >
+            <View style={[styles.compactIcon, { backgroundColor: colors.accentSoft }]}>
+              <Ionicons name="notifications-outline" size={21} color={colors.accent} />
             </View>
-            {rows.map((row, index) => {
-              const entry = effectiveFastEntries[row.dateKey];
-              const future = isAfterDay(row.date, displayNow);
-              const today = row.dateKey === todayKey;
-              return (
-                <Pressable
-                  key={row.dateKey}
-                  disabled={future}
-                  onPress={() => setSelectedDay(row)}
-                  style={[
-                    styles.calendarRow,
-                    index < rows.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder },
-                    today && { backgroundColor: colors.accentSoft },
-                    future && { opacity: 0.76 }
-                  ]}
-                >
-                  <Text style={[styles.dayColumn, styles.dayNumber, { color: today ? colors.accent : colors.textPrimary }]}>{index + 1}</Text>
-                  <Text style={[styles.dateColumn, styles.rowText, { color: colors.textSecondary }]} numberOfLines={1}>{formatDate(row.date)}</Text>
-                  <Text style={[styles.timeColumn, styles.rowTime, { color: colors.textPrimary }]}>{row.timings?.times.Fajr ?? "—"}</Text>
-                  <Text style={[styles.timeColumn, styles.rowTime, { color: colors.textPrimary }]}>{row.timings?.times.Maghrib ?? "—"}</Text>
-                  <View style={styles.statusColumn}>
-                    <Ionicons name={statusIcon(entry?.status)} size={19} color={entry ? colors.accent : colors.textSecondary} />
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
+            <View style={styles.reminderText}>
+              <Text style={[styles.compactTitle, { color: colors.textPrimary }]}>{t("ramadan.notifications_section")}</Text>
+              <Text style={[styles.compactSubtitle, { color: colors.textSecondary }]}>
+                {t("ramadan.notifications_active_count", { count: activeReminderCount })}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+          </Pressable>
         </ScrollView>
       </View>
 
-      <Modal visible={Boolean(selectedDay)} transparent animationType="fade" onRequestClose={() => setSelectedDay(null)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setSelectedDay(null)}>
-          <Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]} onPress={() => undefined}>
-            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>{t("ramadan.record_day")}</Text>
-            <Text style={[styles.modalDate, { color: colors.textSecondary }]}>
-              {selectedDay ? `${formatDate(selectedDay.date)} • ${t("ramadan.day")} ${range.days.findIndex((day) => localDateKey(day) === selectedDay.dateKey) + 1}` : ""}
-            </Text>
-            {([
-              ["fasted", "checkmark-circle", "#22C55E"],
-              ["make_up_later", "time", "#F59E0B"],
-              ["excused", "heart", "#A855F7"],
-              ["made_up", "checkmark-done-circle", colors.accent]
-            ] as const).map(([status, icon, color]) => (
-              <Pressable
-                key={status}
-                style={[styles.modalOption, { borderColor: colors.cardBorder }, effectiveFastEntries[selectedDay?.dateKey ?? ""]?.status === status && { backgroundColor: colors.accentSoft }]}
-                onPress={() => selectedDay && setDayStatus(selectedDay.dateKey, status)}
-              >
-                <Ionicons name={icon} size={22} color={color} />
-                <Text style={[styles.modalOptionText, { color: colors.textPrimary }]}>{t(`ramadan.status_${status}`)}</Text>
-              </Pressable>
-            ))}
-            <Pressable style={styles.clearButton} onPress={() => selectedDay && setDayStatus(selectedDay.dateKey, null)}>
-              <Text style={[styles.clearButtonText, { color: colors.textSecondary }]}>{t("ramadan.clear_status")}</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <RamadanStatusModal
+        selectedDay={selectedDay}
+        range={range}
+        entries={effectiveFastEntries}
+        formatDate={formatDate}
+        onSelect={setDayStatus}
+        onClose={() => setSelectedDay(null)}
+      />
+      <RamadanDuaModal kind={selectedDua} onClose={() => setSelectedDua(null)} />
     </SafeAreaView>
   );
 }
@@ -958,10 +659,13 @@ const styles = StyleSheet.create({
   hero: { borderRadius: 22, borderWidth: 1, padding: 18 },
   heroTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   eyebrow: { fontSize: 13, fontWeight: "900", letterSpacing: 0.5, textTransform: "uppercase" },
+  heroDay: { fontSize: 25, lineHeight: 30, fontWeight: "900" },
   heroDate: { marginTop: 5, fontSize: 20, fontWeight: "800", textTransform: "capitalize" },
   countdownWrap: { marginTop: 22 },
+  countdownWrapDuring: { marginTop: 14 },
   countdownLabel: { fontSize: 13, fontWeight: "700" },
   countdownValue: { marginTop: 3, fontSize: 38, fontWeight: "900", letterSpacing: -1 },
+  countdownValueDuring: { fontSize: 30 },
   locationRow: { marginTop: 16, flexDirection: "row", alignItems: "center", gap: 5 },
   locationText: { flex: 1, fontSize: 12 },
   previewCard: { marginTop: 12, borderRadius: 17, borderWidth: 1, padding: 14 },
@@ -1002,53 +706,16 @@ const styles = StyleSheet.create({
   openActivityButton: { width: 36, height: 36, marginLeft: 8, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   dailyPlanLocked: { alignItems: "center", paddingVertical: 9 },
   dailyPlanLockedText: { maxWidth: 360, textAlign: "center" },
-  duaCard: { marginBottom: 10, borderRadius: 17, borderWidth: 1, padding: 15 },
-  arabicDua: { marginTop: 14, fontFamily: "QuranArabic", fontSize: 25, lineHeight: 44, textAlign: "right", writingDirection: "rtl" },
-  transliteration: { marginTop: 10, fontSize: 13, lineHeight: 20, fontStyle: "italic" },
-  duaBody: { marginTop: 9, fontSize: 12, lineHeight: 18 },
-  duaSource: { marginTop: 10, fontSize: 10, fontWeight: "700" },
-  notificationCard: { borderRadius: 17, borderWidth: 1, paddingHorizontal: 15, paddingBottom: 14 },
-  notificationHelp: { marginTop: 14, marginBottom: 2 },
-  notificationEvent: { marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
-  notificationEventHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-  notificationEventText: { flex: 1 },
-  minuteOptions: { marginTop: 11, flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  minuteButton: { minWidth: 42, height: 34, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  minuteButtonText: { fontSize: 12, fontWeight: "900" },
-  notificationPreferences: { marginTop: 14, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth },
-  preferenceRow: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  preferenceLabel: { fontSize: 14, fontWeight: "700" },
-  testNotificationButton: { marginTop: 10, minHeight: 42, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
-  testNotificationText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
-  notificationLoader: { marginTop: 8, alignSelf: "flex-start" },
-  notificationStatus: { marginTop: 8 },
-  correctionCard: { marginTop: 14, borderRadius: 17, borderWidth: 1, padding: 15 },
-  correctionHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  correctionText: { flex: 1 },
-  correctionControls: { flexDirection: "row", gap: 5 },
-  correctionButton: { width: 36, height: 34, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  correctionButtonText: { fontSize: 13, fontWeight: "900" },
-  disclaimer: { marginTop: 12, fontSize: 11, lineHeight: 16 },
+  compactCard: { borderRadius: 17, borderWidth: 1, overflow: "hidden" },
+  compactRow: { minHeight: 62, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 11 },
+  compactIcon: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  compactTitle: { flex: 1, fontSize: 15, fontWeight: "800" },
+  compactSubtitle: { marginTop: 3, fontSize: 12, lineHeight: 16 },
+  fullCalendarButton: { minHeight: 44, marginTop: 9, borderRadius: 13, borderWidth: 1, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
+  fullCalendarText: { fontSize: 13, fontWeight: "800" },
+  reminderCard: { minHeight: 66, borderRadius: 17, borderWidth: 1, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 11 },
+  reminderText: { flex: 1 },
   calendarHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   calendarTitle: { marginBottom: 10 },
-  calendarMeta: { marginTop: 12, fontSize: 12, fontWeight: "700" },
-  calendarCard: { borderRadius: 18, borderWidth: 1, overflow: "hidden" },
-  calendarRow: { minHeight: 49, paddingHorizontal: 10, flexDirection: "row", alignItems: "center" },
-  calendarColumns: { minHeight: 38, borderBottomWidth: 1 },
-  dayColumn: { width: 34 },
-  dateColumn: { flex: 1.45 },
-  timeColumn: { width: 58, textAlign: "center" },
-  statusColumn: { width: 28, alignItems: "flex-end" },
-  columnLabel: { fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
-  dayNumber: { fontSize: 13, fontWeight: "900" },
-  rowText: { fontSize: 11, textTransform: "capitalize" },
-  rowTime: { fontSize: 13, fontWeight: "800" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", padding: 20 },
-  modalCard: { width: "100%", maxWidth: 460, borderRadius: 22, borderWidth: 1, padding: 18 },
-  modalTitle: { fontSize: 21, fontWeight: "900" },
-  modalDate: { marginTop: 4, marginBottom: 14, fontSize: 13, textTransform: "capitalize" },
-  modalOption: { minHeight: 52, borderRadius: 14, borderWidth: 1, paddingHorizontal: 13, marginTop: 8, flexDirection: "row", alignItems: "center", gap: 11 },
-  modalOptionText: { fontSize: 15, fontWeight: "700" },
-  clearButton: { marginTop: 14, alignItems: "center", paddingVertical: 9 },
-  clearButtonText: { fontSize: 13, fontWeight: "700" }
+  calendarMeta: { marginTop: 12, fontSize: 12, fontWeight: "700" }
 });
