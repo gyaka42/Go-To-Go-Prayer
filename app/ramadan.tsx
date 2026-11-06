@@ -619,7 +619,7 @@ export function RamadanScreen({
               <Ionicons name="notifications-outline" size={21} color={colors.accent} />
             </View>
             <View style={styles.reminderText}>
-              <Text style={[styles.compactTitle, { color: colors.textPrimary }]}>{t("ramadan.notifications_section")}</Text>
+              <Text style={[styles.reminderTitle, { color: colors.textPrimary }]}>{t("ramadan.notifications_section")}</Text>
               <Text style={[styles.compactSubtitle, { color: colors.textSecondary }]}>
                 {t("ramadan.notifications_active_count", { count: activeReminderCount })}
               </Text>
@@ -714,7 +714,8 @@ const styles = StyleSheet.create({
   fullCalendarButton: { minHeight: 44, marginTop: 9, borderRadius: 13, borderWidth: 1, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
   fullCalendarText: { fontSize: 13, fontWeight: "800" },
   reminderCard: { minHeight: 66, borderRadius: 17, borderWidth: 1, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 11 },
-  reminderText: { flex: 1 },
+  reminderText: { flex: 1, justifyContent: "center" },
+  reminderTitle: { fontSize: 15, fontWeight: "800" },
   calendarHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   calendarTitle: { marginBottom: 10 },
   calendarMeta: { marginTop: 12, fontSize: 12, fontWeight: "700" }

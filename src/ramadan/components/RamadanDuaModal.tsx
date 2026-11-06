@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { initialWindowMetrics, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useAppTheme } from "@/theme/ThemeProvider";
@@ -14,14 +14,31 @@ export function RamadanDuaModal(props: {
 }) {
   const { colors } = useAppTheme();
   const { t } = useI18n();
+  const insets = useSafeAreaInsets();
   const [fontsLoaded] = useFonts({
     QuranArabic: require("../../../assets/fonts/NotoNaskhArabic-Regular.ttf")
   });
   const isIftar = props.kind === "iftar";
+  const topInset = Math.max(insets.top, initialWindowMetrics?.insets.top ?? 0);
+  const bottomInset = Math.max(insets.bottom, initialWindowMetrics?.insets.bottom ?? 0);
 
   return (
-    <Modal visible={Boolean(props.kind)} animationType="slide" onRequestClose={props.onClose}>
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+    <Modal
+      visible={Boolean(props.kind)}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={props.onClose}
+    >
+      <View
+        style={[
+          styles.safeArea,
+          {
+            backgroundColor: colors.background,
+            paddingTop: topInset,
+            paddingBottom: bottomInset
+          }
+        ]}
+      >
         <View style={styles.root}>
           <AppBackground />
           <View style={styles.header}>
@@ -65,7 +82,7 @@ export function RamadanDuaModal(props: {
             </View>
           </ScrollView>
         </View>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
