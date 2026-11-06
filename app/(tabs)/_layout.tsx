@@ -7,13 +7,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { isRamadanDate } from "@/ramadan/calendar";
-import { useRamadanPreview } from "@/ramadan/RamadanPreviewProvider";
 import { getRamadanState } from "@/services/storage";
 
 export default function TabsLayout() {
   const { colors, resolvedTheme } = useAppTheme();
   const { t } = useI18n();
-  const { previewDay } = useRamadanPreview();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const [ramadanActive, setRamadanActive] = useState(false);
@@ -21,7 +19,7 @@ export default function TabsLayout() {
   const isLight = resolvedTheme === "light";
   const glassBorder = isLight ? "rgba(177, 201, 228, 0.8)" : "rgba(185, 213, 255, 0.24)";
   const fallbackGlass = isLight ? "rgba(245, 250, 255, 0.62)" : "rgba(8, 26, 46, 0.42)";
-  const showRamadanTab = ramadanActive || previewDay !== null;
+  const showRamadanTab = ramadanActive;
 
   useEffect(() => {
     let active = true;

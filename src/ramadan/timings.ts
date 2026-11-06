@@ -117,7 +117,7 @@ export async function loadRamadanTimingRows(params: {
   return { rows, location };
 }
 
-export function getRamadanPreviewRows(
+export function getRamadanDashboardRows(
   rows: RamadanTimingRow[],
   currentDay: number | null,
   isFinished: boolean,

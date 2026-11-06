@@ -8,7 +8,6 @@ import { useMotionTransition } from "@/animation/useReducedMotion";
 import { AppBackground } from "@/components/AppBackground";
 import { useI18n } from "@/i18n/I18nProvider";
 import { isRamadanDate } from "@/ramadan/calendar";
-import { useRamadanPreview } from "@/ramadan/RamadanPreviewProvider";
 import { ContentFavorite, getContentFavorites, getQazaState, getRamadanState, getRecentContent, getRecentContents, getZikrState } from "@/services/storage";
 import { useAppTheme } from "@/theme/ThemeProvider";
 import { useCallback, useMemo, useState } from "react";
@@ -46,7 +45,6 @@ export default function MenuScreen() {
   const insets = useSafeAreaInsets();
   const { colors, resolvedTheme } = useAppTheme();
   const { t } = useI18n();
-  const { previewDay } = useRamadanPreview();
   const isLight = resolvedTheme === "light";
   const enterTransition = useMotionTransition(easeEnterTransition);
   const pressTransition = useMotionTransition(easePressTransition);
@@ -217,7 +215,7 @@ export default function MenuScreen() {
     }
   ], [qazaSummary, recentReadingCount, savedReadingCount, t, zikrSummary]);
 
-  const showRamadanSeasonalPlacement = ramadanActive || previewDay !== null;
+  const showRamadanSeasonalPlacement = ramadanActive;
   const featuredRamadanItem = showRamadanSeasonalPlacement
     ? menuItems.find((item) => item.id === "ramadan") ?? null
     : null;

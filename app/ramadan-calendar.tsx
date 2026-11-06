@@ -9,7 +9,6 @@ import { getRamadanDayNumber, getRamadanRange, localDateKey } from "@/ramadan/ca
 import { RamadanCalendarTable } from "@/ramadan/components/RamadanCalendarTable";
 import { RamadanScreenHeader } from "@/ramadan/components/RamadanScreenHeader";
 import { RamadanStatusModal } from "@/ramadan/components/RamadanStatusModal";
-import { useRamadanPreview } from "@/ramadan/RamadanPreviewProvider";
 import { loadRamadanTimingRows, RamadanTimingRow } from "@/ramadan/timings";
 import {
   getRamadanState,
@@ -26,7 +25,6 @@ export default function RamadanCalendarScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { t, localeTag } = useI18n();
-  const { previewDay, previewFastEntries, setPreviewFastStatus } = useRamadanPreview();
   const [state, setState] = useState<RamadanState | null>(null);
   const [rows, setRows] = useState<RamadanTimingRow[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -36,13 +34,9 @@ export default function RamadanCalendarScreen() {
     () => (state ? getRamadanRange(new Date(), state.dateCorrection) : null),
     [state]
   );
-  const displayDate = useMemo(() => {
-    if (!previewDay || !range) return new Date();
-    const day = range.days[Math.min(previewDay - 1, range.days.length - 1)];
-    return new Date(day.getFullYear(), day.getMonth(), day.getDate(), 12, 0, 0, 0);
-  }, [previewDay, range]);
+  const displayDate = new Date();
   const currentDay = range ? getRamadanDayNumber(displayDate, range) : null;
-  const effectiveEntries = previewDay ? previewFastEntries : (state?.days ?? {});
+  const effectiveEntries = state?.days ?? {};
 
   const load = useCallback(async () => {
     setLoadState("loading");
@@ -73,11 +67,6 @@ export default function RamadanCalendarScreen() {
 
   const setDayStatus = useCallback(async (dateKey: string, status: RamadanFastStatus | null) => {
     if (!state) return;
-    if (previewDay) {
-      setPreviewFastStatus(dateKey, status);
-      setSelectedDay(null);
-      return;
-    }
     const days = { ...state.days };
     if (status) days[dateKey] = { status, updatedAt: Date.now() };
     else delete days[dateKey];
@@ -85,7 +74,7 @@ export default function RamadanCalendarScreen() {
     setState(next);
     await saveRamadanState(next);
     setSelectedDay(null);
-  }, [previewDay, setPreviewFastStatus, state]);
+  }, [state]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -105,9 +94,6 @@ export default function RamadanCalendarScreen() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            {previewDay ? (
-              <StatusChip visible tone="warning" label={t("ramadan.preview_active", { day: previewDay })} />
-            ) : null}
             <View style={styles.metaRow}>
               <Text style={[styles.meta, { color: colors.textSecondary }]}>
                 {range.days.length} {t("ramadan.days")}

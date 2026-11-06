@@ -24,7 +24,6 @@ import {
 import { RamadanCalendarTable } from "@/ramadan/components/RamadanCalendarTable";
 import { RamadanDuaKind, RamadanDuaModal } from "@/ramadan/components/RamadanDuaModal";
 import { RamadanStatusModal } from "@/ramadan/components/RamadanStatusModal";
-import { useRamadanPreview } from "@/ramadan/RamadanPreviewProvider";
 import {
   getRamadanState,
   getSettings,
@@ -34,7 +33,7 @@ import {
   RamadanState,
   saveRamadanState
 } from "@/services/storage";
-import { getRamadanPreviewRows, loadRamadanTimingRows, RamadanTimingRow } from "@/ramadan/timings";
+import { getRamadanDashboardRows, loadRamadanTimingRows, RamadanTimingRow } from "@/ramadan/timings";
 import { useAppTheme } from "@/theme/ThemeProvider";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
@@ -61,14 +60,6 @@ export function RamadanScreen({
   const insets = useSafeAreaInsets();
   const { colors, resolvedTheme } = useAppTheme();
   const { t, localeTag } = useI18n();
-  const {
-    previewDay,
-    setPreviewDay,
-    previewFastEntries,
-    setPreviewFastStatus,
-    previewDailyPlans,
-    togglePreviewDailyPlanItem
-  } = useRamadanPreview();
   const isLight = resolvedTheme === "light";
 
   const [state, setState] = useState<RamadanState | null>(null);
@@ -79,36 +70,17 @@ export function RamadanScreen({
   const [now, setNow] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<RamadanTimingRow | null>(null);
   const [selectedDua, setSelectedDua] = useState<RamadanDuaKind | null>(null);
-  const [previewUnlocked, setPreviewUnlocked] = useState(false);
 
   const range = useMemo(
     () => (state ? getRamadanRange(now, state.dateCorrection) : null),
     [now, state]
   );
-  const displayNow = useMemo(() => {
-    if (!previewDay || !range) return now;
-    const simulatedDate = range.days[Math.min(previewDay - 1, range.days.length - 1)];
-    return new Date(
-      simulatedDate.getFullYear(),
-      simulatedDate.getMonth(),
-      simulatedDate.getDate(),
-      12,
-      0,
-      0,
-      0
-    );
-  }, [now, previewDay, range]);
+  const displayNow = now;
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    if (previewDay !== null) {
-      setPreviewUnlocked(true);
-    }
-  }, [previewDay]);
 
   useFocusEffect(
     useCallback(() => {
@@ -186,8 +158,8 @@ export function RamadanScreen({
       : { label: t("ramadan.completed"), value: t("ramadan.completed_short") };
   }, [displayNow, isFinished, isUpcoming, range, rows, t, todayRow]);
 
-  const effectiveFastEntries = previewDay ? previewFastEntries : (state?.days ?? {});
-  const effectiveDailyPlans = previewDay ? previewDailyPlans : (state?.dailyPlans ?? {});
+  const effectiveFastEntries = state?.days ?? {};
+  const effectiveDailyPlans = state?.dailyPlans ?? {};
 
   const summary = useMemo(() => {
     const validKeys = new Set(range?.days.map(localDateKey) ?? []);
@@ -220,11 +192,6 @@ export function RamadanScreen({
 
   const setDayStatus = useCallback((dateKey: string, status: RamadanFastStatus | null) => {
     if (!state) return;
-    if (previewDay) {
-      setPreviewFastStatus(dateKey, status);
-      setSelectedDay(null);
-      return;
-    }
     const days = { ...state.days };
     if (status) {
       days[dateKey] = { status, updatedAt: Date.now() };
@@ -233,14 +200,10 @@ export function RamadanScreen({
     }
     void updateState({ ...state, days, updatedAt: Date.now() });
     setSelectedDay(null);
-  }, [previewDay, setPreviewFastStatus, state, updateState]);
+  }, [state, updateState]);
 
   const toggleDailyPlanItem = useCallback((key: RamadanDailyPlanKey) => {
     if (!state || !currentDay) return;
-    if (previewDay) {
-      togglePreviewDailyPlanItem(todayKey, key);
-      return;
-    }
     const previous = state.dailyPlans[todayKey] ?? {
       quran: false,
       zikr: false,
@@ -260,7 +223,7 @@ export function RamadanScreen({
       },
       updatedAt: Date.now()
     });
-  }, [currentDay, previewDay, state, todayKey, togglePreviewDailyPlanItem, updateState]);
+  }, [currentDay, state, todayKey, updateState]);
 
   const formatDate = useCallback((date: Date) => {
     try {
@@ -275,7 +238,7 @@ export function RamadanScreen({
     return t(`ramadan.status_${entry.status}`);
   }, [t]);
 
-  const previewRows = getRamadanPreviewRows(rows, currentDay, isFinished, 5);
+  const dashboardRows = getRamadanDashboardRows(rows, currentDay, isFinished, 5);
   const activeReminderCount = Number(state?.notifications.imsakEnabled) + Number(state?.notifications.iftarEnabled);
 
   if (!state || !range) {
@@ -336,14 +299,7 @@ export function RamadanScreen({
                   {formatDate(displayRow?.date ?? range.start)}
                 </Text>
               </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t("ramadan.preview_unlock")}
-                delayLongPress={1200}
-                onLongPress={() => setPreviewUnlocked(true)}
-              >
-                <Ionicons name="moon" size={34} color={colors.accent} />
-              </Pressable>
+              <Ionicons name="moon" size={34} color={colors.accent} />
             </View>
             {nextMoment ? (
               <View style={[styles.countdownWrap, Boolean(currentDay) && styles.countdownWrapDuring]}>
@@ -360,57 +316,6 @@ export function RamadanScreen({
               </View>
             ) : null}
           </View>
-
-          {previewUnlocked ? (
-            <View style={[styles.previewCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-              <View style={styles.previewHeader}>
-                <View style={styles.previewTitleWrap}>
-                  <Ionicons name="flask-outline" size={20} color={colors.accent} />
-                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t("ramadan.preview_title")}</Text>
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t("ramadan.preview_close")}
-                  onPress={() => {
-                    setPreviewDay(null);
-                    setPreviewUnlocked(false);
-                    setSelectedDay(null);
-                  }}
-                >
-                  <Ionicons name="close" size={22} color={colors.textSecondary} />
-                </Pressable>
-              </View>
-              <Text style={[styles.previewHelp, { color: colors.textSecondary }]}>{t("ramadan.preview_help")}</Text>
-              <View style={styles.previewOptions}>
-                {([null, 1, 15, 29] as const).map((value) => {
-                  const active = previewDay === value;
-                  return (
-                    <Pressable
-                      key={value ?? "off"}
-                      style={[
-                        styles.previewButton,
-                        { borderColor: colors.cardBorder },
-                        active && { backgroundColor: colors.accent, borderColor: colors.accent }
-                      ]}
-                      onPress={() => {
-                        setPreviewDay(value);
-                        setSelectedDay(null);
-                      }}
-                    >
-                      <Text style={[styles.previewButtonText, { color: active ? "#FFFFFF" : colors.textPrimary }]}>
-                        {value ? t("ramadan.preview_day", { day: value }) : t("ramadan.preview_off")}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              {previewDay ? (
-                <View style={styles.previewStatus}>
-                  <StatusChip visible tone="warning" label={t("ramadan.preview_active", { day: previewDay })} />
-                </View>
-              ) : null}
-            </View>
-          ) : null}
 
           <View style={styles.timeRow}>
             <View style={[styles.timeCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -589,7 +494,7 @@ export function RamadanScreen({
             <Text style={[styles.calendarMeta, { color: colors.textSecondary }]}>{range.days.length} {t("ramadan.days")}</Text>
           </View>
           <RamadanCalendarTable
-            rows={previewRows}
+            rows={dashboardRows}
             rangeStart={range.start}
             currentDay={currentDay}
             entries={effectiveFastEntries}
@@ -668,14 +573,6 @@ const styles = StyleSheet.create({
   countdownValueDuring: { fontSize: 30 },
   locationRow: { marginTop: 16, flexDirection: "row", alignItems: "center", gap: 5 },
   locationText: { flex: 1, fontSize: 12 },
-  previewCard: { marginTop: 12, borderRadius: 17, borderWidth: 1, padding: 14 },
-  previewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  previewTitleWrap: { flexDirection: "row", alignItems: "center", gap: 8 },
-  previewHelp: { marginTop: 7, fontSize: 11, lineHeight: 16 },
-  previewOptions: { marginTop: 12, flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  previewButton: { minHeight: 36, borderRadius: 11, borderWidth: 1, paddingHorizontal: 11, alignItems: "center", justifyContent: "center" },
-  previewButtonText: { fontSize: 12, fontWeight: "800" },
-  previewStatus: { marginTop: 10 },
   timeRow: { marginTop: 12, flexDirection: "row", gap: 10 },
   timeCard: { flex: 1, borderRadius: 18, borderWidth: 1, padding: 14 },
   timeLabel: { marginTop: 8, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },

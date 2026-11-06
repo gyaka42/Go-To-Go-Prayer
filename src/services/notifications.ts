@@ -2,7 +2,13 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { AppLanguage } from "@/i18n/translations";
 import { getPreferredLanguage, translate, translatePrayerName } from "@/i18n/I18nProvider";
-import { getRamadanDayNumber, getRamadanRange } from "@/ramadan/calendar";
+import {
+  addCalendarDays,
+  getRamadanDayNumber,
+  getRamadanRange,
+  localDateKey,
+  RamadanRange
+} from "@/ramadan/calendar";
 import { getLocationName } from "@/services/location";
 import { getRamadanState, RamadanNotificationSettings, RamadanState } from "@/services/storage";
 import { getTodayTomorrowTimings } from "@/services/timingsCache";
@@ -50,8 +56,10 @@ let lastAppliedSignature = "";
 let lastAppliedAt = 0;
 
 type ScheduledIntent = "offset" | "at_time";
+type RamadanSeasonAnnouncement = "week_before" | "kadir_day_before";
 const ADHAN_SOUND_FILE = "adhan_short.wav";
 const ANDROID_VIBRATION_PATTERN = [0, 250, 180, 250];
+const RAMADAN_ANNOUNCEMENT_HOUR = 10;
 
 export async function ensureAndroidPrayerNotificationChannel(params: {
   playSound: boolean;
@@ -303,6 +311,79 @@ async function scheduleRamadanReminder(params: {
   return true;
 }
 
+export function getRamadanSeasonAnnouncementDates(range: RamadanRange): Record<RamadanSeasonAnnouncement, Date> {
+  const atAnnouncementTime = (date: Date) =>
+    new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      RAMADAN_ANNOUNCEMENT_HOUR,
+      0,
+      0,
+      0
+    );
+
+  return {
+    week_before: atAnnouncementTime(addCalendarDays(range.start, -7)),
+    // Diyanet observes Kadir Gecesi on the evening of 26 Ramadan (the 27th night).
+    // Schedule on Ramadan day 25 so the user receives it one full day beforehand.
+    kadir_day_before: atAnnouncementTime(range.days[24])
+  };
+}
+
+async function scheduleRamadanSeasonAnnouncement(params: {
+  triggerAt: Date;
+  event: RamadanSeasonAnnouncement;
+  settings: RamadanNotificationSettings;
+  language: AppLanguage;
+  dedupeSet: Set<string>;
+}): Promise<boolean> {
+  if (params.triggerAt.getTime() <= Date.now()) {
+    return false;
+  }
+
+  const dateKey = localDateKey(params.triggerAt);
+  const dedupeKey = ["ramadan", dateKey, params.event, params.triggerAt.getTime()].join(":");
+  if (params.dedupeSet.has(dedupeKey)) {
+    return false;
+  }
+  params.dedupeSet.add(dedupeKey);
+
+  const isWeekBefore = params.event === "week_before";
+  const channelId = await ensureAndroidPrayerNotificationChannel({
+    playSound: params.settings.playSound,
+    tone: "Beep",
+    vibration: params.settings.vibration
+  });
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: translate(
+        params.language,
+        isWeekBefore ? "ramadan.announcement_week_title" : "ramadan.announcement_kadir_title"
+      ),
+      body: translate(
+        params.language,
+        isWeekBefore ? "ramadan.announcement_week_body" : "ramadan.announcement_kadir_body"
+      ),
+      data: {
+        ramadanEvent: params.event,
+        dateKey,
+        playSound: params.settings.playSound,
+        vibration: params.settings.vibration,
+        dedupeKey
+      },
+      sound: params.settings.playSound ? "default" : false,
+      vibrate: params.settings.vibration ? ANDROID_VIBRATION_PATTERN : []
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: params.triggerAt,
+      ...(channelId ? { channelId } : {})
+    }
+  });
+  return true;
+}
+
 async function scheduleOne(params: {
   triggerAt: Date;
   prayer: (typeof PRAYER_NAMES)[number];
@@ -465,7 +546,8 @@ async function replanAllOnce(params: {
     scheduled: 0,
     atTime: 0,
     offset: 0,
-    ramadan: 0
+    ramadan: 0,
+    seasonal: 0
   };
 
   const resolved = await getTodayTomorrowTimings({
@@ -588,12 +670,26 @@ async function replanAllOnce(params: {
   await scheduleRamadanForDate(today, todayTimings);
   await scheduleRamadanForDate(tomorrow, tomorrowTimings);
 
+  if (ramadanRange) {
+    const announcementDates = getRamadanSeasonAnnouncementDates(ramadanRange);
+    for (const event of ["week_before", "kadir_day_before"] as const) {
+      const scheduled = await scheduleRamadanSeasonAnnouncement({
+        triggerAt: announcementDates[event],
+        event,
+        settings: ramadanState.notifications,
+        language,
+        dedupeSet
+      });
+      if (scheduled) stats.seasonal += 1;
+    }
+  }
+
   lastAppliedSignature = signature;
   lastAppliedAt = Date.now();
 
   if (__DEV__) {
     console.log(
-      `[notifications] replanned total=${stats.scheduled + stats.ramadan} at_time=${stats.atTime} offset=${stats.offset} ramadan=${stats.ramadan} provider=${params.settings.timingsProvider} method=${params.methodId}`
+      `[notifications] replanned total=${stats.scheduled + stats.ramadan + stats.seasonal} at_time=${stats.atTime} offset=${stats.offset} ramadan=${stats.ramadan} seasonal=${stats.seasonal} provider=${params.settings.timingsProvider} method=${params.methodId}`
     );
   }
 }
